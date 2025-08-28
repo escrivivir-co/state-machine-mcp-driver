@@ -1,0 +1,12 @@
+{
+  "messages": {
+    "server": {
+      "starting": "🌐 Starting Wiki MCP Server...",
+      "started": "✅ Wiki MCP Server started successfully",
+      "error": "❌ Failed to start Wiki MCP Server:"
+    },
+    "browsing": {
+      "template": "📖 {agentType}Bot browsing: {topic}"
+    }
+  }
+}

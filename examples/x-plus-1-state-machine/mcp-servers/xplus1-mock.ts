@@ -6,6 +6,10 @@
  */
 
 import { XPlus1MCPMachine } from '../../../src/mcp-servers/XPlus1MCPMachine';
+import { loadXPlus1Messages, type XPlus1MessagesConfig } from './config-loader';
+
+// Load configuration from JSON files
+const messagesConfig: XPlus1MessagesConfig = loadXPlus1Messages();
 
 /**
  * Initialize and start the X+1 MCP Server for the example
@@ -13,14 +17,14 @@ import { XPlus1MCPMachine } from '../../../src/mcp-servers/XPlus1MCPMachine';
 export async function startXPlus1Server(): Promise<XPlus1MCPMachine> {
   const server = new XPlus1MCPMachine();
   
-  console.log('🔢 Starting X+1 MCP Server...');
+  console.log(messagesConfig.messages.server.starting);
   
   try {
     await server.start();
-    console.log('✅ X+1 MCP Server started successfully');
+    console.log(messagesConfig.messages.server.started);
     return server;
   } catch (error) {
-    console.error('❌ Failed to start X+1 MCP Server:', error);
+    console.error(messagesConfig.messages.server.error, error);
     throw error;
   }
 }
@@ -43,7 +47,11 @@ export class MockXPlus1Client {
   async setAdvance(advance: number, reason?: string): Promise<void> {
     // In a real implementation, this would call the MCP tool
     // For the mock, we'll simulate the tool call
-    console.log(`🎯 Setting advance: ${advance} (${reason || 'No reason'})`);
+    const reasonText = reason || messagesConfig.messages.client.noReason;
+    const message = messagesConfig.messages.client.setAdvance
+      .replace('{advance}', advance.toString())
+      .replace('{reason}', reasonText);
+    console.log(message);
   }
 
   async getStatistics() {
