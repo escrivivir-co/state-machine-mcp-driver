@@ -2,7 +2,10 @@
  * Base MCP Server Implementation with HttpStreamable Transport
  * Provides common functionality for all MCP servers using @modelcontextprotocol/sdk
  */
-
+// https://docs.anthropic.com/en/docs/mcp
+// https://github.com/modelcontextprotocol/servers?tab=readme-ov-file#%EF%B8%8F-official-integrations
+// https://modelcontextprotocol.io/examples
+//  "@modelcontextprotocol/sdk": "^1.17.4"
 import express from 'express';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp';
