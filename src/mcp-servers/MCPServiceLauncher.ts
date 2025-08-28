@@ -896,6 +896,16 @@ export class MCPServiceLauncher extends BaseMCPServer {
       throw new Error(`Server ${config.id} is already running`);
     }
 
+    // Pre-check: is the desired port already in use?
+    let portOccupied = false;
+    try {
+      await axios.get(`http://localhost:${config.port}/health`, { timeout: 750 });
+      portOccupied = true;
+    } catch {/* ignore */}
+    if (portOccupied) {
+      logger.warn(`MCP Launcher: Port ${config.port} already appears in use before launching ${config.id}`);
+    }
+
     // Get tsx command for launching TypeScript files
     const tsxCmd = process.platform === 'win32' ? 'npx.cmd' : 'npx';
     const args = ['tsx', config.script];
@@ -917,13 +927,13 @@ export class MCPServiceLauncher extends BaseMCPServer {
       args 
     });
 
-    // Launch in separate console window
+    // Launch in separate process (hidden console on Windows)
     const serverProcess = spawn(tsxCmd, args, {
-      stdio: 'pipe', // Change from 'inherit' to 'pipe' to capture output
+      stdio: 'pipe',
       env,
       detached: true,
       shell: process.platform === 'win32',
-      windowsHide: false // Show console window on Windows
+      windowsHide: true
     });
 
     if (!serverProcess.pid) {
@@ -950,16 +960,30 @@ export class MCPServiceLauncher extends BaseMCPServer {
     // Setup process event handlers
     this.setupProcessHandlers(config, serverProcess);
 
-    // Setup health check if configured
+    // Poll for server readiness (port exposed)
+    const start = Date.now();
+    const timeoutMs = 15000;
+    let reachable = false;
+    while (Date.now() - start < timeoutMs) {
+      try {
+        const res = await axios.get(`http://localhost:${config.port}/health`, { timeout: 1000 });
+        if (res.status === 200) { reachable = true; break; }
+      } catch {/* retry */}
+      await this.sleep(500);
+    }
+    if (reachable) {
+      logger.info(`MCP Launcher: ${config.name} exposed on port ${config.port}`);
+      status.status = 'running';
+    } else {
+      logger.warn(`MCP Launcher: ${config.name} did not become reachable on port ${config.port} within ${timeoutMs}ms`);
+    }
+
+    // Setup periodic health checks if configured
     if (config.healthCheckInterval) {
       this.setupHealthCheck(config);
     }
 
-    // Wait a bit for server to start
-    await this.sleep(2000);
-
     // Update status to running (basic assumption)
-    status.status = 'running';
     this.session.managedServers.set(config.id, status);
 
     return { pid: serverProcess.pid };
@@ -1324,6 +1348,10 @@ async function main() {
   try {
     const launcher = new MCPServiceLauncher();
     await launcher.start();
+    console.log('✅ MCP Service Launcher ready');
+    console.log('📡 Waiting for commands...');
+  // Keep the process alive regardless of TTY state
+  try { process.stdin.resume(); } catch {}
     
     // Keep process alive
     process.on('SIGINT', async () => {
@@ -1344,7 +1372,7 @@ async function main() {
   }
 }
 
-// Run if this file is executed directly
-if (require.main === module) {
+// Run if this file is executed directly or flagged as service
+if (require.main === module || process.env.RUN_AS_SERVICE === 'true') {
   main();
 }

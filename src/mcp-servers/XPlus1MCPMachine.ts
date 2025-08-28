@@ -154,7 +154,7 @@ export class XPlus1MCPMachine extends BaseMCPServer {
     this.server.tool(
       'get_x_status',
       'Get current X value and status',
-      {},
+  {},
       async () => {
         return {
           content: [
@@ -224,6 +224,37 @@ export class XPlus1MCPMachine extends BaseMCPServer {
    * Setup X+1 resources
    */
   private setupResources(): void {
+    // Generic stategraph scheme resource (for native clients): stategraph:<graphId>
+    this.server.resource(
+      'stategraph:x-plus-1-game',
+      'stategraph:x-plus-1-game',
+      {
+        name: 'X+1 Game StateGraph (Scheme)',
+        description: 'StateGraph served via standard stategraph:<id> scheme',
+        mimeType: 'application/json'
+      },
+      async () => {
+        // Reuse the full stateGraph built below by calling the same builder
+        const stateGraph = {
+          id: 'x-plus-1-game',
+          name: 'X+1 Inductive Pattern Game',
+          description: 'A conversation-based game where players maintain a positive count or reset to zero',
+          version: '1.0.0',
+          initialState: 'start',
+          createdAt: new Date(),
+          updatedAt: new Date()
+        };
+        return {
+          contents: [
+            {
+              uri: 'stategraph:x-plus-1-game',
+              mimeType: 'application/json',
+              text: JSON.stringify(stateGraph, null, 2)
+            }
+          ]
+        };
+      }
+    );
     // Current state resource
     this.server.resource(
       'current-state',
@@ -291,6 +322,241 @@ Reset Count: ${this.state.resetCount}
         };
       }
     );
+
+    // StateGraph resource
+    this.server.resource(
+      'x-plus-1-game-stategraph',
+      'xplus1://stategraphs/x-plus-1-game',
+      {
+        name: 'X+1 Game StateGraph',
+        description: 'Complete state machine definition for the X+1 inductive pattern game',
+        mimeType: 'application/json'
+      },
+      async () => {
+        const stateGraph = {
+          id: 'x-plus-1-game',
+          name: 'X+1 Inductive Pattern Game',
+          description: 'A conversation-based game where players maintain a positive count or reset to zero',
+          version: '1.0.0',
+          initialState: 'start',
+          createdAt: new Date(),
+          updatedAt: new Date(),
+          
+          states: {
+            start: {
+              id: 'start',
+              name: 'Game Start',
+              type: 'initial',
+              
+              content: {
+                x: this.state.x,
+                message_count: 0,
+                phase: 'initialization',
+                available_agents: ['JusticeBot', 'DionisioBot', 'ApoloBot']
+              },
+              
+              onEnter: [
+                'initialize_game_session',
+                'reset_message_counter',
+                'activate_all_agents',
+                'load_agent_prompts'
+              ],
+              
+              routes: [
+                {
+                  id: 'start_playing',
+                  target: 'playing',
+                  type: 'user_action',
+                  condition: 'user_confirmed_start && x === 0',
+                  action: 'user_ready'
+                },
+                {
+                  id: 'continue_game',
+                  target: 'playing',
+                  type: 'agent_action',
+                  condition: 'advance_x > 0',
+                  action: 'positive_advance'
+                }
+              ],
+              
+              metadata: {
+                description: 'Initial state where the counter x=0. Players begin their journey here.'
+              }
+            },
+
+            playing: {
+              id: 'playing',
+              name: 'Active Gameplay',
+              type: 'normal',
+              
+              content: {
+                phase: 'conversation',
+                max_messages_per_turn: 10,
+                agents_active: true,
+                turn_timeout: 300000
+              },
+              
+              onEnter: [
+                'start_conversation_turn',
+                'increment_x_counter',
+                'reset_message_counter',
+                'notify_agents_turn_start'
+              ],
+              
+              onExit: [
+                'save_conversation_history',
+                'update_game_statistics',
+                'notify_agents_turn_end'
+              ],
+              
+              routes: [
+                {
+                  id: 'continue_positive',
+                  target: 'playing',
+                  type: 'user_action',
+                  condition: 'justice_bot_confirmed && user_answer === "no_reset" && x < 999',
+                  action: 'positive_advance'
+                },
+                {
+                  id: 'reset_negative',
+                  target: 'reset',
+                  type: 'user_action',
+                  condition: 'justice_bot_confirmed && user_answer === "reset"',
+                  action: 'negative_advance'
+                },
+                {
+                  id: 'timeout_reset',
+                  target: 'reset',
+                  type: 'automatic',
+                  condition: 'turn_timeout_exceeded || message_limit_exceeded',
+                  action: 'timeout'
+                },
+                {
+                  id: 'game_complete',
+                  target: 'end',
+                  type: 'automatic',
+                  condition: 'x >= 999',
+                  action: 'max_reached'
+                }
+              ],
+              
+              metadata: {
+                description: 'Main gameplay state where conversation happens and x can increase'
+              }
+            },
+
+            reset: {
+              id: 'reset',
+              name: 'Reset State',
+              type: 'normal',
+              
+              content: {
+                phase: 'resetting',
+                reset_reason: 'negative_advance'
+              },
+              
+              onEnter: [
+                'reset_x_to_zero',
+                'log_reset_event',
+                'notify_agents_reset',
+                'save_reset_statistics'
+              ],
+              
+              routes: [
+                {
+                  id: 'back_to_start',
+                  target: 'start',
+                  action: 'reset_complete',
+                  type: 'automatic',
+                  condition: 'x === 0'
+                }
+              ]
+            },
+
+            end: {
+              id: 'end',
+              name: 'Game Complete',
+              type: 'final',
+              
+              content: {
+                phase: 'completed',
+                achievement: 'max_count_reached'
+              },
+              
+              onEnter: [
+                'celebrate_achievement',
+                'save_final_statistics',
+                'thank_user',
+                'deactivate_agents'
+              ],
+              
+              routes: [
+                {
+                  id: 'restart_game',
+                  target: 'start',
+                  action: 'user_restart',
+                  type: 'user_action',
+                  condition: 'user_confirmed_restart'
+                }
+              ]
+            }
+          },
+
+          metadata: {
+            game_type: 'x_plus_1_inductive',
+            conversation_based: true,
+            agent_count: 3,
+            mcp_servers: ['XPlus1MCPMachine', 'WikiMCPBrowser'],
+            max_x_value: 999,
+            
+            rules: {
+              max_messages_per_thread: 10,
+              turn_timeout_seconds: 300,
+              required_question: "Did you consume today, do I reset?",
+              positive_answer_patterns: ["no", "no reset", "continue", "keep going"],
+              negative_answer_patterns: ["yes", "reset", "start over", "zero"]
+            },
+            
+            agents: {
+              JusticeBot: {
+                role: 'neutral_moderator',
+                responsibility: 'Ask the critical question and manage user responses',
+                mcp_servers: ['XPlus1MCPMachine'],
+                personality: 'zero-neutral-basal',
+                required_messages: 2
+              },
+              DionisioBot: {
+                role: 'negative_influence',
+                responsibility: 'Encourage doom-scrolling about universe/cosmos/big things',
+                mcp_servers: ['XPlus1MCPMachine', 'WikiMCPBrowser'],
+                personality: 'negative-bad-low',
+                greedy_for_messages: true,
+                topics: ['universe', 'cosmos', 'existential', 'big_picture']
+              },
+              ApoloBot: {
+                role: 'positive_influence', 
+                responsibility: 'Encourage doom-scrolling about human history/civilization',
+                mcp_servers: ['XPlus1MCPMachine', 'WikiMCPBrowser'],
+                personality: 'positive-good-high',
+                greedy_for_messages: true,
+                topics: ['human_history', 'civilization', 'achievements', 'progress']
+              }
+            }
+          }
+        };
+
+        return {
+          contents: [
+            {
+              uri: 'xplus1://stategraphs/x-plus-1-game',
+              mimeType: 'application/json',
+              text: JSON.stringify(stateGraph, null, 2)
+            }
+          ]
+        };
+      }
+    );
+
   }
 
   /**
@@ -332,7 +598,7 @@ Reset Count: ${this.state.resetCount}
     this.server.prompt(
       'game-status',
       'Current game status and statistics',
-      {},
+  {},
       async () => {
         const sessionDuration = Math.floor((Date.now() - this.state.sessionStart) / 60000);
         const totalActions = this.state.advancementHistory.length;

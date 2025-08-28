@@ -77,15 +77,12 @@ export class ApplicationLauncher {
       await this.startMCPServiceLauncher();
       
       // Phase 3: Launch MCP servers via service launcher
-      await this.launchMCPServers();
+  await this.launchMCPServers();
       
       // Phase 4: Health checks
       await this.performHealthChecks();
       
       // Phase 5: Launch target application
-      await this.launchApplication(target, customScript);
-      
-      // Phase 4: Launch target application
       await this.launchApplication(target, customScript);
       
     } catch (error) {
@@ -215,15 +212,17 @@ export class ApplicationLauncher {
     
     console.log('🔄 Starting MCP Service Launcher on port 3000...');
     
-    const launcherProcess = spawn(cmd, [...baseArgs, 'src/mcp-servers/MCPServiceLauncher.ts'], {
-      stdio: ['inherit', 'pipe', 'pipe'],
-      env: { 
-        ...process.env, 
-        MCP_SERVER_PORT: this.config.mcpServiceLauncherPort.toString()
-      },
-      shell: process.platform === 'win32',
-      detached: true // Run in separate process group
-    });
+      const launcherProcess = spawn(cmd, [...baseArgs, 'src/mcp-servers/MCPServiceLauncher.ts'], {
+        stdio: ['inherit', 'pipe', 'pipe'],
+        env: { 
+          ...process.env, 
+          MCP_SERVER_PORT: this.config.mcpServiceLauncherPort.toString(),
+          MCP_USE_NATIVE_PROTOCOL: 'true'
+        },
+        shell: process.platform === 'win32',
+        detached: false,
+        windowsHide: true
+      });
 
     // Store process reference
     this.processes.set('mcp-service-launcher', launcherProcess);
@@ -244,13 +243,25 @@ export class ApplicationLauncher {
       this.processes.delete('mcp-service-launcher');
     });
 
-    // Wait for launcher to start
-    await this.sleep(3000);
+    // Wait for launcher to be ready by polling /health
+    const start = Date.now();
+    const timeoutMs = 10000;
+    let ready = false;
+    while (Date.now() - start < timeoutMs) {
+      try {
+        const res = await axios.get(`http://localhost:${this.config.mcpServiceLauncherPort}/health`, { timeout: 1000 });
+        if (res.status === 200) { ready = true; break; }
+      } catch { /* wait and retry */ }
+      await this.sleep(500);
+    }
+    if (!ready) {
+      throw new Error('MCP Service Launcher did not become ready in time');
+    }
     console.log(`✅ MCP Service Launcher started (PID: ${launcherProcess.pid})`);
 
     // Initialize MCP Driver to communicate with the launcher
     this.mcpDriver = new MCPDriverAdapter({
-      useNativeProtocol: process.env.MCP_USE_NATIVE_PROTOCOL === 'true',
+      useNativeProtocol: true,
       enableFallback: true
     });
     await this.mcpDriver.addServer({
@@ -294,8 +305,11 @@ export class ApplicationLauncher {
       }
 
     } catch (error) {
-      console.error('❌ Failed to launch MCP servers via service launcher:', error);
-      throw error;
+  console.error('❌ Failed to launch MCP servers via service launcher:', error);
+  console.log('➡️  Falling back to legacy direct server startup...');
+  // Fallback: start servers directly without the service launcher tools
+  await this.startMCPServersLegacy();
+  console.log('✅ Legacy MCP server startup completed');
     }
   }
 
@@ -340,9 +354,22 @@ export class ApplicationLauncher {
         this.processes.delete(server.id);
       });
 
-      // Wait a bit for server to start
-      await this.sleep(2000);
-      console.log(`✅ ${server.name} started (PID: ${serverProcess.pid})`);
+      // Poll for readiness on /health
+      const start = Date.now();
+      const timeoutMs = 15000;
+      let reachable = false;
+      while (Date.now() - start < timeoutMs) {
+        try {
+          const res = await axios.get(`http://localhost:${server.port}/health`, { timeout: 1000 });
+          if (res.status === 200) { reachable = true; break; }
+        } catch {/* retry */}
+        await this.sleep(500);
+      }
+      if (reachable) {
+        console.log(`✅ ${server.name} exposed on port ${server.port} (PID: ${serverProcess.pid})`);
+      } else {
+        console.warn(`⚠️ ${server.name} did not become reachable on port ${server.port} within ${timeoutMs}ms`);
+      }
     }
   }
 

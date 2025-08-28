@@ -134,7 +134,45 @@ export class MCPDriverAdapter implements IMCPDriver {
   async loadStateGraph(serverId: string, graphId: string): Promise<any> {
     return this.executeWithFallback(
       'loadStateGraph',
-      () => this.nativeDriver.getResource(serverId, `stategraphs/${graphId}`),
+      async () => {
+        // Helper to normalize MCP contents to object
+        const toObject = (contents: any): any => {
+          if (!contents) return undefined;
+          const first = Array.isArray(contents) ? contents[0] : contents;
+          if (!first) return undefined;
+          const text = first.text || (typeof first === 'string' ? first : undefined);
+          if (text) {
+            try { return JSON.parse(text); } catch { return undefined; }
+          }
+          return first;
+        };
+
+        // Try stategraph: scheme first
+        try {
+          const contents = await this.nativeDriver.getResource(serverId, `stategraph:${graphId}`);
+          const obj = toObject(contents);
+          if (obj && obj.states) return obj;
+        } catch (err1) {
+          logger.warn('MCPDriverAdapter: native loadStateGraph failed with stategraph: scheme, trying server-specific URI', { serverId, graphId, err1 });
+        }
+
+        // Try server-specific URI (e.g., xplus1://stategraphs/<id>)
+        const candidates: string[] = [];
+        if (serverId.includes('xplus1')) {
+          candidates.push(`xplus1://stategraphs/${graphId}`);
+        }
+        candidates.push(`stategraphs/${graphId}`); // legacy-ish fallback
+
+        for (const uri of candidates) {
+          try {
+            const contents = await this.nativeDriver.getResource(serverId, uri);
+            const obj = toObject(contents);
+            if (obj && obj.states) return obj;
+          } catch {/* try next */}
+        }
+
+        throw new Error(`StateGraph '${graphId}' not found or invalid from server '${serverId}'`);
+      },
       () => this.legacyDriver.loadStateGraph(serverId, graphId)
     );
   }
@@ -148,11 +186,17 @@ export class MCPDriverAdapter implements IMCPDriver {
   }
 
   async loadState(serverId: string, graphId: string, userId: string): Promise<any> {
-    return this.executeWithFallback(
-      'loadState',
-      () => this.nativeDriver.getResource(serverId, `states/${graphId}/${userId}`),
-      () => this.legacyDriver.loadState(serverId, graphId, userId)
-    );
+    try {
+      return await this.executeWithFallback(
+        'loadState',
+        () => this.nativeDriver.getResource(serverId, `states/${graphId}/${userId}`),
+        () => this.legacyDriver.loadState(serverId, graphId, userId)
+      );
+    } catch (error) {
+      // Return null if state doesn't exist (new player)
+      logger.info(`MCPDriverAdapter: State not found for ${graphId}:${userId}, will create new state`);
+      return null;
+    }
   }
 
   async healthCheck(serverId: string): Promise<boolean> {

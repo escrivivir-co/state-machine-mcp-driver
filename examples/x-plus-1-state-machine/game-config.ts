@@ -22,12 +22,12 @@ export const GAME_CONFIG = {
  * Create runtime configuration for X+1 game
  */
 export async function createXPlus1RuntimeConfig(): Promise<RuntimeConfig> {
-  // Start MCP servers
-  const xplus1Server = await startXPlus1Server();
-  const wikiServer = await startWikiServer();
+  // Use existing MCP servers started by launcher (no need to start new ones)
+  // const xplus1Server = await startXPlus1Server();
+  // const wikiServer = await startWikiServer();
 
   const config: RuntimeConfig = {
-    mcpServerId: 'x-plus-1-game',
+    mcpServerId: 'xplus1-mcp-machine',
     graphId: 'x-plus-1-game',
     userId: 'player-1',
     sessionId: `x-plus-1-${Date.now()}`,
