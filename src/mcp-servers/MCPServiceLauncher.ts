@@ -836,41 +836,27 @@ export class MCPServiceLauncher extends BaseMCPServer {
     const runningServers = Array.from(this.session.managedServers.values())
       .filter(s => s.status === 'running');
 
-    const mcpServers: Record<string, any> = {};
+    const servers: Record<string, any> = {};
 
     // Add service launcher itself
-    mcpServers['mcp-service-launcher'] = {
-      command: 'npx',
-      args: ['tsx', 'src/mcp-servers/MCPServiceLauncher.ts'],
-      env: {
-        MCP_SERVER_PORT: this.config.port.toString()
-      }
+    servers['mcp-service-launcher'] = {
+      type: 'http',
+      url: `http://localhost:${this.config.port}`
     };
-
-    if (includeDescription) {
-      mcpServers['mcp-service-launcher'].description = 'MCP Service Launcher - manages and monitors other MCP servers';
-    }
 
     // Add running servers
     for (const server of runningServers) {
       const defaultConfig = this.defaultConfigs.get(server.id);
       if (defaultConfig) {
-        mcpServers[server.id] = {
-          command: 'npx',
-          args: ['tsx', defaultConfig.script],
-          env: {
-            MCP_SERVER_PORT: server.port.toString()
-          }
+        servers[server.id] = {
+          type: 'http',
+          url: `http://localhost:${server.port}`
         };
-
-        if (includeDescription && defaultConfig.description) {
-          mcpServers[server.id].description = defaultConfig.description;
-        }
       }
     }
 
     return {
-      mcpServers
+      servers
     };
   }
 

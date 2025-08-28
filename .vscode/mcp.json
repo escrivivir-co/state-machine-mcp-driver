@@ -1,0 +1,16 @@
+{
+  "servers": {
+    "MCPServiceLauncher": {
+      "type": "http",
+      "url": "http://localhost:3000"
+    },
+    "XPlus1MCPMachine": {
+      "type": "http", 
+      "url": "http://localhost:3001"
+    },
+    "WikiMCPBrowser": {
+      "type": "http",
+      "url": "http://localhost:3002"
+    }
+  }
+}
