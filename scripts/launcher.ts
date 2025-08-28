@@ -2,7 +2,7 @@
  * Application Launcher for State Machine MCP Driver
  * 
  * Coordinates startup of all required components:
- * - MCP Servers (XPlus1, WikiBrowser) 
+ * - MCP Service Launcher (manages MCP servers in separate consoles)
  * - Dependency checks (Ollama, models)
  * - Runtime initialization
  * - Example application launch
@@ -13,10 +13,12 @@ import { promises as fs } from 'fs';
 import * as path from 'path';
 import axios from 'axios';
 import { logger } from '../src/utils/logger';
+import { MCPDriver } from '../src/drivers/MCPDriver';
 
 interface LaunchConfig {
   ollamaUrl: string;
   requiredModel: string;
+  mcpServiceLauncherPort: number;
   mcpServers: Array<{
     id: string;
     name: string;
@@ -29,7 +31,8 @@ interface LaunchConfig {
 
 const DEFAULT_CONFIG: LaunchConfig = {
   ollamaUrl: 'http://localhost:11434',
-  requiredModel: process.env.OLLAMA_MODEL || 'GPT-OSS:20b', // Changed default to GPT-OSS:20b
+  requiredModel: process.env.OLLAMA_MODEL || 'GPT-OSS:20b',
+  mcpServiceLauncherPort: 3000,
   mcpServers: [
     {
       id: 'xplus1-mcp-machine',
@@ -51,6 +54,7 @@ const DEFAULT_CONFIG: LaunchConfig = {
 export class ApplicationLauncher {
   private config: LaunchConfig;
   private processes: Map<string, ChildProcess> = new Map();
+  private mcpDriver?: MCPDriver;
   private isShuttingDown = false;
 
   constructor(config: Partial<LaunchConfig> = {}) {
@@ -69,11 +73,17 @@ export class ApplicationLauncher {
       // Phase 1: Environment checks
       await this.checkEnvironment();
       
-      // Phase 2: Start MCP servers
-      await this.startMCPServers();
+      // Phase 2: Start MCP Service Launcher
+      await this.startMCPServiceLauncher();
       
-      // Phase 3: Health checks
+      // Phase 3: Launch MCP servers via service launcher
+      await this.launchMCPServers();
+      
+      // Phase 4: Health checks
       await this.performHealthChecks();
+      
+      // Phase 5: Launch target application
+      await this.launchApplication(target, customScript);
       
       // Phase 4: Launch target application
       await this.launchApplication(target, customScript);
@@ -195,11 +205,103 @@ export class ApplicationLauncher {
   }
 
   /**
-   * Start all MCP servers
+   * Start MCP Service Launcher
    */
-  private async startMCPServers(): Promise<void> {
-    console.log('\n⚡ Phase 2: Starting MCP Servers');
-    console.log('----------------------------------');
+  private async startMCPServiceLauncher(): Promise<void> {
+    console.log('\n⚡ Phase 2: Starting MCP Service Launcher');
+    console.log('------------------------------------------');
+
+    const { cmd, args: baseArgs } = this.getTsxCommand();
+    
+    console.log('🔄 Starting MCP Service Launcher on port 3000...');
+    
+    const launcherProcess = spawn(cmd, [...baseArgs, 'src/mcp-servers/MCPServiceLauncher.ts'], {
+      stdio: ['inherit', 'pipe', 'pipe'],
+      env: { 
+        ...process.env, 
+        MCP_SERVER_PORT: this.config.mcpServiceLauncherPort.toString()
+      },
+      shell: process.platform === 'win32',
+      detached: true // Run in separate process group
+    });
+
+    // Store process reference
+    this.processes.set('mcp-service-launcher', launcherProcess);
+
+    // Handle process output
+    launcherProcess.stdout?.on('data', (data) => {
+      console.log(`[MCP Service Launcher] ${data.toString().trim()}`);
+    });
+
+    launcherProcess.stderr?.on('data', (data) => {
+      console.error(`[MCP Service Launcher] ${data.toString().trim()}`);
+    });
+
+    launcherProcess.on('close', (code) => {
+      if (!this.isShuttingDown) {
+        console.error(`❌ MCP Service Launcher exited with code ${code}`);
+      }
+      this.processes.delete('mcp-service-launcher');
+    });
+
+    // Wait for launcher to start
+    await this.sleep(3000);
+    console.log(`✅ MCP Service Launcher started (PID: ${launcherProcess.pid})`);
+
+    // Initialize MCP Driver to communicate with the launcher
+    this.mcpDriver = new MCPDriver();
+    await this.mcpDriver.addServer({
+      id: 'mcp-service-launcher',
+      name: 'MCP Service Launcher',
+      url: `http://localhost:${this.config.mcpServiceLauncherPort}`,
+      timeout: 10000,
+      maxRetries: 3
+    });
+  }
+
+  /**
+   * Launch MCP servers via the service launcher
+   */
+  private async launchMCPServers(): Promise<void> {
+    console.log('\n🎯 Phase 3: Launching MCP Servers via Service Launcher');
+    console.log('--------------------------------------------------------');
+
+    if (!this.mcpDriver) {
+      throw new Error('MCP Driver not initialized. Service launcher must be started first.');
+    }
+
+    try {
+      // Use the service launcher to start all servers
+      console.log('🚀 Launching all MCP servers...');
+      
+      const result = await this.mcpDriver.executeTool(
+        'mcp-service-launcher',
+        'launch_all_servers',
+        { healthCheck: true }
+      );
+
+      console.log('📊 Launch Results:', JSON.stringify(result, null, 2));
+
+      // Check if launch was successful
+      if (result.success) {
+        console.log('✅ All MCP servers launched successfully via service launcher');
+      } else {
+        console.warn('⚠️ Some servers may have failed to launch');
+        console.log('Results:', result);
+      }
+
+    } catch (error) {
+      console.error('❌ Failed to launch MCP servers via service launcher:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Legacy method: Start all MCP servers directly (now deprecated in favor of service launcher)
+   */
+  private async startMCPServersLegacy(): Promise<void> {
+    console.log('\n⚡ Phase 2: Starting MCP Servers (Legacy Mode)');
+    console.log('------------------------------------------------');
 
     const { cmd, args: baseArgs } = this.getTsxCommand();
 
@@ -245,8 +347,136 @@ export class ApplicationLauncher {
    * Perform health checks on all services
    */
   private async performHealthChecks(): Promise<void> {
-    console.log('\n🏥 Phase 3: Health Checks');
+    console.log('\n🏥 Phase 4: Health Checks');
     console.log('---------------------------');
+
+    if (!this.mcpDriver) {
+      console.warn('⚠️ MCP Driver not available, performing basic health checks');
+      await this.performBasicHealthChecks();
+      return;
+    }
+
+    try {
+      // Use service launcher to perform health checks
+      console.log('🔍 Performing health checks via service launcher...');
+      
+      const healthResults = await this.mcpDriver.executeTool(
+        'mcp-service-launcher',
+        'health_check_servers',
+        {}
+      );
+
+      console.log('📊 Health Check Results:', JSON.stringify(healthResults, null, 2));
+
+      // Check individual server health
+      if (healthResults.success && healthResults.healthCheck) {
+        const results = healthResults.healthCheck;
+        let allHealthy = true;
+
+        for (const [serverId, result] of Object.entries(results)) {
+          const healthResult = result as any; // Type assertion for health check result
+          if (healthResult.status === 'healthy') {
+            console.log(`✅ ${healthResult.name || serverId}: Healthy`);
+          } else {
+            console.log(`❌ ${healthResult.name || serverId}: ${healthResult.status} - ${healthResult.error || 'Unknown issue'}`);
+            allHealthy = false;
+          }
+        }
+
+        if (allHealthy) {
+          console.log('🎉 All MCP servers are healthy!');
+          
+          // Generate VS Code MCP configuration
+          await this.generateVSCodeMCPConfiguration();
+        } else {
+          console.warn('⚠️ Some MCP servers are not healthy');
+        }
+      } else {
+        console.warn('⚠️ Health check failed or returned unexpected results');
+        console.log('Falling back to basic health checks...');
+        await this.performBasicHealthChecks();
+      }
+
+    } catch (error) {
+      console.error('❌ Failed to perform health checks via service launcher:', error);
+      console.log('Falling back to basic health checks...');
+      await this.performBasicHealthChecks();
+    }
+  }
+
+  /**
+   * Generate VS Code MCP configuration automatically
+   */
+  private async generateVSCodeMCPConfiguration(): Promise<void> {
+    if (!this.mcpDriver) {
+      console.warn('⚠️ MCP Driver not available, skipping VS Code configuration generation');
+      return;
+    }
+
+    try {
+      console.log('\n🔧 Generating VS Code MCP Configuration...');
+      
+      const configResult = await this.mcpDriver.executeTool(
+        'mcp-service-launcher',
+        'generate_vscode_mcp_config',
+        {
+          includeDescription: true,
+          outputPath: '.vscode/mcp.json'
+        }
+      );
+
+      if (configResult.success) {
+        console.log('✅ VS Code MCP configuration generated successfully!');
+        console.log(`📁 Configuration saved to: ${configResult.outputPath}`);
+        
+        // Show user instructions
+        this.showVSCodeInstructions(configResult.instructions);
+      } else {
+        console.warn('⚠️ Failed to generate VS Code MCP configuration:', configResult.error);
+      }
+
+    } catch (error) {
+      console.warn('⚠️ Error generating VS Code MCP configuration:', error);
+    }
+  }
+
+  /**
+   * Display VS Code setup instructions to the user
+   */
+  private showVSCodeInstructions(instructions: any): void {
+    console.log('\n' + '='.repeat(60));
+    console.log('🎯 VS Code MCP Setup Instructions');
+    console.log('='.repeat(60));
+    
+    if (instructions && instructions.steps) {
+      console.log('\n📋 Setup Steps:');
+      instructions.steps.forEach((step: any) => {
+        console.log(`\n${step.step}. ${step.action}`);
+        console.log(`   ${step.description}`);
+      });
+    }
+
+    if (instructions && instructions.quickCommands) {
+      console.log('\n⚡ Quick Commands in VS Code:');
+      instructions.quickCommands.forEach((cmd: string) => {
+        console.log(`   • ${cmd}`);
+      });
+    }
+
+    console.log('\n💡 Next Steps:');
+    console.log('   1. Open VS Code in this workspace folder');
+    console.log('   2. Install the Model Context Protocol extension');
+    console.log('   3. Use Ctrl+Shift+P → "MCP: Connect to Server"');
+    console.log('   4. Select from available MCP servers');
+    console.log('   5. Start using MCP tools and resources in VS Code!');
+    
+    console.log('\n' + '='.repeat(60));
+  }
+
+  /**
+   * Perform basic health checks (fallback method)
+   */
+  private async performBasicHealthChecks(): Promise<void> {
 
     // Check MCP servers
     for (const server of this.config.mcpServers) {
@@ -302,7 +532,7 @@ export class ApplicationLauncher {
    * Launch the target application
    */
   private async launchApplication(target: string, customScript?: string): Promise<void> {
-    console.log('\n🎮 Phase 4: Launching Application');
+    console.log('\n🎮 Phase 5: Launching Application');
     console.log('-----------------------------------');
 
     let scriptPath: string;
@@ -340,6 +570,7 @@ export class ApplicationLauncher {
         ...process.env,
         MCP_XPLUS1_URL: 'http://localhost:3001',
         MCP_WIKI_URL: 'http://localhost:3002',
+        MCP_SERVICE_LAUNCHER_URL: `http://localhost:${this.config.mcpServiceLauncherPort}`,
         OLLAMA_URL: this.config.ollamaUrl,
         OLLAMA_MODEL: this.config.requiredModel
       },

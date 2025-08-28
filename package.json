@@ -18,7 +18,10 @@
     "launcher": "npx tsx scripts/launcher.ts",
     "launcher:x-plus-1": "npx tsx scripts/launcher.ts x-plus-1",
     "mcp:xplus1": "npx tsx src/mcp-servers/XPlus1MCPMachine.ts",
-    "mcp:wiki": "npx tsx src/mcp-servers/WikiMCPBrowser.ts"
+    "mcp:wiki": "npx tsx src/mcp-servers/WikiMCPBrowser.ts",
+    "mcp:launcher": "npx tsx src/mcp-servers/MCPServiceLauncher.ts",
+    "vscode:config": "npx tsx scripts/generate-vscode-config.ts",
+    "vscode:config:check": "npx tsx scripts/generate-vscode-config.ts --check"
   },
   "repository": {
     "type": "git",

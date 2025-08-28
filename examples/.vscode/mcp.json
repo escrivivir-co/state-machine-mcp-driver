@@ -1,0 +1,28 @@
+{
+  "mcpServers": {
+    "mcp-service-launcher": {
+      "command": "npx",
+      "args": ["tsx", "src/mcp-servers/MCPServiceLauncher.ts"],
+      "env": {
+        "MCP_SERVER_PORT": "3000"
+      },
+      "description": "MCP Service Launcher - manages and monitors other MCP servers"
+    },
+    "xplus1-mcp-machine": {
+      "command": "npx",
+      "args": ["tsx", "src/mcp-servers/XPlus1MCPMachine.ts"],
+      "env": {
+        "MCP_SERVER_PORT": "3001"
+      },
+      "description": "X+1 inductive pattern management server"
+    },
+    "wiki-mcp-browser": {
+      "command": "npx",
+      "args": ["tsx", "src/mcp-servers/WikiMCPBrowser.ts"],
+      "env": {
+        "MCP_SERVER_PORT": "3002"
+      },
+      "description": "Real Wikipedia browsing server with doom-scrolling prevention"
+    }
+  }
+}
