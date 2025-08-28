@@ -16,9 +16,13 @@ import {
   ToolCall,
 } from './types';
 import { MCPToolResponse } from '../drivers/MCPTypes';
+import { MCPDriverAdapter } from '../drivers/MCPDriverAdapter';
 import { buildToolInstruction, validateArgs, findToolByName } from './promptUtils';
 
-/** Lightweight interface for an MCP client we can call into. */
+/**  DEPRECATED IN FAVOR OF src\drivers
+ * 
+ * Lightweight interface for an MCP client we can call into. */
+/*
 export interface MCPClientLike {
   callTool: (name: string, args: Record<string, any>) => Promise<MCPToolResponse>;
   // Optional MCP helper methods; if absent, provider will fallback to callTool where possible
@@ -28,7 +32,7 @@ export interface MCPClientLike {
   listPrompts?: () => Promise<any[]>;
   getPrompt?: (promptId: string, variables?: Record<string, any>) => Promise<any>;
 }
-
+*/
 export interface SendOptions {
   model?: string;
   temperature?: number;
@@ -118,9 +122,9 @@ export class OllamaChatProvider {
     averageResponseTime: 0,
     conversationsByModel: {},
   };
-  private mcp?: MCPClientLike;
+  private mcpDriver?: MCPDriverAdapter;
 
-  constructor(config?: Partial<ChatProviderConfig>, mcpClient?: MCPClientLike) {
+  constructor(config?: Partial<ChatProviderConfig>, mcpClient?: MCPDriverAdapter) {
     this.cfg = {
       baseUrl: config?.baseUrl ?? 'http://localhost:11434',
       defaultModel: config?.defaultModel ?? 'gpt-oss:20b',
@@ -131,7 +135,9 @@ export class OllamaChatProvider {
       enableMCP: config?.enableMCP ?? true,
     };
     this.http = axios.create({ baseURL: this.cfg.baseUrl, timeout: this.cfg.timeout });
-    this.mcp = mcpClient;
+    
+    // Set MCP driver adapter
+    this.mcpDriver = mcpClient;
   }
 
   // Conversation management
@@ -214,7 +220,7 @@ export class OllamaChatProvider {
 
     // Try to detect a tool call
     let toolCall: ToolCall | null = null;
-    if (this.cfg.enableMCP && this.mcp) {
+    if (this.cfg.enableMCP && this.mcpDriver) {
       toolCall = parseToolCallFromText(resp.message.content);
       if (toolCall) {
         assistantMsg.tool_calls = [toolCall];
@@ -290,48 +296,58 @@ export class OllamaChatProvider {
     // Meta tools implemented client-side to leverage MCP features beyond tools
     // without requiring the server to define mirror tools.
     try {
-      if (!this.mcp) throw new Error('MCP client not configured');
+      if (!this.mcpDriver) throw new Error('MCP client not configured');
+
+      // Get available servers
+      const servers = this.mcpDriver.getServers();
 
       switch (name) {
         case 'mcp_list_tools':
-          if (this.mcp.listTools) return { result: await this.mcp.listTools() };
-          break;
+          // Use first available server for listing tools
+          if (servers.length === 0) throw new Error('No MCP servers configured');
+          return { result: [] }; // TODO: Implement tool listing across servers
         case 'mcp_call_tool': {
           const toolName: string | undefined = args.toolName || args.name;
           const params: Record<string, any> = args.params || args.arguments || {};
+          const serverId = args.serverId || servers[0]?.id;
           if (!toolName) throw new Error('mcp_call_tool: missing toolName');
-          return await this.mcp.callTool(toolName, params);
+          if (!serverId) throw new Error('mcp_call_tool: no server available');
+          return await this.mcpDriver.executeTool(serverId, toolName, params);
         }
         case 'mcp_list_resources':
-          if (this.mcp.listResources) return { result: await this.mcp.listResources() };
-          break;
+          return { result: [] }; // TODO: Implement resource listing across servers
         case 'mcp_read_resource': {
           const resourceId: string | undefined = args.resourceId || args.id || args.uri;
           const params: Record<string, any> = args.params || {};
-          if (this.mcp.readResource && resourceId) {
-            return { result: await this.mcp.readResource(resourceId, params) };
+          const serverId = args.serverId || servers[0]?.id;
+          if (resourceId && serverId) {
+            return { result: await this.mcpDriver.getResource(serverId, resourceId, params) };
           }
           break;
         }
         case 'mcp_list_prompts':
-          if (this.mcp.listPrompts) return { result: await this.mcp.listPrompts() };
-          break;
+          return { result: [] }; // TODO: Implement prompt listing across servers
         case 'mcp_get_prompt': {
           const promptId: string | undefined = args.promptId || args.name || args.id;
           const variables: Record<string, any> | undefined = args.variables;
-          if (this.mcp.getPrompt && promptId) {
-            return { result: await this.mcp.getPrompt(promptId, variables) };
+          const serverId = args.serverId || servers[0]?.id;
+          if (promptId && serverId) {
+            return { result: await this.mcpDriver.getPrompt(serverId, promptId, variables) };
           }
           break;
         }
         default:
           // Fall through to server-defined tools
-          return await this.mcp.callTool(name, args);
+          const defaultServerId = args.serverId || servers[0]?.id;
+          if (!defaultServerId) throw new Error('No server available for tool call');
+          return await this.mcpDriver.executeTool(defaultServerId, name, args);
       }
 
       // If we got here, we couldn't handle meta tool locally and no method provided
       // Try to forward as normal tool call
-      return await this.mcp.callTool(name, args);
+      const fallbackServerId = args.serverId || servers[0]?.id;
+      if (!fallbackServerId) throw new Error('No server available for fallback tool call');
+      return await this.mcpDriver.executeTool(fallbackServerId, name, args);
     } catch (err) {
       return { error: (err as Error).message };
     }

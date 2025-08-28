@@ -13,7 +13,7 @@ import { promises as fs } from 'fs';
 import * as path from 'path';
 import axios from 'axios';
 import { logger } from '../src/utils/logger';
-import { MCPDriver } from '../src/drivers/MCPDriver';
+import { MCPDriverAdapter } from '../src/drivers/MCPDriverAdapter';
 
 interface LaunchConfig {
   ollamaUrl: string;
@@ -54,7 +54,7 @@ const DEFAULT_CONFIG: LaunchConfig = {
 export class ApplicationLauncher {
   private config: LaunchConfig;
   private processes: Map<string, ChildProcess> = new Map();
-  private mcpDriver?: MCPDriver;
+  private mcpDriver?: MCPDriverAdapter;
   private isShuttingDown = false;
 
   constructor(config: Partial<LaunchConfig> = {}) {
@@ -249,7 +249,10 @@ export class ApplicationLauncher {
     console.log(`✅ MCP Service Launcher started (PID: ${launcherProcess.pid})`);
 
     // Initialize MCP Driver to communicate with the launcher
-    this.mcpDriver = new MCPDriver();
+    this.mcpDriver = new MCPDriverAdapter({
+      useNativeProtocol: process.env.MCP_USE_NATIVE_PROTOCOL === 'true',
+      enableFallback: true
+    });
     await this.mcpDriver.addServer({
       id: 'mcp-service-launcher',
       name: 'MCP Service Launcher',

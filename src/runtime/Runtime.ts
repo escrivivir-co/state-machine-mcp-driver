@@ -4,7 +4,7 @@
  */
 
 import { EventEmitter } from 'events';
-import { MCPDriver } from '../drivers/MCPDriver';
+import { IMCPDriver } from '../drivers/IMCPDriver';
 import { 
   StateGraph, 
   State, 
@@ -92,7 +92,7 @@ export enum RuntimeEvent {
  * Main Runtime Engine class
  */
 export class Runtime extends EventEmitter {
-  private mcpDriver: MCPDriver;
+  private mcpDriver: IMCPDriver;
   private config: RuntimeConfig;
   private stateGraph?: StateGraph;
   private currentState?: State;
@@ -104,7 +104,7 @@ export class Runtime extends EventEmitter {
   private actionQueue: AgentAction[] = [];
   private isProcessingActions = false;
 
-  constructor(mcpDriver: MCPDriver, config: RuntimeConfig) {
+  constructor(mcpDriver: IMCPDriver, config: RuntimeConfig) {
     super();
     this.mcpDriver = mcpDriver;
     this.config = {
@@ -511,9 +511,9 @@ export class Runtime extends EventEmitter {
     } else {
       this.currentState = existingState;
       Logger.runtime('Loaded existing state', {
-        stateId: this.currentState.id,
-        currentState: this.currentState.currentStateId,
-        transitionsCount: this.currentState.history.length
+        stateId: this.currentState?.id,
+        currentState: this.currentState?.currentStateId,
+        transitionsCount: this.currentState?.history.length || 0
       });
     }
 

@@ -5,6 +5,9 @@
 
 // MCP Driver exports
 export { MCPDriver } from './MCPDriver';
+export { MCPClientDriver } from './MCPClientDriver';
+export { MCPDriverAdapter } from './MCPDriverAdapter';
+export { IMCPDriver } from './IMCPDriver';
 
 // MCP Types exports
 export {
