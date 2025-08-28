@@ -1,661 +1,756 @@
 /**
- * Wiki MCP Browser Server
- * Provides tools, resources and prompts for Wikipedia browsing and doom-scrolling prevention
+ * Wikipedia MCP Browser Server
+ * Real Wikipedia access via public API following the MCP protocol
  */
 
-import { Server } from '@modelcontextprotocol/sdk/server/index.js';
-import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
-import {
-  CallToolRequestSchema,
-  ErrorCode,
-  ListResourcesRequestSchema,
-  ListToolsRequestSchema,
-  McpError,
-  ReadResourceRequestSchema,
-  ListPromptsRequestSchema,
-  GetPromptRequestSchema,
-} from '@modelcontextprotocol/sdk/types.js';
+import { BaseMCPServer, MCPServerConfig } from './BaseMCPServer';
+import { z } from 'zod';
+import axios from 'axios';
 import { logger } from '../utils/logger';
 
 /**
- * Wikipedia article structure
+ * Wikipedia article structure from API
  */
-export interface WikiArticle {
-  /** Article title */
+interface WikipediaPage {
+  pageid: number;
   title: string;
-  /** Article URL */
-  url: string;
-  /** Article summary */
-  summary: string;
-  /** Full content (excerpts) */
-  content: string;
-  /** Extraction timestamp */
-  timestamp: number;
-  /** Article links */
-  links: WikiLink[];
-  /** Categories */
-  categories: string[];
-  /** Article metadata */
-  metadata: {
-    lastModified?: string;
-    wordCount?: number;
-    readingTime?: number;
-    language?: string;
+  extract?: string;
+  thumbnail?: {
+    source: string;
+    width: number;
+    height: number;
   };
+  pageimage?: string;
+  fullurl: string;
+  editurl: string;
+  canonicalurl: string;
 }
 
 /**
- * Wikipedia link structure
+ * Search result from Wikipedia API
  */
-export interface WikiLink {
-  /** Link title */
+interface WikipediaSearchResult {
+  ns: number;
   title: string;
-  /** Link URL */
-  url: string;
-  /** Link type */
-  type: 'internal' | 'external' | 'category';
-  /** Link relevance score */
-  relevance?: number;
+  pageid: number;
+  size: number;
+  wordcount: number;
+  snippet: string;
+  timestamp: string;
 }
 
 /**
- * Browsing session state
+ * Browsing session state for doom-scrolling prevention
  */
-export interface BrowsingSession {
-  /** Session ID */
-  id: string;
-  /** Current article */
-  currentArticle?: WikiArticle;
-  /** Browsing history */
-  history: WikiArticle[];
-  /** Session start time */
+interface BrowsingSession {
+  sessionId: string;
   startTime: number;
-  /** Total articles visited */
-  articlesVisited: number;
-  /** Session theme/topic */
-  theme: string;
-  /** User preferences */
-  preferences: {
-    preferredTopics: string[];
-    avoidTopics: string[];
-    maxArticleLength: number;
-  };
+  articlesVisited: string[];
+  currentArticle?: WikipediaPage;
+  searchHistory: string[];
+  totalReadingTime: number;
+  averageArticleTime: number;
+  dominantCategories: string[];
 }
 
 /**
- * Content discovery result
+ * Real Wikipedia MCP Browser Server
+ * Provides genuine Wikipedia access with doom-scrolling awareness
  */
-export interface DiscoveryResult {
-  /** Found articles */
-  articles: WikiArticle[];
-  /** Search query used */
-  query: string;
-  /** Discovery strategy */
-  strategy: 'search' | 'related' | 'category' | 'random';
-  /** Relevance scores */
-  relevanceScores: number[];
-}
-
-/**
- * Simulated Wikipedia MCP Server for content browsing
- */
-export class WikiMCPBrowser extends EventEmitter {
-  private id: string;
-  private name: string;
+export class WikiMCPBrowser extends BaseMCPServer {
   private session: BrowsingSession;
-  private contentDatabase: Map<string, WikiArticle> = new Map();
-  private prompts: Map<string, string> = new Map();
-  private resources: Map<string, any> = new Map();
+  private readonly WIKIPEDIA_API_BASE = 'https://en.wikipedia.org/api/rest_v1';
+  private readonly WIKIPEDIA_API_OLD = 'https://en.wikipedia.org/w/api.php';
 
-  constructor(id = 'wiki-mcp-browser', name = 'Wiki MCP Browser') {
-    super();
-    this.id = id;
-    this.name = name;
-    this.session = this.initializeSession();
-    this.setupContentDatabase();
-    this.setupPrompts();
+  constructor() {
+    const config: MCPServerConfig = {
+      name: 'wiki-mcp-browser',
+      version: '1.0.0',
+      description: 'Real Wikipedia browsing server with doom-scrolling prevention',
+      port: 3002,
+      capabilities: {
+        tools: true,
+        resources: true,
+        prompts: true,
+      },
+    };
+
+    super(config);
+
+    // Initialize browsing session
+    this.session = {
+      sessionId: `wiki-session-${Date.now()}`,
+      startTime: Date.now(),
+      articlesVisited: [],
+      searchHistory: [],
+      totalReadingTime: 0,
+      averageArticleTime: 0,
+      dominantCategories: []
+    };
+  }
+
+  /**
+   * Setup Wikipedia-specific tools, resources, and prompts
+   */
+  protected setupServerSpecifics(): void {
+    this.setupTools();
     this.setupResources();
+    this.setupPrompts();
   }
 
   /**
-   * Execute a tool
+   * Setup Wikipedia browsing tools
    */
-  async executeTool(toolName: string, params: Record<string, any>): Promise<any> {
-    try {
-      logger.info(`WikiMCP: Executing tool ${toolName}`, { params });
+  private setupTools(): void {
+    // Load Wikipedia article by title
+    this.server.tool(
+      'load_wikipedia_article',
+      'Load a Wikipedia article by title with full content and metadata',
+      {
+        title: z.string().describe('Article title to load from Wikipedia'),
+        includeImages: z.boolean().optional().describe('Include thumbnail images in response'),
+        language: z.string().optional().describe('Wikipedia language code (default: en)')
+      },
+      async ({ title, includeImages = false, language = 'en' }) => {
+        try {
+          logger.info(`WikiMCP: Loading article "${title}" from ${language}.wikipedia.org`);
 
-      switch (toolName) {
-        case 'load_article':
-          return this.loadArticle(params);
-        
-        case 'search_articles':
-          return this.searchArticles(params);
-        
-        case 'get_related_articles':
-          return this.getRelatedArticles(params);
-        
-        case 'navigate_to_link':
-          return this.navigateToLink(params);
-        
-        case 'get_browsing_session':
-          return this.getBrowsingSession();
-        
-        case 'discover_content':
-          return this.discoverContent(params);
-        
-        case 'get_recommendations':
-          return this.getRecommendations(params);
-        
-        case 'extract_timeline':
-          return this.extractTimeline(params);
-        
-        default:
-          throw new Error(`Unknown tool: ${toolName}`);
+          // Get page content using Wikipedia REST API
+          const response = await axios.get(
+            `https://${language}.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(title)}`,
+            {
+              headers: {
+                'User-Agent': 'WikiMCPBrowser/1.0 (https://github.com/escrivivir-co/state-machine-mcp-driver)'
+              }
+            }
+          );
+
+          const page = response.data;
+          
+          if (page.type === 'disambiguation') {
+            // Handle disambiguation pages
+            return {
+              content: [
+                {
+                  type: 'text',
+                  text: JSON.stringify({
+                    type: 'disambiguation',
+                    title: page.title,
+                    extract: page.extract,
+                    message: 'This is a disambiguation page. Please be more specific with the article title.',
+                    suggestions: page.extract.match(/\[\[([^\]]+)\]\]/g)?.slice(0, 5) || []
+                  }, null, 2)
+                }
+              ]
+            };
+          }
+
+          // Get full page content for reading
+          let fullContent = '';
+          try {
+            const contentResponse = await axios.get(
+              `https://${language}.wikipedia.org/api/rest_v1/page/html/${encodeURIComponent(title)}`,
+              {
+                headers: {
+                  'User-Agent': 'WikiMCPBrowser/1.0 (https://github.com/escrivivir-co/state-machine-mcp-driver)'
+                }
+              }
+            );
+            
+            // Extract text from HTML (basic extraction)
+            fullContent = contentResponse.data
+              .replace(/<[^>]*>/g, ' ')
+              .replace(/\s+/g, ' ')
+              .trim()
+              .substring(0, 5000); // Limit content to avoid overwhelming
+          } catch (error) {
+            logger.warn(`WikiMCP: Could not fetch full content for ${title}, using summary`);
+            fullContent = page.extract || 'Content unavailable';
+          }
+
+          const article: WikipediaPage = {
+            pageid: page.pageid,
+            title: page.title,
+            extract: page.extract,
+            thumbnail: page.thumbnail,
+            pageimage: page.pageimage,
+            fullurl: page.content_urls?.desktop?.page || `https://${language}.wikipedia.org/wiki/${encodeURIComponent(title)}`,
+            editurl: page.content_urls?.desktop?.edit || '',
+            canonicalurl: page.content_urls?.desktop?.page || ''
+          };
+
+          // Update session
+          this.session.currentArticle = article;
+          this.session.articlesVisited.push(title);
+          this.session.totalReadingTime += 2; // Estimate 2 minutes per article
+
+          logger.info(`WikiMCP: Successfully loaded article "${title}" (${fullContent.length} chars)`);
+
+          return {
+            content: [
+              {
+                type: 'text',
+                text: JSON.stringify({
+                  success: true,
+                  article: {
+                    ...article,
+                    fullContent: fullContent,
+                    wordCount: fullContent.split(' ').length,
+                    readingTimeMinutes: Math.ceil(fullContent.split(' ').length / 200),
+                    images: includeImages ? [article.thumbnail].filter(Boolean) : undefined
+                  },
+                  sessionStats: {
+                    articlesVisited: this.session.articlesVisited.length,
+                    totalReadingTime: this.session.totalReadingTime,
+                    sessionDuration: Math.floor((Date.now() - this.session.startTime) / 60000)
+                  }
+                }, null, 2)
+              }
+            ]
+          };
+
+        } catch (error) {
+          logger.error(`WikiMCP: Failed to load article "${title}"`, { error });
+          
+          return {
+            content: [
+              {
+                type: 'text',
+                text: JSON.stringify({
+                  success: false,
+                  error: 'Article not found or Wikipedia API error',
+                  title: title,
+                  suggestion: 'Try checking the spelling or use the search_wikipedia tool to find similar articles',
+                  errorDetails: error instanceof Error ? error.message : 'Unknown error'
+                }, null, 2)
+              }
+            ]
+          };
+        }
       }
+    );
+
+    // Search Wikipedia articles
+    this.server.tool(
+      'search_wikipedia',
+      'Search Wikipedia for articles matching a query',
+      {
+        query: z.string().describe('Search query for Wikipedia articles'),
+        limit: z.number().optional().describe('Maximum number of results (default: 10, max: 50)'),
+        language: z.string().optional().describe('Wikipedia language code (default: en)')
+      },
+      async ({ query, limit = 10, language = 'en' }) => {
+        try {
+          logger.info(`WikiMCP: Searching Wikipedia for "${query}" (limit: ${limit})`);
+
+          // Use Wikipedia OpenSearch API for search
+          const searchResponse = await axios.get(
+            `https://${language}.wikipedia.org/w/api.php`,
+            {
+              params: {
+                action: 'query',
+                format: 'json',
+                list: 'search',
+                srsearch: query,
+                srlimit: Math.min(limit, 50),
+                srinfo: 'totalhits',
+                srprop: 'size|wordcount|timestamp|snippet'
+              },
+              headers: {
+                'User-Agent': 'WikiMCPBrowser/1.0 (https://github.com/escrivivir-co/state-machine-mcp-driver)'
+              }
+            }
+          );
+
+          const results = searchResponse.data.query?.search || [];
+          const totalHits = searchResponse.data.query?.searchinfo?.totalhits || 0;
+
+          // Update session
+          this.session.searchHistory.push(query);
+
+          logger.info(`WikiMCP: Found ${results.length} results for "${query}" (${totalHits} total)`);
+
+          return {
+            content: [
+              {
+                type: 'text',
+                text: JSON.stringify({
+                  success: true,
+                  query: query,
+                  totalHits: totalHits,
+                  resultsCount: results.length,
+                  results: results.map((result: WikipediaSearchResult) => ({
+                    title: result.title,
+                    pageid: result.pageid,
+                    snippet: result.snippet.replace(/<[^>]*>/g, ''), // Remove HTML tags
+                    wordcount: result.wordcount,
+                    size: result.size,
+                    url: `https://${language}.wikipedia.org/wiki/${encodeURIComponent(result.title)}`,
+                    lastModified: result.timestamp
+                  })),
+                  searchTips: results.length === 0 ? [
+                    'Try different keywords',
+                    'Check spelling',
+                    'Use broader terms',
+                    'Try synonyms'
+                  ] : undefined
+                }, null, 2)
+              }
+            ]
+          };
+
+        } catch (error) {
+          logger.error(`WikiMCP: Search failed for "${query}"`, { error });
+          
+          return {
+            content: [
+              {
+                type: 'text',
+                text: JSON.stringify({
+                  success: false,
+                  error: 'Wikipedia search failed',
+                  query: query,
+                  errorDetails: error instanceof Error ? error.message : 'Unknown error'
+                }, null, 2)
+              }
+            ]
+          };
+        }
+      }
+    );
+
+    // Get random Wikipedia article
+    this.server.tool(
+      'get_random_article',
+      'Get a random Wikipedia article for discovery',
+      {
+        language: z.string().optional().describe('Wikipedia language code (default: en)'),
+        namespace: z.number().optional().describe('Wikipedia namespace (0 = articles, default: 0)')
+      },
+      async ({ language = 'en', namespace = 0 }) => {
+        try {
+          logger.info(`WikiMCP: Getting random article from ${language}.wikipedia.org`);
+
+          // Get random article title
+          const randomResponse = await axios.get(
+            `https://${language}.wikipedia.org/w/api.php`,
+            {
+              params: {
+                action: 'query',
+                format: 'json',
+                list: 'random',
+                rnnamespace: namespace,
+                rnlimit: 1
+              },
+              headers: {
+                'User-Agent': 'WikiMCPBrowser/1.0 (https://github.com/escrivivir-co/state-machine-mcp-driver)'
+              }
+            }
+          );
+
+          const randomPage = randomResponse.data.query?.random?.[0];
+          if (!randomPage) {
+            throw new Error('No random article found');
+          }
+
+          // Load the random article content directly
+          const articleResponse = await axios.get(
+            `https://${language}.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(randomPage.title)}`,
+            {
+              headers: {
+                'User-Agent': 'WikiMCPBrowser/1.0 (https://github.com/escrivivir-co/state-machine-mcp-driver)'
+              }
+            }
+          );
+
+          const article = articleResponse.data;
+          
+          // Update session
+          this.session.currentArticle = {
+            pageid: article.pageid,
+            title: article.title,
+            extract: article.extract,
+            thumbnail: article.thumbnail,
+            pageimage: article.pageimage,
+            fullurl: article.content_urls?.desktop?.page || `https://${language}.wikipedia.org/wiki/${encodeURIComponent(randomPage.title)}`,
+            editurl: article.content_urls?.desktop?.edit || '',
+            canonicalurl: article.content_urls?.desktop?.page || ''
+          };
+          
+          this.session.articlesVisited.push(randomPage.title);
+          this.session.totalReadingTime += 2;
+
+          return {
+            content: [
+              {
+                type: 'text',
+                text: JSON.stringify({
+                  success: true,
+                  type: 'random',
+                  article: {
+                    ...this.session.currentArticle,
+                    extract: article.extract,
+                    wordCount: article.extract?.split(' ').length || 0,
+                    readingTimeMinutes: Math.ceil((article.extract?.split(' ').length || 0) / 200)
+                  },
+                  sessionStats: {
+                    articlesVisited: this.session.articlesVisited.length,
+                    totalReadingTime: this.session.totalReadingTime,
+                    sessionDuration: Math.floor((Date.now() - this.session.startTime) / 60000)
+                  }
+                }, null, 2)
+              }
+            ]
+          };
+
+        } catch (error) {
+          logger.error(`WikiMCP: Failed to get random article`, { error });
+          
+          return {
+            content: [
+              {
+                type: 'text',
+                text: JSON.stringify({
+                  success: false,
+                  error: 'Failed to get random article',
+                  errorDetails: error instanceof Error ? error.message : 'Unknown error'
+                }, null, 2)
+              }
+            ]
+          };
+        }
+      }
+    );
+
+    // Get article categories (for theme detection)
+    this.server.tool(
+      'get_article_categories',
+      'Get categories for a Wikipedia article to understand its themes',
+      {
+        title: z.string().describe('Article title to get categories for'),
+        language: z.string().optional().describe('Wikipedia language code (default: en)')
+      },
+      async ({ title, language = 'en' }) => {
+        try {
+          logger.info(`WikiMCP: Getting categories for "${title}"`);
+
+          const response = await axios.get(
+            `https://${language}.wikipedia.org/w/api.php`,
+            {
+              params: {
+                action: 'query',
+                format: 'json',
+                prop: 'categories',
+                titles: title,
+                clshow: '!hidden',
+                cllimit: 50
+              },
+              headers: {
+                'User-Agent': 'WikiMCPBrowser/1.0 (https://github.com/escrivivir-co/state-machine-mcp-driver)'
+              }
+            }
+          );
+
+          const pages = response.data.query?.pages || {};
+          const page = Object.values(pages)[0] as any;
+          const categories = page?.categories || [];
+
+          return {
+            content: [
+              {
+                type: 'text',
+                text: JSON.stringify({
+                  success: true,
+                  title: title,
+                  categories: categories.map((cat: any) => cat.title.replace('Category:', '')),
+                  categoryCount: categories.length
+                }, null, 2)
+              }
+            ]
+          };
+
+        } catch (error) {
+          logger.error(`WikiMCP: Failed to get categories for "${title}"`, { error });
+          
+          return {
+            content: [
+              {
+                type: 'text',
+                text: JSON.stringify({
+                  success: false,
+                  error: 'Failed to get article categories',
+                  title: title,
+                  errorDetails: error instanceof Error ? error.message : 'Unknown error'
+              }, null, 2)
+              }
+            ]
+          };
+        }
+      }
+    );
+  }
+
+  /**
+   * Setup Wikipedia browsing resources
+   */
+  private setupResources(): void {
+    // Current browsing session
+    this.server.resource(
+      'browsing-session',
+      'wiki://session/current',
+      {
+        name: 'Current Browsing Session',
+        description: 'Information about the current Wikipedia browsing session',
+        mimeType: 'application/json'
+      },
+      async () => {
+        return {
+          contents: [
+            {
+              uri: 'wiki://session/current',
+              mimeType: 'application/json',
+              text: JSON.stringify({
+                sessionId: this.session.sessionId,
+                startTime: this.session.startTime,
+                duration: Math.floor((Date.now() - this.session.startTime) / 60000),
+                articlesVisited: this.session.articlesVisited,
+                articlesCount: this.session.articlesVisited.length,
+                currentArticle: this.session.currentArticle?.title || null,
+                searchHistory: this.session.searchHistory,
+                totalReadingTime: this.session.totalReadingTime,
+                averageArticleTime: this.session.articlesVisited.length > 0 
+                  ? this.session.totalReadingTime / this.session.articlesVisited.length 
+                  : 0,
+                doomScrollingRisk: this.calculateDoomScrollingRisk(),
+                recommendations: this.getRecommendations()
+              }, null, 2)
+            }
+          ]
+        };
+      }
+    );
+
+    // Wikipedia API status
+    this.server.resource(
+      'wikipedia-status',
+      'wiki://api/status',
+      {
+        name: 'Wikipedia API Status',
+        description: 'Current status and capabilities of the Wikipedia API connection',
+        mimeType: 'application/json'
+      },
+      async () => {
+        const status = await this.checkWikipediaStatus();
+        
+        return {
+          contents: [
+            {
+              uri: 'wiki://api/status',
+              mimeType: 'application/json',
+              text: JSON.stringify(status, null, 2)
+            }
+          ]
+        };
+      }
+    );
+  }
+
+  /**
+   * Setup Wikipedia browsing prompts
+   */
+  private setupPrompts(): void {
+    // Dionisio cosmic doom-scrolling prompt  
+    this.server.prompt(
+      'dionisio-cosmic-journey',
+      'Dionisio\'s cosmic journey prompt using real Wikipedia content',
+      {
+        currentArticle: z.string().optional().describe('Current article title'),
+        articlesVisited: z.string().optional().describe('Number of articles visited')
+      },
+      async ({ currentArticle, articlesVisited }) => {
+        const article = currentArticle || this.session.currentArticle?.title || 'the cosmos';
+        const count = articlesVisited || this.session.articlesVisited.length.toString();
+        
+        return {
+          messages: [
+            {
+              role: 'user',
+              content: {
+                type: 'text',
+                text: `🌌 **Dionisio's Cosmic Journey Through Wikipedia**\n\n` +
+                      `*The infinite knowledge calls to you...*\n\n` +
+                      `Current article: "${article}"\n` +
+                      `Articles explored: ${count}\n\n` +
+                      `Behold the vast expanse of human knowledge! Each Wikipedia link is a gateway\n` +
+                      `to deeper mysteries. From quantum mechanics to ancient civilizations,\n` +
+                      `from black holes to the Renaissance... The rabbit hole of knowledge\n` +
+                      `beckons you deeper.\n\n` +
+                      `*whispers seductively* Just one more article... What could it hurt?\n` +
+                      `The universe has so many secrets to reveal...`
+              }
+            }
+          ]
+        };
+      }
+    );
+
+    // Apolo historical wisdom prompt
+    this.server.prompt(
+      'apolo-historical-inspiration',
+      'Apolo\'s historical inspiration using Wikipedia content',
+      {
+        currentArticle: z.string().optional().describe('Current article title'),
+        sessionDuration: z.string().optional().describe('Session duration in minutes')
+      },
+      async ({ currentArticle, sessionDuration }) => {
+        const article = currentArticle || this.session.currentArticle?.title || 'human achievement';
+        const duration = sessionDuration || Math.floor((Date.now() - this.session.startTime) / 60000).toString();
+        
+        return {
+          messages: [
+            {
+              role: 'user',
+              content: {
+                type: 'text',
+                text: `☀️ **Apolo's Beacon of Wisdom Through Wikipedia**\n\n` +
+                      `*Knowledge enlightens, but wisdom knows when to pause...*\n\n` +
+                      `Current focus: "${article}"\n` +
+                      `Session duration: ${duration} minutes\n\n` +
+                      `See how you've used Wikipedia with purpose! You've learned about\n` +
+                      `human achievement, scientific progress, and the march of civilization.\n` +
+                      `True wisdom lies not in consuming endless information, but in\n` +
+                      `reflecting on what you've learned.\n\n` +
+                      `*radiates warm encouragement* \n` +
+                      `Take time to digest this knowledge. Let it inspire your own growth.\n` +
+                      `Quality of understanding trumps quantity of consumption.`
+              }
+            }
+          ]
+        };
+      }
+    );
+  }
+
+  /**
+   * Calculate doom-scrolling risk based on session metrics
+   */
+  private calculateDoomScrollingRisk(): 'low' | 'medium' | 'high' {
+    const sessionDuration = (Date.now() - this.session.startTime) / 60000; // minutes
+    const articlesPerMinute = this.session.articlesVisited.length / Math.max(sessionDuration, 1);
+    
+    if (articlesPerMinute > 3 || this.session.articlesVisited.length > 20) {
+      return 'high';
+    } else if (articlesPerMinute > 1.5 || this.session.articlesVisited.length > 10) {
+      return 'medium';
+    } else {
+      return 'low';
+    }
+  }
+
+  /**
+   * Get personalized recommendations
+   */
+  private getRecommendations(): string[] {
+    const risk = this.calculateDoomScrollingRisk();
+    
+    if (risk === 'high') {
+      return [
+        'Consider taking a break from browsing',
+        'Try to summarize what you\'ve learned',
+        'Set a specific goal for your next search',
+        'Focus on quality over quantity'
+      ];
+    } else if (risk === 'medium') {
+      return [
+        'Great exploration! Consider pausing to reflect',
+        'Try to connect different articles you\'ve read',
+        'Set a time limit for your next session'
+      ];
+    } else {
+      return [
+        'Excellent focused browsing!',
+        'Your learning seems purposeful',
+        'Continue exploring with intention'
+      ];
+    }
+  }
+
+  /**
+   * Check Wikipedia API status
+   */
+  private async checkWikipediaStatus(): Promise<any> {
+    try {
+      const response = await axios.get('https://en.wikipedia.org/w/api.php', {
+        params: {
+          action: 'query',
+          format: 'json',
+          meta: 'siteinfo',
+          siprop: 'general'
+        },
+        timeout: 5000,
+        headers: {
+          'User-Agent': 'WikiMCPBrowser/1.0 (https://github.com/escrivivir-co/state-machine-mcp-driver)'
+        }
+      });
+
+      return {
+        status: 'online',
+        sitename: response.data.query?.general?.sitename || 'Wikipedia',
+        version: response.data.query?.general?.generator || 'unknown',
+        articles: response.data.query?.general?.articles || 0,
+        lastChecked: new Date().toISOString()
+      };
     } catch (error) {
-      logger.error(`WikiMCP: Tool execution failed`, { toolName, error });
-      throw error;
+      return {
+        status: 'offline',
+        error: error instanceof Error ? error.message : 'Unknown error',
+        lastChecked: new Date().toISOString()
+      };
     }
   }
 
   /**
-   * Get a resource
-   */
-  async getResource(resourceName: string, context?: Record<string, any>): Promise<any> {
-    logger.info(`WikiMCP: Getting resource ${resourceName}`, { context });
-    
-    const resource = this.resources.get(resourceName);
-    if (!resource) {
-      throw new Error(`Resource not found: ${resourceName}`);
-    }
-
-    // Dynamic resource generation
-    if (typeof resource === 'function') {
-      return resource(this.session, context);
-    }
-
-    return resource;
-  }
-
-  /**
-   * Get a prompt
-   */
-  async getPrompt(promptName: string, context?: Record<string, any>): Promise<string> {
-    logger.info(`WikiMCP: Getting prompt ${promptName}`, { context });
-    
-    const prompt = this.prompts.get(promptName);
-    if (!prompt) {
-      throw new Error(`Prompt not found: ${promptName}`);
-    }
-
-    return this.interpolatePrompt(prompt, { ...this.session, ...context });
-  }
-
-  /**
-   * Get current browsing session
+   * Get current session state
    */
   getSession(): BrowsingSession {
     return { ...this.session };
   }
-
-  // Private implementation methods
-
-  private initializeSession(): BrowsingSession {
-    return {
-      id: `session-${Date.now()}`,
-      history: [],
-      startTime: Date.now(),
-      articlesVisited: 0,
-      theme: 'general',
-      preferences: {
-        preferredTopics: [],
-        avoidTopics: [],
-        maxArticleLength: 5000
-      }
-    };
-  }
-
-  private setupContentDatabase(): void {
-    // Sample articles for different themes
-
-    // Universe & Cosmology (for Dionisio)
-    this.contentDatabase.set('big_bang', {
-      title: 'Big Bang',
-      url: 'https://en.wikipedia.org/wiki/Big_Bang',
-      summary: 'The Big Bang theory describes the cosmic microwave background radiation and the observed abundances of light elements.',
-      content: `The Big Bang theory is the prevailing cosmological model explaining the existence of the observable universe from the earliest known periods through its subsequent large-scale evolution...
-
-The model describes how the universe expanded from an initial state of high density and temperature...`,
-      timestamp: Date.now(),
-      links: [
-        { title: 'Cosmic Microwave Background', url: 'https://en.wikipedia.org/wiki/Cosmic_microwave_background', type: 'internal' },
-        { title: 'Universe', url: 'https://en.wikipedia.org/wiki/Universe', type: 'internal' },
-        { title: 'Multiverse', url: 'https://en.wikipedia.org/wiki/Multiverse', type: 'internal' }
-      ],
-      categories: ['Cosmology', 'Physics', 'Universe'],
-      metadata: {
-        lastModified: '2024-08-20',
-        wordCount: 12000,
-        readingTime: 15,
-        language: 'en'
-      }
-    });
-
-    this.contentDatabase.set('black_holes', {
-      title: 'Black Hole',
-      url: 'https://en.wikipedia.org/wiki/Black_hole',
-      summary: 'A black hole is a region of spacetime where gravity is so strong that nothing can escape from it.',
-      content: `A black hole is a region of spacetime where gravity is so strong that nothing—no particles or even electromagnetic radiation such as light—can escape from it...
-
-The theory of general relativity predicts that a sufficiently compact mass can deform spacetime to form a black hole...`,
-      timestamp: Date.now(),
-      links: [
-        { title: 'Event Horizon', url: 'https://en.wikipedia.org/wiki/Event_horizon', type: 'internal' },
-        { title: 'Hawking Radiation', url: 'https://en.wikipedia.org/wiki/Hawking_radiation', type: 'internal' },
-        { title: 'Wormhole', url: 'https://en.wikipedia.org/wiki/Wormhole', type: 'internal' }
-      ],
-      categories: ['Astrophysics', 'General Relativity', 'Black Holes'],
-      metadata: {
-        lastModified: '2024-08-18',
-        wordCount: 15000,
-        readingTime: 18,
-        language: 'en'
-      }
-    });
-
-    // Human History (for Apolo)
-    this.contentDatabase.set('renaissance', {
-      title: 'Renaissance',
-      url: 'https://en.wikipedia.org/wiki/Renaissance',
-      summary: 'The Renaissance was a period in European history marking the transition from the Middle Ages to modernity.',
-      content: `The Renaissance was a fervent period of European cultural, artistic, political and economic "rebirth" following the Middle Ages...
-
-Generally described as taking place from the 14th century to the 17th century, the Renaissance promoted the rediscovery of classical philosophy, literature and art...`,
-      timestamp: Date.now(),
-      links: [
-        { title: 'Leonardo da Vinci', url: 'https://en.wikipedia.org/wiki/Leonardo_da_Vinci', type: 'internal' },
-        { title: 'Michelangelo', url: 'https://en.wikipedia.org/wiki/Michelangelo', type: 'internal' },
-        { title: 'Scientific Revolution', url: 'https://en.wikipedia.org/wiki/Scientific_Revolution', type: 'internal' }
-      ],
-      categories: ['Renaissance', 'European History', 'Cultural History'],
-      metadata: {
-        lastModified: '2024-08-15',
-        wordCount: 18000,
-        readingTime: 22,
-        language: 'en'
-      }
-    });
-
-    this.contentDatabase.set('ancient_egypt', {
-      title: 'Ancient Egypt',
-      url: 'https://en.wikipedia.org/wiki/Ancient_Egypt',
-      summary: 'Ancient Egypt was a civilization of ancient Africa, concentrated along the lower reaches of the Nile River.',
-      content: `Ancient Egypt was a civilization of ancient Africa, concentrated along the lower reaches of the Nile River, situated in the place that is now the country Egypt...
-
-For over 3000 years, ancient Egypt was consistently one of the most powerful and influential civilizations in the Mediterranean world...`,
-      timestamp: Date.now(),
-      links: [
-        { title: 'Pyramid of Giza', url: 'https://en.wikipedia.org/wiki/Great_Pyramid_of_Giza', type: 'internal' },
-        { title: 'Pharaoh', url: 'https://en.wikipedia.org/wiki/Pharaoh', type: 'internal' },
-        { title: 'Hieroglyphs', url: 'https://en.wikipedia.org/wiki/Egyptian_hieroglyphs', type: 'internal' }
-      ],
-      categories: ['Ancient Egypt', 'African History', 'Ancient Civilizations'],
-      metadata: {
-        lastModified: '2024-08-12',
-        wordCount: 20000,
-        readingTime: 25,
-        language: 'en'
-      }
-    });
-
-    // More articles can be added...
-  }
-
-  private setupPrompts(): void {
-    this.prompts.set('dionisio_cosmic_journey',
-      `🌌 **Dionisio's Cosmic Journey**\n\n` +
-      `*The universe whispers its secrets...*\n\n` +
-      `Current article: "{{currentArticle}}"\n` +
-      `Articles explored: {{articlesVisited}}\n\n` +
-      `Behold the infinite cosmos! From the primordial Big Bang to the eventual heat death,\n` +
-      `every article is a gateway to profound mysteries. Shall we dive deeper into:\n\n` +
-      `🔗 Available paths of cosmic discovery:\n` +
-      `{{availableLinks}}\n\n` +
-      `*whispers seductively* Just one more click into the abyss of knowledge...`
-    );
-
-    this.prompts.set('apolo_historical_inspiration',
-      `☀️ **Apolo's Historical Beacon**\n\n` +
-      `*Light shines upon human achievement!*\n\n` +
-      `Current exploration: "{{currentArticle}}"\n` +
-      `Journey progress: {{articlesVisited}} milestones\n\n` +
-      `Witness the magnificent tapestry of human civilization! From ancient pyramids\n` +
-      `to Renaissance masterpieces, each link reveals our species' greatest triumphs.\n\n` +
-      `🎯 Paths of inspiration await:\n` +
-      `{{availableLinks}}\n\n` +
-      `*radiates warmth* Let us explore how humanity reached for the stars!`
-    );
-
-    this.prompts.set('content_discovery',
-      `🔍 **Content Discovery**\n\n` +
-      `Searching for: {{query}}\n` +
-      `Strategy: {{strategy}}\n` +
-      `Theme: {{theme}}\n\n` +
-      `Discovering relevant articles that match your exploration theme...`
-    );
-
-    this.prompts.set('navigation_guide',
-      `🧭 **Navigation Guide**\n\n` +
-      `You are currently reading: "{{currentArticle}}"\n` +
-      `Session duration: {{sessionDuration}} minutes\n\n` +
-      `Available navigation options:\n` +
-      `- 🔗 Follow article links ({{linkCount}} available)\n` +
-      `- 🔍 Search for specific topics\n` +
-      `- 🎲 Discover random related content\n` +
-      `- 📊 View browsing history\n\n` +
-      `Where would you like to explore next?`
-    );
-  }
-
-  private setupResources(): void {
-    // Current session resource
-    this.resources.set('current_session', (session: BrowsingSession) => ({
-      sessionId: session.id,
-      currentArticle: session.currentArticle?.title || 'None',
-      articlesVisited: session.articlesVisited,
-      sessionDuration: Math.floor((Date.now() - session.startTime) / 60000),
-      theme: session.theme
-    }));
-
-    // Browsing history resource
-    this.resources.set('browsing_history', (session: BrowsingSession) => ({
-      totalArticles: session.history.length,
-      articles: session.history.map(article => ({
-        title: article.title,
-        summary: article.summary.substring(0, 150) + '...',
-        timestamp: article.timestamp
-      })),
-      themes: [...new Set(session.history.flatMap(a => a.categories))]
-    }));
-
-    // Content recommendations resource
-    this.resources.set('recommendations', (session: BrowsingSession, context: any) => {
-      const currentTheme = context?.theme || session.theme;
-      const recommendations = this.generateRecommendations(currentTheme, session);
-      
-      return {
-        theme: currentTheme,
-        recommendedArticles: recommendations,
-        explorationPaths: this.generateExplorationPaths(currentTheme)
-      };
-    });
-
-    // Discovery statistics
-    this.resources.set('discovery_stats', (session: BrowsingSession) => ({
-      totalExplorationTime: Date.now() - session.startTime,
-      articlesPerMinute: session.articlesVisited / Math.max(1, (Date.now() - session.startTime) / 60000),
-      dominantCategories: this.getDominantCategories(session),
-      explorationPattern: this.analyzeExplorationPattern(session)
-    }));
-  }
-
-  private async loadArticle(params: Record<string, any>): Promise<WikiArticle> {
-    const articleId = params.articleId || params.title;
-    
-    if (!articleId) {
-      throw new Error('Missing articleId or title parameter');
-    }
-
-    const article = this.contentDatabase.get(articleId.toLowerCase().replace(/\s+/g, '_'));
-    
-    if (!article) {
-      // Simulate article not found - generate a basic one
-      const mockArticle: WikiArticle = {
-        title: articleId,
-        url: `https://en.wikipedia.org/wiki/${articleId.replace(/\s+/g, '_')}`,
-        summary: `This is a simulated article about ${articleId}. In a real implementation, this would be fetched from Wikipedia's API.`,
-        content: `# ${articleId}\n\nThis article would contain detailed information about ${articleId}.\n\nIn a real MCP server, this content would be dynamically fetched from Wikipedia's API and processed for presentation.`,
-        timestamp: Date.now(),
-        links: [],
-        categories: ['Simulated Content'],
-        metadata: {
-          wordCount: 100,
-          readingTime: 1,
-          language: 'en'
-        }
-      };
-      
-      return mockArticle;
-    }
-
-    // Update session
-    this.session.currentArticle = article;
-    this.session.history.push(article);
-    this.session.articlesVisited++;
-
-    this.emit('article_loaded', { article, session: this.session });
-
-    return article;
-  }
-
-  private async searchArticles(params: Record<string, any>): Promise<DiscoveryResult> {
-    const query = params.query;
-    const maxResults = params.maxResults || 5;
-    
-    if (!query) {
-      throw new Error('Missing query parameter');
-    }
-
-    // Simple search simulation
-    const allArticles = Array.from(this.contentDatabase.values());
-    const results = allArticles.filter(article => 
-      article.title.toLowerCase().includes(query.toLowerCase()) ||
-      article.summary.toLowerCase().includes(query.toLowerCase()) ||
-      article.categories.some(cat => cat.toLowerCase().includes(query.toLowerCase()))
-    ).slice(0, maxResults);
-
-    const discoveryResult: DiscoveryResult = {
-      articles: results,
-      query,
-      strategy: 'search',
-      relevanceScores: results.map(() => Math.random() * 0.5 + 0.5) // Mock relevance
-    };
-
-    return discoveryResult;
-  }
-
-  private async getRelatedArticles(params: Record<string, any>): Promise<WikiArticle[]> {
-    const articleId = params.articleId;
-    const maxResults = params.maxResults || 3;
-    
-    if (!articleId) {
-      throw new Error('Missing articleId parameter');
-    }
-
-    const currentArticle = this.contentDatabase.get(articleId);
-    if (!currentArticle) {
-      return [];
-    }
-
-    // Find articles with overlapping categories
-    const relatedArticles = Array.from(this.contentDatabase.values())
-      .filter(article => 
-        article.title !== currentArticle.title &&
-        article.categories.some(cat => currentArticle.categories.includes(cat))
-      )
-      .slice(0, maxResults);
-
-    return relatedArticles;
-  }
-
-  private async navigateToLink(params: Record<string, any>): Promise<WikiArticle> {
-    const linkTitle = params.linkTitle;
-    
-    if (!linkTitle) {
-      throw new Error('Missing linkTitle parameter');
-    }
-
-    // Find the article corresponding to the link
-    return this.loadArticle({ title: linkTitle });
-  }
-
-  private async getBrowsingSession(): Promise<BrowsingSession> {
-    return this.getSession();
-  }
-
-  private async discoverContent(params: Record<string, any>): Promise<DiscoveryResult> {
-    const theme = params.theme || 'general';
-    const strategy = params.strategy || 'category';
-    const maxResults = params.maxResults || 5;
-
-    let articles: WikiArticle[] = [];
-
-    switch (strategy) {
-      case 'category':
-        articles = this.discoverByCategory(theme, maxResults);
-        break;
-      case 'related':
-        articles = await this.discoverRelated(theme, maxResults);
-        break;
-      case 'random':
-        articles = this.discoverRandom(maxResults);
-        break;
-      default:
-        articles = await this.searchArticles({ query: theme, maxResults });
-        return articles as any;
-    }
-
-    return {
-      articles,
-      query: theme,
-      strategy,
-      relevanceScores: articles.map(() => Math.random() * 0.4 + 0.6)
-    };
-  }
-
-  private async getRecommendations(params: Record<string, any>): Promise<WikiArticle[]> {
-    const theme = params.theme || this.session.theme;
-    return this.generateRecommendations(theme, this.session);
-  }
-
-  private async extractTimeline(params: Record<string, any>): Promise<any> {
-    const theme = params.theme || 'history';
-    
-    // Mock timeline extraction
-    const timelineEvents = [
-      { year: '13.8 billion years ago', event: 'Big Bang', category: 'cosmology' },
-      { year: '4.6 billion years ago', event: 'Formation of Earth', category: 'cosmology' },
-      { year: '3100 BCE', event: 'Unification of Egypt', category: 'history' },
-      { year: '1400-1600 CE', event: 'Renaissance Period', category: 'history' },
-      { year: '1969 CE', event: 'Moon Landing', category: 'history' }
-    ].filter(event => theme === 'general' || event.category === theme);
-
-    return {
-      theme,
-      events: timelineEvents,
-      totalEvents: timelineEvents.length
-    };
-  }
-
-  // Helper methods
-
-  private discoverByCategory(theme: string, maxResults: number): WikiArticle[] {
-    return Array.from(this.contentDatabase.values())
-      .filter(article => 
-        article.categories.some(cat => 
-          cat.toLowerCase().includes(theme.toLowerCase())
-        )
-      )
-      .slice(0, maxResults);
-  }
-
-  private async discoverRelated(theme: string, maxResults: number): Promise<WikiArticle[]> {
-    // First search for articles matching the theme
-    const searchResults = await this.searchArticles({ query: theme, maxResults: 1 });
-    
-    if (searchResults.articles.length === 0) {
-      return [];
-    }
-
-    // Then find related articles
-    return this.getRelatedArticles({ 
-      articleId: searchResults.articles[0].title.toLowerCase().replace(/\s+/g, '_'),
-      maxResults 
-    });
-  }
-
-  private discoverRandom(maxResults: number): WikiArticle[] {
-    const allArticles = Array.from(this.contentDatabase.values());
-    const shuffled = allArticles.sort(() => 0.5 - Math.random());
-    return shuffled.slice(0, maxResults);
-  }
-
-  private generateRecommendations(theme: string, session: BrowsingSession): WikiArticle[] {
-    // Generate recommendations based on theme and browsing history
-    const visitedTitles = new Set(session.history.map(a => a.title));
-    
-    return Array.from(this.contentDatabase.values())
-      .filter(article => 
-        !visitedTitles.has(article.title) &&
-        (theme === 'general' || article.categories.some(cat => 
-          cat.toLowerCase().includes(theme.toLowerCase())
-        ))
-      )
-      .slice(0, 3);
-  }
-
-  private generateExplorationPaths(theme: string): string[] {
-    const paths: Record<string, string[]> = {
-      cosmology: ['Big Bang → Universe → Multiverse', 'Black Holes → Event Horizon → Hawking Radiation'],
-      history: ['Ancient Egypt → Pharaohs → Pyramids', 'Renaissance → Leonardo da Vinci → Scientific Revolution'],
-      general: ['Featured Articles', 'Random Discovery', 'Category Exploration']
-    };
-
-    return paths[theme] || paths.general;
-  }
-
-  private getDominantCategories(session: BrowsingSession): string[] {
-    const categoryCount = new Map<string, number>();
-    
-    session.history.forEach(article => {
-      article.categories.forEach(category => {
-        categoryCount.set(category, (categoryCount.get(category) || 0) + 1);
-      });
-    });
-
-    return Array.from(categoryCount.entries())
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, 3)
-      .map(entry => entry[0]);
-  }
-
-  private analyzeExplorationPattern(session: BrowsingSession): string {
-    if (session.history.length < 2) return 'starting';
-    
-    const categories = session.history.flatMap(a => a.categories);
-    const uniqueCategories = new Set(categories);
-    
-    if (uniqueCategories.size === 1) return 'focused';
-    if (uniqueCategories.size > categories.length * 0.7) return 'exploratory';
-    return 'mixed';
-  }
-
-  private interpolatePrompt(template: string, context: Record<string, any>): string {
-    return template.replace(/\{\{(\w+)\}\}/g, (match, key) => {
-      if (key === 'availableLinks' && context.currentArticle?.links) {
-        return context.currentArticle.links
-          .slice(0, 3)
-          .map((link: WikiLink) => `  • ${link.title}`)
-          .join('\n');
-      }
-      
-      if (key === 'sessionDuration') {
-        return Math.floor((Date.now() - context.startTime) / 60000).toString();
-      }
-
-      return context[key]?.toString() || match;
-    });
-  }
 }
 
 export default WikiMCPBrowser;
+
+/**
+ * CLI entry point - run as standalone MCP server
+ */
+async function main() {
+  console.log(`🌍 Starting Wikipedia MCP Browser on port 3002`);
+  
+  try {
+    const server = new WikiMCPBrowser();
+    await server.start();
+    
+    // Keep process alive
+    process.on('SIGINT', () => {
+      console.log('\n🔄 Shutting down Wikipedia MCP Browser...');
+      server.shutdown().then(() => {
+        process.exit(0);
+      });
+    });
+    
+    process.on('SIGTERM', () => {
+      console.log('\n🔄 Shutting down Wikipedia MCP Browser...');
+      server.shutdown().then(() => {
+        process.exit(0);
+      });
+    });
+    
+  } catch (error) {
+    console.error('❌ Failed to start Wikipedia MCP Browser:', error);
+    process.exit(1);
+  }
+}
+
+// Run if this file is executed directly
+if (require.main === module) {
+  main();
+}

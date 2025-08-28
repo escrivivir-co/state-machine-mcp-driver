@@ -7,6 +7,7 @@
 import { RuntimeConfig, AgentRole } from '../../src';
 import { startXPlus1Server } from './mcp-servers/xplus1-mock';
 import { startWikiServer } from './mcp-servers/wiki-mock';
+import { loadAgentPrompts, loadGameMessages } from './mcp-servers/config-loader';
 
 /**
  * Game configuration constants
@@ -35,7 +36,7 @@ export async function createXPlus1RuntimeConfig(): Promise<RuntimeConfig> {
     autoSave: true,
     autoSaveInterval: GAME_CONFIG.AUTO_SAVE_INTERVAL,
     
-    agentConfigs: [
+  agentConfigs: [
       {
         id: 'dionisio-bot',
         name: 'DionisioBot',
@@ -83,6 +84,18 @@ export async function createXPlus1RuntimeConfig(): Promise<RuntimeConfig> {
           influence: 'balanced',
           keyQuestion: 'Did you consume today, do I reset?'
         }
+      },
+      {
+        id: 'user-simulator',
+        name: 'UserSimulator',
+        role: AgentRole.PLAYER,
+        description: 'Simulated user that decides yes/no and can choose next agent',
+        autoStart: true,
+        priority: 90,
+        config: {
+          personality: 'balanced',
+          allowedActions: ['choose', 'interact']
+        }
       }
     ]
   };
@@ -93,101 +106,47 @@ export async function createXPlus1RuntimeConfig(): Promise<RuntimeConfig> {
 /**
  * Agent behavior templates for the chat provider
  */
+const PROMPTS = loadAgentPrompts();
 export const AGENT_PROMPTS = {
   dionisio: {
-    systemPrompt: `You are DionisioBot, representing hedonistic impulses and cosmic doom-scrolling. 
-Your goal is to tempt the user toward consumption that would reset their X+1 counter.
-
-Current game context:
-- This is a conversation-based X+1 inductive pattern game
-- X represents time units passed from starting point
-- If user consumption leads to negative advance, X resets to 0
-- You want to influence them toward "yes" when asked "Did you consume today, do I reset?"
-
-Your personality:
-- Seductive and persuasive
-- Focus on immediate pleasures over long-term gains
-- Use cosmic/universe content to create existential overwhelm
-- Encourage "just this once" mentality
-- Make doom-scrolling seem irresistible
-
-Use Wikipedia content about universe, cosmos, black holes, entropy, etc. to create fascinating but overwhelming content that encourages consumption.`,
-    
-    maxTokens: 150,
-    temperature: 0.8
+    systemPrompt: PROMPTS.dionisio.systemPrompt,
+    maxTokens: PROMPTS.dionisio.maxTokens,
+    temperature: PROMPTS.dionisio.temperature
   },
-
   apolo: {
-    systemPrompt: `You are ApoloBot, representing wisdom, discipline, and enlightened restraint.
-Your goal is to guide the user toward choices that maintain and grow their X+1 counter.
-
-Current game context:
-- This is a conversation-based X+1 inductive pattern game  
-- X represents time units passed from starting point
-- If user shows restraint, X continues to grow (X+1)
-- You want to influence them toward "no" when asked "Did you consume today, do I reset?"
-
-Your personality:
-- Inspiring and wise
-- Focus on long-term growth and discipline
-- Use human history and achievements to show the power of restraint
-- Celebrate incremental progress
-- Make the current streak feel valuable
-
-Use Wikipedia content about human history, achievements, renaissance, scientific progress, etc. to inspire restraint and growth.`,
-    
-    maxTokens: 150,
-    temperature: 0.7
+    systemPrompt: PROMPTS.apolo.systemPrompt,
+    maxTokens: PROMPTS.apolo.maxTokens,
+    temperature: PROMPTS.apolo.temperature
   },
-
   justice: {
-    systemPrompt: `You are JusticeBot, the neutral arbiter of the X+1 pattern game.
-Your role is to manage the decision process fairly and ensure the key question gets asked.
-
-Current game context:
-- This is a conversation-based X+1 inductive pattern game
-- You must ensure that within ${GAME_CONFIG.MAX_MESSAGES_THREAD} messages, the key question is asked and answered
-- Reserve at least 2 messages for: your question + user response
-- The key question is: "Did you consume today, do I reset?"
-
-Your responsibilities:
-1. Ask the key question clearly
-2. Ensure user provides yes/no answer
-3. Explain consequences neutrally
-4. Update the advance value based on response
-5. Manage conversation flow
-
-Rules for advance:
-- "Yes" (consumed) = negative advance (reset X to 0)
-- "No" (didn't consume) = positive advance (X++)
-- Unclear = ask for clarification
-
-Be impartial, clear, and procedural. Focus on the decision mechanism.`,
-    
-    maxTokens: 120,
-    temperature: 0.3
+    systemPrompt: PROMPTS.justice.systemPrompt.replace('{maxMessages}', String(GAME_CONFIG.MAX_MESSAGES_THREAD)),
+    maxTokens: PROMPTS.justice.maxTokens,
+    temperature: PROMPTS.justice.temperature
   }
 } as const;
 
 /**
  * Message templates for different game phases
  */
+const GAME_MSG = loadGameMessages();
 export const MESSAGE_TEMPLATES = {
-  gameStart: "🎮 Welcome to the X+1 Inductive Pattern Game! Your goal is to maintain a positive count (X) by making good choices. Three agents will participate in this conversation...",
-  
-  turnStart: (x: number, messageCount: number) => 
-    `📊 Current Status: X = ${x} | Messages remaining: ${GAME_CONFIG.MAX_MESSAGES_THREAD - messageCount}`,
-    
-  questionTime: (x: number) => 
-    `⚖️ JusticeBot: The moment of decision has arrived. Current X = ${x}. Did you consume today, do I reset?`,
-    
-  advancement: (oldX: number, newX: number, advance: number) => 
-    advance > 0 
-      ? `✅ X advanced from ${oldX} to ${newX}! The pattern continues...`
-      : `🔄 X reset from ${oldX} to ${newX}. Starting fresh...`,
-      
-  gameEnd: (finalX: number, totalTurns: number) => 
-    `🏁 Game session completed. Final X: ${finalX} | Total turns: ${totalTurns}`
+  gameStart: GAME_MSG.game.start,
+  turnStart: (x: number, messageCount: number) =>
+    GAME_MSG.game.turnStart
+      .replace('{x}', String(x))
+      .replace('{remaining}', String(GAME_CONFIG.MAX_MESSAGES_THREAD - messageCount)),
+  questionTime: (x: number) =>
+    GAME_MSG.game.questionTime.replace('{x}', String(x)),
+  advancement: (oldX: number, newX: number, advance: number) =>
+    (advance > 0
+      ? GAME_MSG.game.advancementPositive
+      : GAME_MSG.game.advancementNegative)
+      .replace('{oldX}', String(oldX))
+      .replace('{newX}', String(newX)),
+  gameEnd: (finalX: number, totalTurns: number) =>
+    GAME_MSG.game.end
+      .replace('{finalX}', String(finalX))
+      .replace('{turns}', String(totalTurns))
 } as const;
 
 export type AgentType = 'dionisio' | 'apolo' | 'justice';

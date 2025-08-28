@@ -116,6 +116,34 @@ export interface XPlus1MessagesConfig {
   };
 }
 
+export interface AgentPromptsConfig {
+  dionisio: { systemPrompt: string; maxTokens: number; temperature: number };
+  apolo: { systemPrompt: string; maxTokens: number; temperature: number };
+  justice: { systemPrompt: string; maxTokens: number; temperature: number };
+}
+
+export interface GameMessagesConfig {
+  game: {
+    start: string;
+    turnStart: string; // template with {x} and {remaining}
+    questionTime: string; // template with {x}
+    advancementPositive: string; // template with {oldX}, {newX}
+    advancementNegative: string; // template with {oldX}, {newX}
+    end: string; // template with {finalX}, {turns}
+  };
+}
+
+export interface UserSimulatorConfig {
+  personalities: Record<string, {
+    baseConsumptionProbability: number;
+    streakThresholds: Array<{ x: number; delta: number }>;
+    recentResetPenalty: { window: number; threshold: number; delta: number };
+    randomJitter: number;
+    nextAgentWeights: Record<string, number>;
+  }>;
+  defaults: { personality: string };
+}
+
 // Helper functions for specific configs
 export const loadWikiTopics = (): WikiTopicsConfig => 
   configLoader.loadConfig<WikiTopicsConfig>('wiki-topics');
@@ -128,3 +156,12 @@ export const loadWikiMessages = (): WikiMessagesConfig =>
 
 export const loadXPlus1Messages = (): XPlus1MessagesConfig => 
   configLoader.loadConfig<XPlus1MessagesConfig>('xplus1-messages');
+
+export const loadAgentPrompts = (): AgentPromptsConfig =>
+  configLoader.loadConfig<AgentPromptsConfig>('agent-prompts');
+
+export const loadGameMessages = (): GameMessagesConfig =>
+  configLoader.loadConfig<GameMessagesConfig>('game-messages');
+
+export const loadUserSimulator = (): UserSimulatorConfig =>
+  configLoader.loadConfig<UserSimulatorConfig>('user-simulator');

@@ -1,52 +1,200 @@
-**State Machine MCP Driver** is node-js service to handle a simple state machine that drives its transitions via MCP protocol and mantains state also via MCP.
+# State Machine MCP Driver
 
-# How to use
+**State Machine MCP Driver** is a Node.js service to handle state machines via MCP protocol with integrated chat providers and multi-agent orchestration.
 
-## Define StateGraph
+- I can launch the application
+- The application initializes correctly
+- The gamification UI is loaded
+- The user has access to the game
+- The game can be initialized
+- The game can be played according to the configuration
+- The game can be closed
+- The game can be recovered and continued
 
-### StateGraph
-A StateGraph is defined as a simple tree automaton. Each state, as node of the tree defines its own content and links available routes. Defined in JSON and offered typescript interfaces and types to mantain the tree
+## 🚀 Quick Start
 
-### State
-Is the json storage for user & game. Runtime can plugin State units as they where memory cards.
+### Run X+1 Game with Application Launcher
+```bash
+# One command to start everything!
+npm run launcher:x-plus-1
+```
 
-## Define MCP driver and connect to state graph
-The MCP Driver contains the CRUD for adding MCP server and the conectors to execute tools, check and get prompts and resources.
+This will automatically:
+- ✅ Check Ollama server and models
+- ⚡ Start MCP servers (X+1 Machine, Wiki Browser) 
+- 🏥 Perform health checks
+- 🎮 Launch the X+1 inductive pattern game
 
-## Configure runtime and plug in MCP Driver
-Runtime uses MCP Driver and current loaded State to start an scene. The Runtime and the Agents will use MCP tools/resources/prompts to behave in the scene. So channels must be configured.
+### Manual Setup
+```bash
+# Install dependencies
+npm install
 
-## Start runtime
-Runtime retrieves the current stategraph. Takes current state. If not present go to one. For each agent in the scene, runtime gives current state resource and uses proper promt so the agent can start to check for its missions or habilities. The agent, if needed, will use the current state to know its chains of action (notice n8n editor will be fine here).
+# Start individual components
+npm run mcp:xplus1        # X+1 MCP server on port 3001
+npm run mcp:wiki          # Wiki MCP server on port 3002  
+npm run example:x-plus-1  # Run game only (assumes servers running)
+```
 
-# User Manual
+## 📖 How It Works
 
-## Gamification UI
-    - Pick a game corresponding to a loaded StateGraph
-### Entering the scene
-    - Runtime starts the scene a works with MCP Driver to animate and provide content
-### Playing the scene
-    - Runtime allows user to play with scene by using MCP Driver to handle tools, resources and prompts for agents participating
-### Quiting the scene
-    - Runtime uses MCP Driver to save the state after playing.
+### Architecture Overview
+```
+Application Launcher
+├── Environment Checks (Ollama, models, files)
+├── MCP Server Management (X+1, Wiki browsers)
+├── Health Monitoring (HTTP checks, model validation)
+└── Application Orchestration (Runtime + Chat Provider)
+```
 
-# Sample state machines
+### Core Components
 
-## Common components
+#### 1. StateGraph
+Define state machines as tree automata with JSON configuration and TypeScript interfaces.
 
-### ConsoleGamificationUI
+#### 2. MCP Driver  
+CRUD operations for MCP servers with tools, resources, and prompts integration.
 
-In this package the gamification UI takes the std in/out to interact with user.
+#### 3. Runtime Engine
+Orchestrates agents using MCP protocol with current state and chat providers.
 
-### XPlus1MCPMachine
+#### 4. Chat Provider Integration
+LLM conversations through Ollama with multi-agent support.
 
-This mcp server allows to matain and serve the X+1 inductive pattern. Offers tools that allow to gather the needed prompts for an agent know how to CRUD the state. The state is served dinamically by resources.
+## 🎮 Sample Implementation: X+1 Inductive Pattern
 
-### WikiMCPBrowser
+A philosophical game exploring consumption vs. restraint through AI conversations.
 
-Is a mcp server that provide tools, resources and prompts to guide an agent loading pages from wikipedia and jumping to links. Agent may use this server to perform over the user, like doomscroolling in a determined timeline on a subject or whatever. Content of the wikipages are served dinamically by resources and runtime uses mcp prompts to let the agent gather the content and browse the timeline.
+### Game Components
 
-## X+1 inductive pattern (uses ConsoleGamificationUI)
+#### ConsoleGamificationUI
+- Text-based interface using stdin/stdout
+- Real-time game state visualization  
+- Command system (`help`, `status`, `quit`)
+
+#### XPlus1MCPMachine (MCP Server)
+- **Tools**: `advance_x`, `reset_x`, `get_x_status`, `evaluate_advancement`
+- **Resources**: Current state, advancement history, session analytics
+- **Prompts**: Agent-specific conversation templates
+
+#### WikiMCPBrowser (MCP Server)  
+- **Tools**: `browse_article`, `search_articles`, `get_timeline`
+- **Resources**: Article content, browsing sessions
+- **Prompts**: Content discovery and navigation guidance
+
+### Game Flow
+1. **Agents Converse**: DionisioBot (temptation), ApoloBot (restraint), JusticeBot (judgment)
+2. **Decision Point**: "Did you consume today, do I reset?"
+3. **State Transition**: Yes = X resets to 0, No = X advances by 1
+4. **New Round**: Conversation continues with updated state
+
+## 📋 Usage Patterns
+
+### Define StateGraph
+```typescript
+import { StateGraph, State } from './src/models';
+
+const myStateGraph: StateGraph = {
+  id: 'my-game',
+  states: {
+    start: { content: 'Welcome!', transitions: [...] },
+    playing: { content: 'Game active', transitions: [...] }
+  }
+};
+```
+
+### Configure MCP Driver
+```typescript
+import { MCPDriver } from './src/drivers/MCPDriver';
+
+const mcpDriver = new MCPDriver();
+mcpDriver.addServer({
+  id: 'my-server',
+  name: 'My MCP Server',
+  url: 'http://localhost:3001',
+  timeout: 5000
+});
+```
+
+### Setup Runtime with Chat Provider
+```typescript
+import { Runtime } from './src/runtime/Runtime';
+import { OllamaChatProvider } from './src/chat-provider/OllamaChatProvider';
+
+const chatProvider = new OllamaChatProvider({
+  baseUrl: 'http://localhost:11434',
+  defaultModel: 'llama3.2:3b'
+});
+
+const runtime = new Runtime(mcpDriver, {
+  stateGraph: myStateGraph,
+  agents: [...],
+  chatProvider
+});
+
+await runtime.initialize();
+```
+
+## 🛠️ Environment Setup
+
+### Prerequisites
+```bash
+# Install and start Ollama
+curl -fsSL https://ollama.ai/install.sh | sh
+ollama serve
+
+# Pull required model
+ollama pull llama3.2:3b
+
+# Install Node.js dependencies  
+npm install
+```
+
+### Environment Variables
+```bash
+OLLAMA_URL=http://localhost:11434
+OLLAMA_MODEL=llama3.2:3b
+MCP_XPLUS1_URL=http://localhost:3001
+MCP_WIKI_URL=http://localhost:3002
+```
+
+## 📚 Documentation
+
+- **[Application Launcher](./docs/LAUNCHER.md)** - Complete launcher documentation
+- **[X+1 Example](./examples/x-plus-1-state-machine/README.md)** - Game implementation guide
+- **[API Reference](./src/)** - TypeScript interfaces and classes
+
+## 🔧 Available Scripts
+
+| Script | Purpose |
+|--------|---------|
+| `npm run launcher:x-plus-1` | **Complete X+1 game startup** |
+| `npm run mcp:xplus1` | X+1 MCP server only |
+| `npm run mcp:wiki` | Wiki MCP server only |
+| `npm run example:x-plus-1` | X+1 game only (no setup) |
+| `npm run launcher` | Custom application launcher |
+
+## 🎯 Key Features
+
+- **🔄 State Machine Management**: JSON-defined automata with TypeScript support
+- **🌐 MCP Protocol Integration**: Tools, resources, and prompts via Model Context Protocol
+- **🤖 Multi-Agent Orchestration**: Coordinate multiple AI agents in conversations
+- **💬 Chat Provider Support**: Ollama integration with extensible provider system
+- **🎮 Gamification Framework**: Console UI for interactive experiences
+- **🚀 Application Launcher**: Automated startup with health checks and dependency management
+- **🏥 Health Monitoring**: Comprehensive system validation and error handling
+- **📊 Analytics & Logging**: Session tracking and performance monitoring
+
+## Example: X+1 Inductive Pattern Game
+
+The X+1 pattern demonstrates the library's capabilities through a philosophical game about consumption and restraint, featuring three AI agents with distinct personalities engaging in meaningful conversations that influence game state transitions.
+
+**Try it now:**
+```bash
+npm run launcher:x-plus-1
+```
+
+This showcases the complete state-machine-mcp-driver ecosystem in action! 🎮
 
 Ok. Here the StateGraph has this tree:
 
