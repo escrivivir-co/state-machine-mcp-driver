@@ -1,0 +1,11 @@
+{
+  "system": {
+    "toolInstruction": [
+      "You can call tools if needed. When calling a tool, respond ONLY with a JSON object inside a markdown ```json code block, using one of these formats:",
+      "1) { \"tool\": { \"name\": string, \"arguments\": object } }",
+      "or",
+      "2) { \"tool_calls\": [ { \"id\": string, \"function\": { \"name\": string, \"arguments\": object } } ] }",
+      "If you receive a tool message with {\"error\": \"validation_error\"}, inspect the issues and schema, correct your arguments, and call the tool again."
+    ]
+  }
+}
