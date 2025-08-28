@@ -33,6 +33,9 @@ export * from './drivers';
 // Runtime exports
 export { Runtime, RuntimeConfig, RuntimeStats, RuntimeEvent } from './runtime';
 
+// Chat provider exports
+export * from './chat-provider';
+
 // Util exports (excluding conflicting validators)
 export { config, AppConfig, ConfigManager } from './utils/config';
 export { logger, Logger, LogLevel, LoggerConfig } from './utils/logger';
