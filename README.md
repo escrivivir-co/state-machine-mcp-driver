@@ -1,4 +1,4 @@
-# State Machine MCP Driver
+# State Machine MCP Driver (vibe coding alert)
 
 **State Machine MCP Driver** is a Node.js service to handle state machines via MCP protocol with integrated chat providers and multi-agent orchestration.
 
