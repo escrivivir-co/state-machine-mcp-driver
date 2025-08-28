@@ -36,3 +36,12 @@ export {
   AgentFactory,
   AgentUtils
 } from './Agent';
+
+// Agent Postulation System
+export {
+  AgentPostulationManager,
+  AgentGreediness,
+  AgentPostulation,
+  AgentPostulationConfig,
+  PostulationContext
+} from './AgentPostulation';

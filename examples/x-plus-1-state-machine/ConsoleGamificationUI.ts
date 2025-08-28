@@ -1,20 +1,21 @@
 /**
  * X+1 Game Console Interface (Example)
  *
- * Refactored to EXTEND the reusable src UI component.
- * This class focuses on X+1-specific logic, delegating generic console UI
- * to ConsoleGamificationUI from src/ui.
+ * Refactored to EXTEND the reusable src UI component and use the modular
+ * postulation system for agent selection.
  */
 import { ConsoleGamificationUI, ConsoleUIConfig, ConsoleUIEvent } from '../../src/ui';
 import { Runtime } from '../../src/runtime/Runtime';
 import { MCPDriverAdapter } from '../../src/drivers/MCPDriverAdapter';
 import { AgentStatus } from '../../src/models/Agent';
+import { AgentPostulation } from '../../src/models/AgentPostulation';
 import {
   createXPlus1RuntimeConfig,
   GAME_CONFIG,
   MESSAGE_TEMPLATES,
 } from './game-config';
 import { OllamaChatProvider } from '../../src/chat-provider/OllamaChatProvider';
+import { XPlus1PostulationSystem } from './XPlus1PostulationSystem';
 
 type GamePhase = 'start' | 'conversation' | 'decision' | 'advancement' | 'end';
 
@@ -22,6 +23,7 @@ export class XPlus1GameConsole extends ConsoleGamificationUI {
   private runtimeInstance: Runtime;
   private mcpDriver: MCPDriverAdapter;
   private chatProvider: OllamaChatProvider;
+  private postulationSystem: XPlus1PostulationSystem;
 
   private gameState = {
     x: 0,
@@ -37,11 +39,12 @@ export class XPlus1GameConsole extends ConsoleGamificationUI {
     this.runtimeInstance = runtime;
     this.mcpDriver = mcp;
     this.chatProvider = chat;
+    
+    // Initialize X+1 postulation system
+    this.postulationSystem = new XPlus1PostulationSystem();
+    this.setPostulationManager(this.postulationSystem.getManager());
 
-    // Listen to user input from the base UI
-    this.on(ConsoleUIEvent.USER_INPUT, async ({ input }) => {
-      await this.onUserInput(input);
-    });
+    this.setupX1EventHandlers();
   }
 
   /**
@@ -91,9 +94,31 @@ export class XPlus1GameConsole extends ConsoleGamificationUI {
       userPrompt: '> ',
       enableColors: true,
       debugMode: false,
+      enablePostulations: true,
+      autoSelectSingleAgent: false, // Let user choose even with single agent
     };
 
     return new XPlus1GameConsole(runtime, mcpDriver, chatProvider, uiConfig);
+  }
+
+  /**
+   * Setup X+1 specific event handlers
+   */
+  private setupX1EventHandlers(): void {
+    // Handle user input for game commands
+    this.on(ConsoleUIEvent.USER_INPUT, async ({ input }) => {
+      await this.onUserInput(input);
+    });
+
+    // Handle agent selection events
+    this.on(ConsoleUIEvent.AGENT_SELECTED, async ({ postulation, autoSelected }) => {
+      await this.handleAgentSelected(postulation, autoSelected);
+    });
+
+    // Handle when postulations are generated
+    this.on(ConsoleUIEvent.POSTULATIONS_GENERATED, ({ postulations }) => {
+      this.displayPostulationInfo(postulations);
+    });
   }
 
   /**
@@ -123,6 +148,119 @@ export class XPlus1GameConsole extends ConsoleGamificationUI {
     this.gameState.currentPhase = 'start';
     console.log(MESSAGE_TEMPLATES.turnStart(this.gameState.x, this.gameState.messageCount));
     console.log('\nType "help" for commands, or start conversing with the agents...');
+
+    // Trigger first postulation request
+    await this.requestNextAgent();
+  }
+
+  /**
+   * Request next agent selection using postulation system
+   */
+  private async requestNextAgent(): Promise<void> {
+    if (!this.gameState.isActive || this.gameState.currentPhase === 'decision') {
+      return;
+    }
+
+    const context = this.postulationSystem.generateContext(
+      this.gameState.messageCount,
+      GAME_CONFIG.MAX_MESSAGES_THREAD,
+      { x: this.gameState.x, flags: { userSimulatorEnabled: this.gameState.simulateUser } },
+      undefined, // lastMessage
+      false, // needsExplanation  
+      false  // needsSupport
+    );
+
+    await this.requestAgentSelection(this.generateAgentPostulations(context));
+  }
+
+  /**
+   * Handle when an agent is selected from postulations
+   */
+  private async handleAgentSelected(postulation: AgentPostulation, autoSelected: boolean): Promise<void> {
+    const agent = postulation.agent;
+    
+    if (!autoSelected) {
+      console.log(`\n🎯 You selected: ${agent.name}`);
+      console.log(`📝 Reason: ${postulation.reason}\n`);
+    }
+
+    // Simulate agent message (in real implementation, this would trigger chat provider)
+    const agentMessage = await this.generateAgentMessage(agent.id, postulation);
+    
+    // Display the agent message
+    await this.sendAgentMessage(agent.id, agentMessage);
+    
+    this.gameState.messageCount++;
+    
+    // Check if we should move to decision phase
+    if (agent.id === 'justice-bot' && this.shouldEnterDecisionPhase()) {
+      this.gameState.currentPhase = 'decision';
+      console.log('\n⚖️ JusticeBot: Did you consume today, do I reset?');
+      console.log('(Answer with "yes" or "no")');
+    } else if (this.gameState.messageCount < GAME_CONFIG.MAX_MESSAGES_THREAD) {
+      // Request next agent
+      setTimeout(() => this.requestNextAgent(), 1000);
+    }
+  }
+
+  /**
+   * Display information about generated postulations (debug/info)
+   */
+  private displayPostulationInfo(postulations: AgentPostulation[]): void {
+    if (postulations.length === 0) {
+      console.log('\n🤐 No agents are postulating this turn');
+      return;
+    }
+
+    console.log(`\n📊 ${postulations.length} agent(s) postulating:`);
+    postulations.forEach((p, i) => {
+      const priority = '⭐'.repeat(Math.min(3, Math.max(1, Math.floor(p.priority / 2))));
+      console.log(`  ${i + 1}. ${p.agent.name} ${priority} - ${p.reason}`);
+    });
+  }
+
+  /**
+   * Generate a simulated agent message based on postulation
+   */
+  private async generateAgentMessage(agentId: string, postulation: AgentPostulation): Promise<string> {
+    // This is a simplified simulation - in real implementation, 
+    // this would use the chat provider with appropriate prompts
+    
+    const templates = {
+      'dionisio-bot': [
+        'Life is short! Why deny yourself the small pleasures? That coffee, that snack, that moment of indulgence...',
+        'You\'ve been so disciplined lately. Don\'t you think you deserve a little reward?',
+        'Come on, live a little! One small indulgence won\'t hurt your progress.',
+        'The universe is vast and we are so small. Why not enjoy what little pleasures we can find?'
+      ],
+      'apolo-bot': [
+        'Consider the path of growth. Each "no" to immediate pleasure builds your inner strength.',
+        'True fulfillment comes from discipline and conscious choice, not instant gratification.',
+        'Remember: you are building habits that will serve your future self.',
+        'The strongest trees grow slowly, with deep roots. Same with human character.'
+      ],
+      'justice-bot': [
+        'The moment of truth approaches. How will you choose?',
+        'Every decision shapes who you become. Choose wisely.',
+        'Balance is key. Both restraint and enjoyment have their place.',
+        'The question that matters most is coming...'
+      ]
+    };
+
+    const agentTemplates = templates[agentId as keyof typeof templates] || ['Ready to proceed.'];
+    const randomMessage = agentTemplates[Math.floor(Math.random() * agentTemplates.length)];
+    
+    return randomMessage;
+  }
+
+  /**
+   * Determine if we should enter decision phase
+   */
+  private shouldEnterDecisionPhase(): boolean {
+    return this.postulationSystem.shouldJusticeAskQuestion(
+      this.gameState.messageCount, 
+      GAME_CONFIG.MAX_MESSAGES_THREAD
+    );
   }
 
   // Minimal user input handler for the example; extend as needed
@@ -146,11 +284,51 @@ export class XPlus1GameConsole extends ConsoleGamificationUI {
       return;
     }
 
-    // Placeholder for future custom commands
+    // Handle simulator commands
+    if (lower.startsWith('sim ') || lower === 'sim') {
+      await this.handleSimulatorCommand(input);
+      return;
+    }
 
-    // Fallback: echo as a player message and keep simple counter
+    // Handle decision phase responses
+    if (this.gameState.currentPhase === 'decision') {
+      await this.handleDecisionPhase(input);
+      return;
+    }
+
+    // Fallback: echo as a player message and continue game flow
     console.log(`\n👤 Player: ${input}`);
     this.gameState.messageCount++;
+    
+    // Continue with next agent selection if not in decision phase
+    if (this.gameState.messageCount < GAME_CONFIG.MAX_MESSAGES_THREAD) {
+      setTimeout(() => this.requestNextAgent(), 1000);
+    }
+  }
+
+  /**
+   * Handle simulator commands (sim on/off/status/toggle)
+   */
+  private async handleSimulatorCommand(input: string): Promise<void> {
+    const parts = input.toLowerCase().split(' ');
+    const command = parts[1] || 'status';
+
+    switch (command) {
+      case 'on':
+        await this.setSimulatorEnabled(true);
+        break;
+      case 'off':
+        await this.setSimulatorEnabled(false);
+        break;
+      case 'toggle':
+        await this.setSimulatorEnabled(!this.gameState.simulateUser);
+        break;
+      case 'status':
+        console.log(`\n🤖 User simulator: ${this.gameState.simulateUser ? 'ENABLED' : 'DISABLED'}`);
+        break;
+      default:
+        console.log('\n📖 Simulator commands: on, off, toggle, status');
+    }
   }
 
   // --- Optional advanced game loop (simplified placeholder) ---
@@ -311,19 +489,6 @@ export class XPlus1GameConsole extends ConsoleGamificationUI {
     }
   }
 
-  private async setSimulatorEnabled(enabled: boolean): Promise<void> {
-    try {
-  const st = this.runtimeInstance.getCurrentState();
-      st.gameData.flags = st.gameData.flags || {};
-      st.gameData.flags['userSimulatorEnabled'] = enabled;
-  await this.runtimeInstance.saveCurrentState();
-      this.gameState.simulateUser = enabled;
-      console.log(`\n🔧 Simulator ${enabled ? 'ENABLED' : 'DISABLED'}`);
-    } catch (e) {
-      console.log('Failed to update simulator flag in state:', e);
-    }
-  }
-
   private showHelp(): void {
     console.log('\n📖 X+1 Game Commands:');
     console.log('  help    - Show this help message');
@@ -352,6 +517,22 @@ export class XPlus1GameConsole extends ConsoleGamificationUI {
     console.log(`  Total turns: ${this.gameState.turnHistory.length}`);
   console.log(`  Active agents: ${this.runtimeInstance?.getAgents().length || 0}`);
   console.log(`  User simulator: ${this.gameState.simulateUser ? 'enabled' : 'disabled'}\n`);
+  }
+
+  /**
+   * Enable or disable the user simulator
+   */
+  private async setSimulatorEnabled(enabled: boolean): Promise<void> {
+    try {
+      const st = this.runtimeInstance.getCurrentState();
+      st.gameData.flags = st.gameData.flags || {};
+      st.gameData.flags['userSimulatorEnabled'] = enabled;
+      await this.runtimeInstance.saveCurrentState();
+      this.gameState.simulateUser = enabled;
+      console.log(`\n🔧 User simulator ${enabled ? 'ENABLED' : 'DISABLED'}`);
+    } catch (e) {
+      console.log('Failed to update simulator flag in state:', e);
+    }
   }
 
   // Shutdown uses base stop()

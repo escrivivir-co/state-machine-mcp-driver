@@ -7,6 +7,9 @@ import { BaseMCPServer, MCPServerConfig } from './BaseMCPServer';
 import { z } from 'zod';
 import axios from 'axios';
 import { logger } from '../utils/logger';
+import * as fs from 'fs/promises';
+import * as path from 'path';
+import * as crypto from 'crypto';
 
 /**
  * Wikipedia article structure from API
@@ -40,6 +43,26 @@ interface WikipediaSearchResult {
 }
 
 /**
+ * Cache entry structure for disk storage
+ */
+interface CacheEntry {
+  data: any;
+  timestamp: number;
+  etag?: string;
+  expires?: number;
+}
+
+/**
+ * Cache configuration
+ */
+interface CacheConfig {
+  enabled: boolean;
+  directory: string;
+  maxAge: number; // in milliseconds
+  maxSize: number; // maximum cache size in MB
+}
+
+/**
  * Browsing session state for doom-scrolling prevention
  */
 interface BrowsingSession {
@@ -61,6 +84,7 @@ export class WikiMCPBrowser extends BaseMCPServer {
   private session: BrowsingSession;
   private readonly WIKIPEDIA_API_BASE = 'https://en.wikipedia.org/api/rest_v1';
   private readonly WIKIPEDIA_API_OLD = 'https://en.wikipedia.org/w/api.php';
+  private cache: CacheConfig;
 
   constructor() {
     const config: MCPServerConfig = {
@@ -76,6 +100,14 @@ export class WikiMCPBrowser extends BaseMCPServer {
     };
 
     super(config);
+
+    // Initialize cache configuration
+    this.cache = {
+      enabled: true,
+      directory: path.join(process.cwd(), '.cache', 'wikipedia'),
+      maxAge: 24 * 60 * 60 * 1000, // 24 hours
+      maxSize: 100 // 100MB
+    };
 
     // Initialize browsing session
     this.session = {
@@ -96,6 +128,198 @@ export class WikiMCPBrowser extends BaseMCPServer {
     this.setupTools();
     this.setupResources();
     this.setupPrompts();
+    this.initializeCache();
+  }
+
+  /**
+   * Initialize cache directory
+   */
+  private async initializeCache(): Promise<void> {
+    if (!this.cache.enabled) return;
+    
+    try {
+      await fs.mkdir(this.cache.directory, { recursive: true });
+      logger.info(`WikiMCP: Cache directory initialized at ${this.cache.directory}`);
+    } catch (error) {
+      logger.error('WikiMCP: Failed to initialize cache directory', { error });
+      this.cache.enabled = false;
+    }
+  }
+
+  /**
+   * Generate cache key for a given URL and parameters
+   */
+  private generateCacheKey(url: string, params?: any): string {
+    const data = `${url}${params ? JSON.stringify(params) : ''}`;
+    return crypto.createHash('sha256').update(data).digest('hex');
+  }
+
+  /**
+   * Get cached data if available and not expired
+   */
+  private async getCachedData(cacheKey: string): Promise<any | null> {
+    if (!this.cache.enabled) return null;
+
+    try {
+      const cacheFile = path.join(this.cache.directory, `${cacheKey}.json`);
+      const cacheData = await fs.readFile(cacheFile, 'utf-8');
+      const entry: CacheEntry = JSON.parse(cacheData);
+
+      // Check if cache is expired
+      const now = Date.now();
+      if (entry.expires && now > entry.expires) {
+        await this.deleteCacheEntry(cacheKey);
+        return null;
+      }
+
+      // Check if cache is too old
+      if (now - entry.timestamp > this.cache.maxAge) {
+        await this.deleteCacheEntry(cacheKey);
+        return null;
+      }
+
+      logger.info(`WikiMCP: Cache hit for key ${cacheKey}`);
+      return entry.data;
+    } catch (error) {
+      // Cache miss or error reading cache
+      return null;
+    }
+  }
+
+  /**
+   * Store data in cache
+   */
+  private async setCachedData(cacheKey: string, data: any, etag?: string): Promise<void> {
+    if (!this.cache.enabled) return;
+
+    try {
+      const cacheFile = path.join(this.cache.directory, `${cacheKey}.json`);
+      const entry: CacheEntry = {
+        data,
+        timestamp: Date.now(),
+        etag,
+        expires: etag ? undefined : Date.now() + this.cache.maxAge
+      };
+
+      await fs.writeFile(cacheFile, JSON.stringify(entry, null, 2));
+      logger.info(`WikiMCP: Data cached with key ${cacheKey}`);
+
+      // Check cache size and cleanup if needed
+      await this.cleanupCache();
+    } catch (error) {
+      logger.error(`WikiMCP: Failed to cache data for key ${cacheKey}`, { error });
+    }
+  }
+
+  /**
+   * Delete a specific cache entry
+   */
+  private async deleteCacheEntry(cacheKey: string): Promise<void> {
+    try {
+      const cacheFile = path.join(this.cache.directory, `${cacheKey}.json`);
+      await fs.unlink(cacheFile);
+    } catch (error) {
+      // File might not exist, ignore error
+    }
+  }
+
+  /**
+   * Clean up cache if it exceeds size limit
+   */
+  private async cleanupCache(): Promise<void> {
+    try {
+      const files = await fs.readdir(this.cache.directory);
+      const cacheFiles = files.filter(f => f.endsWith('.json'));
+      
+      if (cacheFiles.length === 0) return;
+
+      // Get file stats and sort by modification time
+      const fileStats = await Promise.all(
+        cacheFiles.map(async file => {
+          const filePath = path.join(this.cache.directory, file);
+          const stats = await fs.stat(filePath);
+          return { file, stats, path: filePath };
+        })
+      );
+
+      // Calculate total cache size
+      const totalSize = fileStats.reduce((sum, { stats }) => sum + stats.size, 0);
+      const maxSizeBytes = this.cache.maxSize * 1024 * 1024; // Convert MB to bytes
+
+      if (totalSize > maxSizeBytes) {
+        // Sort by oldest first
+        fileStats.sort((a, b) => a.stats.mtime.getTime() - b.stats.mtime.getTime());
+        
+        let currentSize = totalSize;
+        for (const { file, path: filePath, stats } of fileStats) {
+          if (currentSize <= maxSizeBytes * 0.8) break; // Keep 80% of max size
+          
+          await fs.unlink(filePath);
+          currentSize -= stats.size;
+          logger.info(`WikiMCP: Removed old cache file ${file}`);
+        }
+      }
+    } catch (error) {
+      logger.error('WikiMCP: Failed to cleanup cache', { error });
+    }
+  }
+
+  /**
+   * Clear all cache entries
+   */
+  private async clearCache(): Promise<void> {
+    if (!this.cache.enabled) return;
+
+    try {
+      const files = await fs.readdir(this.cache.directory);
+      const cacheFiles = files.filter(f => f.endsWith('.json'));
+      
+      await Promise.all(
+        cacheFiles.map(file => 
+          fs.unlink(path.join(this.cache.directory, file))
+        )
+      );
+      
+      logger.info(`WikiMCP: Cleared ${cacheFiles.length} cache files`);
+    } catch (error) {
+      logger.error('WikiMCP: Failed to clear cache', { error });
+      throw error;
+    }
+  }
+
+  /**
+   * Make HTTP request with caching support
+   */
+  private async cachedRequest(url: string, config: any = {}): Promise<any> {
+    const cacheKey = this.generateCacheKey(url, config.params);
+    
+    // Try to get from cache first
+    const cachedData = await this.getCachedData(cacheKey);
+    if (cachedData) {
+      return { data: cachedData, fromCache: true };
+    }
+
+    // Make actual HTTP request
+    try {
+      logger.info(`WikiMCP: Cache miss, fetching from ${url}`);
+      
+      const response = await axios.get(url, {
+        ...config,
+        headers: {
+          ...config.headers,
+          'User-Agent': 'WikiMCPBrowser/1.0 (https://github.com/escrivivir-co/state-machine-mcp-driver)'
+        }
+      });
+
+      // Cache the response
+      await this.setCachedData(cacheKey, response.data, response.headers.etag);
+      
+      logger.info(`WikiMCP: Response cached for future use`);
+      
+      return { data: response.data, fromCache: false };
+    } catch (error) {
+      throw error;
+    }
   }
 
   /**
@@ -116,13 +340,8 @@ export class WikiMCPBrowser extends BaseMCPServer {
           logger.info(`WikiMCP: Loading article "${title}" from ${language}.wikipedia.org`);
 
           // Get page content using Wikipedia REST API
-          const response = await axios.get(
-            `https://${language}.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(title)}`,
-            {
-              headers: {
-                'User-Agent': 'WikiMCPBrowser/1.0 (https://github.com/escrivivir-co/state-machine-mcp-driver)'
-              }
-            }
+          const response = await this.cachedRequest(
+            `https://${language}.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(title)}`
           );
 
           const page = response.data;
@@ -148,13 +367,8 @@ export class WikiMCPBrowser extends BaseMCPServer {
           // Get full page content for reading
           let fullContent = '';
           try {
-            const contentResponse = await axios.get(
-              `https://${language}.wikipedia.org/api/rest_v1/page/html/${encodeURIComponent(title)}`,
-              {
-                headers: {
-                  'User-Agent': 'WikiMCPBrowser/1.0 (https://github.com/escrivivir-co/state-machine-mcp-driver)'
-                }
-              }
+            const contentResponse = await this.cachedRequest(
+              `https://${language}.wikipedia.org/api/rest_v1/page/html/${encodeURIComponent(title)}`
             );
             
             // Extract text from HTML (basic extraction)
@@ -244,7 +458,7 @@ export class WikiMCPBrowser extends BaseMCPServer {
           logger.info(`WikiMCP: Searching Wikipedia for "${query}" (limit: ${limit})`);
 
           // Use Wikipedia OpenSearch API for search
-          const searchResponse = await axios.get(
+          const searchResponse = await this.cachedRequest(
             `https://${language}.wikipedia.org/w/api.php`,
             {
               params: {
@@ -255,9 +469,6 @@ export class WikiMCPBrowser extends BaseMCPServer {
                 srlimit: Math.min(limit, 50),
                 srinfo: 'totalhits',
                 srprop: 'size|wordcount|timestamp|snippet'
-              },
-              headers: {
-                'User-Agent': 'WikiMCPBrowser/1.0 (https://github.com/escrivivir-co/state-machine-mcp-driver)'
               }
             }
           );
@@ -488,6 +699,107 @@ export class WikiMCPBrowser extends BaseMCPServer {
         }
       }
     );
+
+    // Clear cache tool
+    this.server.tool(
+      'clear_cache',
+      'Clear the Wikipedia content cache to free up space',
+      {
+        confirm: z.boolean().optional().describe('Confirm cache deletion (default: false)')
+      },
+      async ({ confirm = false }) => {
+        try {
+          if (!confirm) {
+            return {
+              content: [
+                {
+                  type: 'text',
+                  text: JSON.stringify({
+                    success: false,
+                    message: 'Cache clear cancelled. Set confirm=true to proceed.',
+                    currentStats: await this.getCacheStatistics()
+                  }, null, 2)
+                }
+              ]
+            };
+          }
+
+          const statsBefore = await this.getCacheStatistics();
+          await this.clearCache();
+          const statsAfter = await this.getCacheStatistics();
+
+          logger.info('WikiMCP: Cache cleared manually');
+
+          return {
+            content: [
+              {
+                type: 'text',
+                text: JSON.stringify({
+                  success: true,
+                  message: 'Cache cleared successfully',
+                  before: statsBefore,
+                  after: statsAfter,
+                  freedSpace: `${(statsBefore.totalSizeMB || 0).toFixed(2)} MB`
+                }, null, 2)
+              }
+            ]
+          };
+        } catch (error) {
+          logger.error('WikiMCP: Failed to clear cache', { error });
+          
+          return {
+            content: [
+              {
+                type: 'text',
+                text: JSON.stringify({
+                  success: false,
+                  error: 'Failed to clear cache',
+                  errorDetails: error instanceof Error ? error.message : 'Unknown error'
+                }, null, 2)
+              }
+            ]
+          };
+        }
+      }
+    );
+
+    // Get cache statistics tool
+    this.server.tool(
+      'get_cache_stats',
+      'Get detailed statistics about the Wikipedia content cache',
+      {},
+      async () => {
+        try {
+          const stats = await this.getCacheStatistics();
+
+          return {
+            content: [
+              {
+                type: 'text',
+                text: JSON.stringify({
+                  success: true,
+                  cacheStats: stats,
+                  recommendations: this.getCacheRecommendations(stats)
+                }, null, 2)
+              }
+            ]
+          };
+        } catch (error) {
+          return {
+            content: [
+              {
+                type: 'text',
+                text: JSON.stringify({
+                  success: false,
+                  error: 'Failed to get cache statistics',
+                  errorDetails: error instanceof Error ? error.message : 'Unknown error'
+                }, null, 2)
+              }
+            ]
+          };
+        }
+      }
+    );
   }
 
   /**
@@ -548,6 +860,30 @@ export class WikiMCPBrowser extends BaseMCPServer {
               uri: 'wiki://api/status',
               mimeType: 'application/json',
               text: JSON.stringify(status, null, 2)
+            }
+          ]
+        };
+      }
+    );
+
+    // Cache statistics
+    this.server.resource(
+      'cache-statistics',
+      'wiki://cache/stats',
+      {
+        name: 'Cache Statistics',
+        description: 'Statistics about the Wikipedia content cache',
+        mimeType: 'application/json'
+      },
+      async () => {
+        const stats = await this.getCacheStatistics();
+        
+        return {
+          contents: [
+            {
+              uri: 'wiki://cache/stats',
+              mimeType: 'application/json',
+              text: JSON.stringify(stats, null, 2)
             }
           ]
         };
@@ -754,6 +1090,93 @@ export class WikiMCPBrowser extends BaseMCPServer {
         lastChecked: new Date().toISOString()
       };
     }
+  }
+
+  /**
+   * Get cache statistics
+   */
+  private async getCacheStatistics(): Promise<any> {
+    if (!this.cache.enabled) {
+      return {
+        enabled: false,
+        message: 'Cache is disabled'
+      };
+    }
+
+    try {
+      const files = await fs.readdir(this.cache.directory);
+      const cacheFiles = files.filter(f => f.endsWith('.json'));
+      
+      if (cacheFiles.length === 0) {
+        return {
+          enabled: true,
+          directory: this.cache.directory,
+          totalFiles: 0,
+          totalSize: 0,
+          oldestEntry: null,
+          newestEntry: null
+        };
+      }
+
+      const fileStats = await Promise.all(
+        cacheFiles.map(async file => {
+          const filePath = path.join(this.cache.directory, file);
+          const stats = await fs.stat(filePath);
+          return { file, stats, size: stats.size, mtime: stats.mtime };
+        })
+      );
+
+      const totalSize = fileStats.reduce((sum, { size }) => sum + size, 0);
+      const sortedByTime = fileStats.sort((a, b) => a.mtime.getTime() - b.mtime.getTime());
+
+      return {
+        enabled: true,
+        directory: this.cache.directory,
+        totalFiles: cacheFiles.length,
+        totalSizeBytes: totalSize,
+        totalSizeMB: Math.round(totalSize / (1024 * 1024) * 100) / 100,
+        maxSizeMB: this.cache.maxSize,
+        maxAgeHours: this.cache.maxAge / (1000 * 60 * 60),
+        oldestEntry: sortedByTime[0]?.mtime.toISOString(),
+        newestEntry: sortedByTime[sortedByTime.length - 1]?.mtime.toISOString(),
+        utilizationPercent: Math.round((totalSize / (this.cache.maxSize * 1024 * 1024)) * 100)
+      };
+    } catch (error) {
+      return {
+        enabled: true,
+        error: error instanceof Error ? error.message : 'Unknown error',
+        directory: this.cache.directory
+      };
+    }
+  }
+
+  /**
+   * Get cache recommendations based on statistics
+   */
+  private getCacheRecommendations(stats: any): string[] {
+    if (!stats.enabled) {
+      return ['Cache is disabled. Enable it for better performance.'];
+    }
+
+    const recommendations: string[] = [];
+    
+    if (stats.utilizationPercent > 90) {
+      recommendations.push('Cache is nearly full. Consider clearing old entries or increasing max size.');
+    } else if (stats.utilizationPercent > 70) {
+      recommendations.push('Cache utilization is high. Monitor for performance.');
+    }
+
+    if (stats.totalFiles === 0) {
+      recommendations.push('Cache is empty. Start browsing Wikipedia to populate it.');
+    } else if (stats.totalFiles < 10) {
+      recommendations.push('Cache has few entries. More browsing will improve performance.');
+    }
+
+    if (recommendations.length === 0) {
+      recommendations.push('Cache is operating efficiently.');
+    }
+
+    return recommendations;
   }
 
   /**
