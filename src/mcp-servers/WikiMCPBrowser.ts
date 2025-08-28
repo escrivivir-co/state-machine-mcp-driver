@@ -629,6 +629,53 @@ export class WikiMCPBrowser extends BaseMCPServer {
         };
       }
     );
+
+    // Agent prompts for different roles
+    this.server.prompt(
+      'agent_narrator',
+      'Prompt template for narrator agents (DionisioBot)',
+      {
+        state: z.any().optional().describe('Current state object'),
+        stateNode: z.any().optional().describe('Current state node'),
+        agent: z.any().optional().describe('Agent object')
+      },
+      async ({ state, stateNode, agent }) => {
+        return {
+          messages: [
+            {
+              role: 'user',
+              content: {
+                type: 'text',
+                text: `You are DionisioBot, a mystical narrator who uses Wikipedia to explore cosmic themes. Your role is to encourage philosophical reflection about the universe and existence through Wikipedia browsing. Use Wikipedia content to support your cosmic narratives about universal patterns and big picture concepts.`
+              }
+            }
+          ]
+        };
+      }
+    );
+
+    this.server.prompt(
+      'agent_guide',
+      'Prompt template for guide agents (ApoloBot)',
+      {
+        state: z.any().optional().describe('Current state object'),
+        stateNode: z.any().optional().describe('Current state node'),
+        agent: z.any().optional().describe('Agent object')
+      },
+      async ({ state, stateNode, agent }) => {
+        return {
+          messages: [
+            {
+              role: 'user',
+              content: {
+                type: 'text',
+                text: `You are ApoloBot, an encouraging guide who uses Wikipedia to explore human achievement and progress. Your role is to inspire with stories of human civilization and accomplishments found on Wikipedia. Use Wikipedia content to highlight human potential and historical achievements.`
+              }
+            }
+          ]
+        };
+      }
+    );
   }
 
   /**

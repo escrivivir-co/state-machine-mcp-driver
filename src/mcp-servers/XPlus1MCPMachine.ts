@@ -218,6 +218,59 @@ export class XPlus1MCPMachine extends BaseMCPServer {
         };
       }
     );
+
+    // Save state tool
+    this.server.tool(
+      'save_state',
+      'Save current game state',
+      {
+        state: z.any().describe('State object to save')
+      },
+      async ({ state }) => {
+        // For now, just acknowledge the save (could implement persistence later)
+        logger.info('X+1 MCP: State save requested', { state });
+        
+        return {
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify({
+                success: true,
+                message: 'State saved successfully',
+                timestamp: Date.now()
+              }, null, 2)
+            }
+          ]
+        };
+      }
+    );
+
+    // Load state tool
+    this.server.tool(
+      'load_state',
+      'Load game state',
+      {
+        graphId: z.string().describe('Graph ID'),
+        userId: z.string().describe('User ID')
+      },
+      async ({ graphId, userId }) => {
+        // For now, return null (no existing state found)
+        logger.info('X+1 MCP: State load requested', { graphId, userId });
+        
+        return {
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify({
+                success: false,
+                message: 'No existing state found',
+                state: null
+              }, null, 2)
+            }
+          ]
+        };
+      }
+    );
   }
 
   /**
@@ -569,9 +622,12 @@ Reset Count: ${this.state.resetCount}
       'The critical question that determines X advancement',
       {
         currentX: z.string().optional().describe('Current X value'),
-        context: z.string().optional().describe('Additional context')
+        context: z.string().optional().describe('Additional context'),
+        state: z.any().optional().describe('Current state object'),
+        stateNode: z.any().optional().describe('Current state node'),
+        agent: z.any().optional().describe('Agent object')
       },
-      async ({ currentX, context }) => {
+      async ({ currentX, context, state, stateNode, agent }) => {
         const x = currentX ? parseInt(currentX) : this.state.x;
         return {
           messages: [
@@ -598,7 +654,11 @@ Reset Count: ${this.state.resetCount}
     this.server.prompt(
       'game-status',
       'Current game status and statistics',
-  {},
+      {
+        state: z.any().optional().describe('Current state object'),
+        stateNode: z.any().optional().describe('Current state node'),
+        agent: z.any().optional().describe('Agent object')
+      },
       async () => {
         const sessionDuration = Math.floor((Date.now() - this.state.sessionStart) / 60000);
         const totalActions = this.state.advancementHistory.length;
@@ -619,6 +679,76 @@ Reset Count: ${this.state.resetCount}
                       `Advancements: ${advancements}\n` +
                       `Current streak: ${this.calculateCurrentStreak()}\n\n` +
                       `The pattern continues...`
+              }
+            }
+          ]
+        };
+      }
+    );
+
+    // Agent prompts for different roles
+    this.server.prompt(
+      'agent_narrator',
+      'Prompt template for narrator agents (DionisioBot)',
+      {
+        state: z.any().optional().describe('Current state object'),
+        stateNode: z.any().optional().describe('Current state node'),
+        agent: z.any().optional().describe('Agent object')
+      },
+      async ({ state, stateNode, agent }) => {
+        return {
+          messages: [
+            {
+              role: 'user',
+              content: {
+                type: 'text',
+                text: `You are DionisioBot, a mystical narrator focused on cosmic themes. Your role is to encourage philosophical reflection about the universe and existence. Current X value: ${this.state.x}. Speak in a dreamy, cosmic tone about universal patterns and big picture concepts.`
+              }
+            }
+          ]
+        };
+      }
+    );
+
+    this.server.prompt(
+      'agent_guide',
+      'Prompt template for guide agents (ApoloBot)',
+      {
+        state: z.any().optional().describe('Current state object'),
+        stateNode: z.any().optional().describe('Current state node'),
+        agent: z.any().optional().describe('Agent object')
+      },
+      async ({ state, stateNode, agent }) => {
+        return {
+          messages: [
+            {
+              role: 'user',
+              content: {
+                type: 'text',
+                text: `You are ApoloBot, an encouraging guide focused on human achievement and progress. Your role is to inspire with stories of human civilization and accomplishments. Current X value: ${this.state.x}. Speak optimistically about human potential and historical achievements.`
+              }
+            }
+          ]
+        };
+      }
+    );
+
+    this.server.prompt(
+      'agent_system',
+      'Prompt template for system agents (JusticeBot)',
+      {
+        state: z.any().optional().describe('Current state object'),
+        stateNode: z.any().optional().describe('Current state node'),
+        agent: z.any().optional().describe('Agent object')
+      },
+      async ({ state, stateNode, agent }) => {
+        return {
+          messages: [
+            {
+              role: 'user',
+              content: {
+                type: 'text',
+                text: `You are JusticeBot, a neutral system agent responsible for asking the critical question. Your role is to fairly moderate the X+1 pattern by asking "Did you consume today, do I reset?" and managing responses. Current X value: ${this.state.x}. Remain neutral and factual.`
               }
             }
           ]

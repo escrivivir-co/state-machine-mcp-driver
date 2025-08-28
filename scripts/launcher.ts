@@ -682,10 +682,127 @@ export class ApplicationLauncher {
 }
 
 /**
+ * Kill all Node.js processes on the system (Windows and Unix)
+ */
+async function killAllNodeProcesses(): Promise<void> {
+  console.log('\n⚠️  WARNING: About to terminate ALL Node.js processes on the system!');
+  console.log('🔥 This will kill:');
+  console.log('   • All running Node.js applications');
+  console.log('   • All npm/yarn processes');
+  console.log('   • Any development servers');
+  console.log('   • VS Code extensions using Node.js');
+  console.log('   • Other Node.js-based tools and services');
+  
+  // Ask for confirmation
+  const readline = require('readline');
+  const rl = readline.createInterface({
+    input: process.stdin,
+    output: process.stdout
+  });
+
+  return new Promise((resolve, reject) => {
+    rl.question('\n❓ Are you sure you want to proceed? (yes/no): ', (answer) => {
+      rl.close();
+      
+      if (answer.toLowerCase() !== 'yes') {
+        console.log('❌ Operation cancelled by user');
+        resolve();
+        return;
+      }
+
+      console.log('\n💀 Terminating all Node.js processes...');
+      
+      const { spawn } = require('child_process');
+      let killCommand: string;
+      let killArgs: string[];
+
+      if (process.platform === 'win32') {
+        // Windows: Use taskkill to kill all node.exe processes
+        killCommand = 'taskkill';
+        killArgs = ['/F', '/IM', 'node.exe'];
+      } else {
+        // Unix/Linux/macOS: Use pkill to kill all node processes
+        killCommand = 'pkill';
+        killArgs = ['-f', 'node'];
+      }
+
+      const killProcess = spawn(killCommand, killArgs, {
+        stdio: 'inherit',
+        shell: process.platform === 'win32'
+      });
+
+      killProcess.on('close', (code) => {
+        if (code === 0) {
+          console.log('✅ All Node.js processes terminated successfully');
+        } else if (code === 1 && process.platform !== 'win32') {
+          console.log('ℹ️  No Node.js processes were found to terminate');
+        } else {
+          console.log(`⚠️  Process termination completed with exit code: ${code}`);
+        }
+        resolve();
+      });
+
+      killProcess.on('error', (error) => {
+        console.error('❌ Error terminating Node.js processes:', error);
+        reject(error);
+      });
+    });
+  });
+}
+
+/**
+ * Display help information
+ */
+function showHelp(): void {
+  console.log('🚀 State Machine MCP Driver - Application Launcher');
+  console.log('===================================================');
+  console.log('');
+  console.log('Usage:');
+  console.log('  npm run launcher [target] [customScript]');
+  console.log('  npx tsx scripts/launcher.ts [target] [customScript]');
+  console.log('');
+  console.log('Targets:');
+  console.log('  x-plus-1    Launch the X+1 State Machine game example (default)');
+  console.log('  custom      Launch a custom script (requires customScript path)');
+  console.log('');
+  console.log('Options:');
+  console.log('  --kill-all-node    Terminate all Node.js processes on the system');
+  console.log('  --help, -h         Show this help message');
+  console.log('');
+  console.log('Examples:');
+  console.log('  npm run launcher');
+  console.log('  npm run launcher x-plus-1');
+  console.log('  npm run launcher custom examples/my-app/index.ts');
+  console.log('  npm run launcher --kill-all-node');
+  console.log('');
+  console.log('Environment Variables:');
+  console.log('  OLLAMA_MODEL       Ollama model to use (default: GPT-OSS:20b)');
+  console.log('');
+}
+
+/**
  * CLI entry point
  */
 async function main() {
   const args = process.argv.slice(2);
+  
+  // Check for help flag
+  if (args.includes('--help') || args.includes('-h')) {
+    showHelp();
+    return;
+  }
+  
+  // Check for kill all node processes flag
+  if (args.includes('--kill-all-node')) {
+    try {
+      await killAllNodeProcesses();
+    } catch (error) {
+      console.error('💥 Failed to kill Node.js processes:', error);
+      process.exit(1);
+    }
+    return;
+  }
+
   const target = args[0] || 'x-plus-1';
   const customScript = args[1];
 

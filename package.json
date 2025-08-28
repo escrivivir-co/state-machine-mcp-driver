@@ -18,6 +18,7 @@
     "example:x-plus-1": "npx tsx examples/x-plus-1-state-machine/index.ts",
     "launcher": "npx tsx scripts/launcher.ts",
     "launcher:x-plus-1": "npx tsx scripts/launcher.ts x-plus-1",
+    "cleannode": "npx tsx scripts/launcher.ts --kill-all-node",
     "mcp:xplus1": "npx tsx src/mcp-servers/XPlus1MCPMachine.ts",
     "mcp:wiki": "npx tsx src/mcp-servers/WikiMCPBrowser.ts",
     "mcp:launcher": "npx tsx src/mcp-servers/MCPServiceLauncher.ts",

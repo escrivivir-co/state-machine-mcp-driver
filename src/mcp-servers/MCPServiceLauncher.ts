@@ -466,6 +466,80 @@ export class MCPServiceLauncher extends BaseMCPServer {
         }
       }
     );
+
+    // Check port availability tool
+    this.server.tool(
+      'check_port_availability',
+      'Check if a port is available or identify what server is using it',
+      {
+        port: z.number().describe('Port number to check'),
+        includeDetails: z.boolean().optional().describe('Include detailed server information if port is occupied')
+      },
+      async ({ port, includeDetails = true }) => {
+        try {
+          const isAvailable = await this.isPortAvailable(port);
+          
+          if (isAvailable) {
+            return {
+              content: [
+                {
+                  type: 'text',
+                  text: JSON.stringify({
+                    port,
+                    available: true,
+                    message: `Port ${port} is available`,
+                    timestamp: Date.now()
+                  }, null, 2)
+                }
+              ]
+            };
+          } else {
+            const managedServerId = await this.isPortOccupiedByManagedServer(port);
+            let details = {};
+            
+            if (includeDetails) {
+              try {
+                const response = await axios.get(`http://localhost:${port}/health`, { timeout: 1000 });
+                details = response.data;
+              } catch {
+                details = { error: 'Could not get server details' };
+              }
+            }
+            
+            return {
+              content: [
+                {
+                  type: 'text',
+                  text: JSON.stringify({
+                    port,
+                    available: false,
+                    message: `Port ${port} is occupied`,
+                    managedServer: managedServerId,
+                    isOurServer: !!managedServerId,
+                    ...(includeDetails && { serverDetails: details }),
+                    timestamp: Date.now()
+                  }, null, 2)
+                }
+              ]
+            };
+          }
+        } catch (error) {
+          return {
+            content: [
+              {
+                type: 'text',
+                text: JSON.stringify({
+                  success: false,
+                  error: `Port check failed: ${this.getErrorMessage(error)}`,
+                  port,
+                  timestamp: Date.now()
+                }, null, 2)
+              }
+            ]
+          };
+        }
+      }
+    );
   }
 
   /**
@@ -899,11 +973,50 @@ export class MCPServiceLauncher extends BaseMCPServer {
     // Pre-check: is the desired port already in use?
     let portOccupied = false;
     try {
-      await axios.get(`http://localhost:${config.port}/health`, { timeout: 750 });
-      portOccupied = true;
-    } catch {/* ignore */}
-    if (portOccupied) {
-      logger.warn(`MCP Launcher: Port ${config.port} already appears in use before launching ${config.id}`);
+      const response = await axios.get(`http://localhost:${config.port}/health`, { timeout: 1000 });
+      if (response.status === 200) {
+        portOccupied = true;
+        logger.info(`MCP Launcher: Port ${config.port} is already in use by a running server`);
+        
+        // Check if this might be our server already running
+        try {
+          const healthData = response.data;
+          if (healthData.server === config.id || healthData.name === config.name) {
+            logger.info(`MCP Launcher: Found existing ${config.name} on port ${config.port}, registering it`);
+            
+            // Register the existing server without launching a new one
+            const status: ServerStatus = {
+              id: config.id,
+              name: config.name,
+              status: 'running',
+              pid: -1, // Unknown PID for existing process
+              port: config.port,
+              startTime: Date.now(), // We don't know the real start time
+              restartCount: 0,
+              uptime: 0
+            };
+            
+            this.session.managedServers.set(config.id, status);
+            
+            // Setup health check
+            if (config.healthCheckInterval) {
+              this.setupHealthCheck(config);
+            }
+            
+            return { pid: -1 }; // Return -1 to indicate existing process
+          }
+        } catch (error) {
+          // Health response doesn't match our server, continue with port conflict error
+        }
+        
+        throw new Error(`Port ${config.port} is already in use by another process. Cannot launch ${config.name}.`);
+      }
+    } catch (error) {
+      // Port is free or error occurred - continue with launch
+      if (error instanceof Error && error.message.includes('already in use')) {
+        throw error; // Re-throw port conflict errors
+      }
+      // Otherwise, port is likely free, continue
     }
 
     // Get tsx command for launching TypeScript files
@@ -1310,6 +1423,48 @@ export class MCPServiceLauncher extends BaseMCPServer {
    */
   private sleep(ms: number): Promise<void> {
     return new Promise(resolve => setTimeout(resolve, ms));
+  }
+
+  /**
+   * Utility: Check if a port is available
+   */
+  private async isPortAvailable(port: number): Promise<boolean> {
+    try {
+      await axios.get(`http://localhost:${port}/health`, { timeout: 1000 });
+      return false; // Port is occupied
+    } catch {
+      return true; // Port is available
+    }
+  }
+
+  /**
+   * Utility: Check if port is occupied by one of our managed servers
+   */
+  private async isPortOccupiedByManagedServer(port: number): Promise<string | null> {
+    try {
+      const response = await axios.get(`http://localhost:${port}/health`, { timeout: 1000 });
+      const healthData = response.data;
+      
+      // Check if response matches any of our managed servers
+      for (const [serverId, status] of this.session.managedServers) {
+        if (status.port === port && 
+            (healthData.server === serverId || healthData.name === status.name)) {
+          return serverId;
+        }
+      }
+      
+      // Check against default configs
+      for (const [serverId, config] of this.defaultConfigs) {
+        if (config.port === port && 
+            (healthData.server === serverId || healthData.name === config.name)) {
+          return serverId;
+        }
+      }
+      
+      return null; // Port occupied by unknown server
+    } catch {
+      return null; // Port is available or unreachable
+    }
   }
 
   /**

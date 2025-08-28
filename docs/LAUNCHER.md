@@ -414,6 +414,28 @@ npm run mcp:launcher
 npm run launcher custom path/to/your/script.ts
 ```
 
+### ⚠️ Gestión de Procesos del Sistema
+
+```bash
+# Kill all Node.js processes system-wide (with confirmation)
+npm run launcher:kill-all-node
+
+# Or with direct launcher call
+npx tsx scripts/launcher.ts --kill-all-node
+
+# Show help
+npx tsx scripts/launcher.ts --help
+```
+
+**ADVERTENCIA**: El comando `kill-all-node` termina TODOS los procesos Node.js del sistema, incluyendo:
+- ✋ Todas las aplicaciones Node.js en ejecución
+- ✋ Procesos npm/yarn
+- ✋ Servidores de desarrollo
+- ✋ Extensiones de VS Code que usan Node.js  
+- ✋ Otras herramientas y servicios basados en Node.js
+
+El comando requiere confirmación explícita antes de proceder y funciona tanto en Windows como en sistemas Unix.
+
 ## Launcher Configuration
 
 You can customize the launcher behavior:

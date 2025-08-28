@@ -15,15 +15,22 @@
 
 ### Run X+1 Game with Application Launcher
 ```bash
-# One command to start everything!
-npm run launcher:x-plus-1
+# One command to start everything with automatic cleanup!
+npm run example
 ```
 
 This will automatically:
+- ⚠️ **Clean up existing Node.js processes** (with confirmation)
 - ✅ Check Ollama server and models
 - ⚡ Start MCP servers (X+1 Machine, Wiki Browser) 
 - 🏥 Perform health checks
 - 🎮 Launch the X+1 inductive pattern game
+
+### Alternative: Manual Launcher
+```bash
+# Run without cleanup
+npm run launcher:x-plus-1
+```
 
 ### Manual Setup
 ```bash
@@ -169,10 +176,32 @@ MCP_WIKI_URL=http://localhost:3002
 | Script | Purpose |
 |--------|---------|
 | `npm run launcher:x-plus-1` | **Complete X+1 game startup** |
+| `npm run launcher:kill-all-node` | **⚠️ Kill all Node.js processes** |
 | `npm run mcp:xplus1` | X+1 MCP server only |
 | `npm run mcp:wiki` | Wiki MCP server only |
 | `npm run example:x-plus-1` | X+1 game only (no setup) |
 | `npm run launcher` | Custom application launcher |
+
+### ⚠️ Process Management
+
+The launcher includes a powerful process management feature:
+
+```bash
+# Kill all Node.js processes system-wide (with confirmation)
+npm run launcher:kill-all-node
+
+# Or with direct launcher call
+npx tsx scripts/launcher.ts --kill-all-node
+```
+
+**Warning**: This command terminates ALL Node.js processes on the system, including:
+- All running Node.js applications
+- npm/yarn processes
+- Development servers
+- VS Code extensions using Node.js
+- Other Node.js-based tools and services
+
+The command requires explicit confirmation before proceeding.
 
 ## 🎯 Key Features
 
