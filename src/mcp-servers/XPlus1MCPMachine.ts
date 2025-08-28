@@ -277,6 +277,8 @@ export class XPlus1MCPMachine extends BaseMCPServer {
    * Setup X+1 resources
    */
   private setupResources(): void {
+    logger.info('X+1 MCP: Setting up resources...');
+    
     // Generic stategraph scheme resource (for native clients): stategraph:<graphId>
     this.server.resource(
       'stategraph:x-plus-1-game',
@@ -377,8 +379,9 @@ Reset Count: ${this.state.resetCount}
     );
 
     // StateGraph resource
+    logger.info('X+1 MCP: Registering StateGraph resource with ID: stategraphs/x-plus-1-game');
     this.server.resource(
-      'x-plus-1-game-stategraph',
+      'stategraphs/x-plus-1-game',
       'xplus1://stategraphs/x-plus-1-game',
       {
         name: 'X+1 Game StateGraph',
@@ -610,6 +613,7 @@ Reset Count: ${this.state.resetCount}
       }
     );
 
+    logger.info('X+1 MCP: Resources setup completed');
   }
 
   /**

@@ -1492,7 +1492,7 @@ async function main() {
     console.log('✅ MCP Service Launcher ready');
     console.log('📡 Waiting for commands...');
   // Keep the process alive regardless of TTY state
-  try { process.stdin.resume(); } catch {}
+  // try { process.stdin.resume(); } catch {} // COMMENTED OUT - This interferes with readline in the game console
     
     // Keep process alive
     process.on('SIGINT', async () => {

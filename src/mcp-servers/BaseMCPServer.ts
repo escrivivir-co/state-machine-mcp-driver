@@ -75,7 +75,7 @@ export abstract class BaseMCPServer {
       });
     });
 
-    // Root endpoint
+    // Root endpoint - handle both GET and POST for MCP compatibility
     this.app.get('/', (req, res) => {
       res.json({
         name: this.config.name,
@@ -83,6 +83,29 @@ export abstract class BaseMCPServer {
         description: this.config.description || 'MCP Server',
         capabilities: ['tools', 'resources', 'prompts'] // Static capabilities
       });
+    });
+
+    // Handle MCP requests at root for VS Code compatibility
+    this.app.post('/', async (req, res) => {
+      try {
+        const transport = new StreamableHTTPServerTransport({
+          sessionIdGenerator: undefined,
+        });
+        await this.server.connect(transport);
+        await transport.handleRequest(req, res, req.body);
+      } catch (error) {
+        logger.error(`${this.config.name}: Error handling MCP request at root`, { error });
+        if (!res.headersSent) {
+          res.status(500).json({
+            jsonrpc: '2.0',
+            error: {
+              code: -32603,
+              message: 'Internal server error',
+            },
+            id: null,
+          });
+        }
+      }
     });
 
     // Legacy REST API endpoints for compatibility with MCPDriver
@@ -97,11 +120,18 @@ export abstract class BaseMCPServer {
     this.app.get('/resources/:resourceId(*)', async (req, res) => {
       try {
         const resourceId = req.params.resourceId;
+        logger.info(`${this.config.name}: Resource request received`, { 
+          resourceId, 
+          url: req.url,
+          method: req.method 
+        });
+        
         // Map legacy path for stategraphs/x-plus-1-game to proper URI when requested
         const requestedId = resourceId;
         let effectiveResourceId = resourceId;
         if (resourceId.startsWith('stategraphs/')) {
           // Keep as-is; downstream matching will handle
+          logger.info(`${this.config.name}: Detected stategraphs request`, { resourceId });
         }
         
         // Use MCP server's native resource handling
@@ -178,7 +208,7 @@ export abstract class BaseMCPServer {
    */
   private async handleResourceRequest(resourceId: string): Promise<any> {
     try {
-      logger.debug(`${this.config.name}: Handling resource request for: ${resourceId}`);
+      logger.info(`${this.config.name}: Handling resource request for: ${resourceId}`);
       
       // Create a minimal MCP request
       const request = {
@@ -190,18 +220,21 @@ export abstract class BaseMCPServer {
       
       // Get resource handlers from the MCP server
       const resourceHandlers = (this.server as any)._resourceHandlers;
-      logger.debug(`${this.config.name}: Available resource handlers:`, resourceHandlers ? Array.from(resourceHandlers.keys()) : 'none');
+      logger.info(`${this.config.name}: Available resource handlers:`, resourceHandlers ? Array.from(resourceHandlers.keys()) : 'none');
       
       if (resourceHandlers) {
         // Try exact match first
         if (resourceHandlers.has(resourceId)) {
           const handler = resourceHandlers.get(resourceId);
-          logger.debug(`${this.config.name}: Found exact match for resource: ${resourceId}`);
+          logger.info(`${this.config.name}: Found exact match for resource: ${resourceId}`);
           return await handler.callback(request.params);
         }
         
+        logger.info(`${this.config.name}: No exact match found, trying pattern matching for: ${resourceId}`);
+        
         // Try pattern matching for more complex URIs
         for (const [handlerKey, handler] of resourceHandlers) {
+          logger.debug(`${this.config.name}: Checking pattern: ${handlerKey} against ${resourceId}`);
           // Check if the resourceId matches patterns like:
           // stategraphs/x-plus-1-game -> x-plus-1-game-stategraph
           // or stategraphs/x-plus-1-game -> matches URI containing 'x-plus-1-game'
@@ -210,18 +243,21 @@ export abstract class BaseMCPServer {
               (resourceId.includes('stategraphs/') && handlerKey.includes('stategraph')) ||
               (resourceId.includes('x-plus-1-game') && handlerKey.includes('x-plus-1-game'))) {
             
-            logger.debug(`${this.config.name}: Found pattern match: ${resourceId} -> ${handlerKey}`);
+            logger.info(`${this.config.name}: Found pattern match: ${resourceId} -> ${handlerKey}`);
             return await handler.callback(request.params);
           }
         }
+        
+        logger.info(`${this.config.name}: No pattern match found, trying URI matching`);
         
         // If no match found, try to find by URI pattern from handler metadata
         for (const [handlerKey, handler] of resourceHandlers) {
           try {
             // Check if the handler URI matches the requested resourceId
             const handlerUri = handler.description?.uri || '';
+            logger.debug(`${this.config.name}: Checking URI: ${handlerUri} against ${resourceId}`);
             if (handlerUri && (handlerUri.includes(resourceId) || resourceId.includes(handlerUri.split('://')[1] || handlerUri))) {
-              logger.debug(`${this.config.name}: Found URI match: ${resourceId} -> ${handlerUri}`);
+              logger.info(`${this.config.name}: Found URI match: ${resourceId} -> ${handlerUri}`);
               return await handler.callback(request.params);
             }
           } catch (error) {

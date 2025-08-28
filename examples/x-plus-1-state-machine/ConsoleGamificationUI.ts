@@ -127,9 +127,12 @@ export class XPlus1GameConsole extends ConsoleGamificationUI {
 
   // Minimal user input handler for the example; extend as needed
   private async onUserInput(input: string): Promise<void> {
-    if (!this.gameState.isActive) return;
+    if (!this.gameState.isActive) {
+      return;
+    }
 
     const lower = input.toLowerCase();
+    
     if (lower === 'help') {
       this.showHelp();
       return;
