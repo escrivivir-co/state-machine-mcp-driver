@@ -1,0 +1,45 @@
+{
+  "data": {
+    "batchcomplete": "",
+    "continue": {
+      "sroffset": 3,
+      "continue": "-||"
+    },
+    "query": {
+      "searchinfo": {
+        "totalhits": 53568
+      },
+      "search": [
+        {
+          "ns": 0,
+          "title": "Machine learning",
+          "pageid": 233488,
+          "size": 141514,
+          "wordcount": 15399,
+          "snippet": "<span class=\"searchmatch\">Machine</span> <span class=\"searchmatch\">learning</span> (ML) is a field of study in artificial intelligence concerned with the development and study of statistical algorithms that can learn",
+          "timestamp": "2025-08-28T23:44:30Z"
+        },
+        {
+          "ns": 0,
+          "title": "Neural network (machine learning)",
+          "pageid": 21523,
+          "size": 173611,
+          "wordcount": 17810,
+          "snippet": "In <span class=\"searchmatch\">machine</span> <span class=\"searchmatch\">learning</span>, a neural network (also artificial neural network or neural net, abbreviated ANN or NN) is a computational model inspired by the structure",
+          "timestamp": "2025-08-25T08:00:01Z"
+        },
+        {
+          "ns": 0,
+          "title": "Quantum machine learning",
+          "pageid": 44108758,
+          "size": 80727,
+          "wordcount": 9346,
+          "snippet": "Quantum <span class=\"searchmatch\">machine</span> <span class=\"searchmatch\">learning</span> (QML) is the study of quantum algorithms which solve <span class=\"searchmatch\">machine</span> <span class=\"searchmatch\">learning</span> tasks. The most common use of the term refers to quantum",
+          "timestamp": "2025-08-26T03:26:36Z"
+        }
+      ]
+    }
+  },
+  "timestamp": 1756425145059,
+  "expires": 1756511545059
+}

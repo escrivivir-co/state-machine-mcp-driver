@@ -109,6 +109,14 @@ export class WikiMCPBrowser extends BaseMCPServer {
       maxSize: 100 // 100MB
     };
 
+    // Log cache configuration immediately
+    console.log('🗂️  WikiMCP Cache Configuration:');
+    console.log(`   • Enabled: ${this.cache.enabled}`);
+    console.log(`   • Directory: ${this.cache.directory}`);
+    console.log(`   • Process CWD: ${process.cwd()}`);
+    console.log(`   • Max Age: ${this.cache.maxAge / (1000 * 60 * 60)} hours`);
+    console.log(`   • Max Size: ${this.cache.maxSize} MB`);
+
     // Initialize browsing session
     this.session = {
       sessionId: `wiki-session-${Date.now()}`,
@@ -135,12 +143,26 @@ export class WikiMCPBrowser extends BaseMCPServer {
    * Initialize cache directory
    */
   private async initializeCache(): Promise<void> {
-    if (!this.cache.enabled) return;
+    if (!this.cache.enabled) {
+      console.log('🚫 WikiMCP: Cache disabled, skipping initialization');
+      return;
+    }
     
     try {
+      console.log(`📁 WikiMCP: Creating cache directory at: ${this.cache.directory}`);
       await fs.mkdir(this.cache.directory, { recursive: true });
+      
+      // Verify directory was created
+      const stats = await fs.stat(this.cache.directory);
+      console.log(`✅ WikiMCP: Cache directory initialized successfully`);
+      console.log(`   • Path: ${this.cache.directory}`);
+      console.log(`   • Exists: ${stats.isDirectory()}`);
+      console.log(`   • Created: ${stats.birthtime}`);
+      
       logger.info(`WikiMCP: Cache directory initialized at ${this.cache.directory}`);
     } catch (error) {
+      console.error(`❌ WikiMCP: Failed to initialize cache directory at: ${this.cache.directory}`);
+      console.error(`   • Error: ${error}`);
       logger.error('WikiMCP: Failed to initialize cache directory', { error });
       this.cache.enabled = false;
     }

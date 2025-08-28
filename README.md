@@ -85,9 +85,40 @@ A philosophical game exploring consumption vs. restraint through AI conversation
 - **Prompts**: Agent-specific conversation templates
 
 #### WikiMCPBrowser (MCP Server)  
-- **Tools**: `browse_article`, `search_articles`, `get_timeline`
-- **Resources**: Article content, browsing sessions
+- **Tools**: `load_wikipedia_article`, `search_wikipedia`, `get_random_article`, `get_article_categories`, `clear_cache`, `get_cache_stats`
+- **Resources**: Article content, browsing sessions, cache statistics
 - **Prompts**: Content discovery and navigation guidance
+- **Cache System**: Persistent disk cache for Wikipedia API responses
+
+##### 📁 Cache Configuration
+The WikiMCPBrowser implements a sophisticated caching system to optimize Wikipedia API calls:
+
+- **Cache Location**: `{project_root}/.cache/wikipedia/`
+- **Full Path**: `E:\LAB_AGOSTO\state-machine-mcp-driver\.cache\wikipedia\` (example)
+- **File Format**: JSON files with SHA256 hash names
+- **Max Size**: 100 MB (configurable)
+- **Max Age**: 24 hours (configurable)
+- **Auto Cleanup**: Removes old entries when size limit exceeded
+
+**⚠️ Important**: Ensure the application has **write permissions** to the project directory for cache functionality.
+
+**Cache Management Commands**:
+```bash
+# View cache statistics
+# Use WikiMCPBrowser tools: get_cache_stats
+
+# Clear cache manually
+# Use WikiMCPBrowser tools: clear_cache
+
+# Monitor cache directory
+ls -la .cache/wikipedia/
+```
+
+**Cache Benefits**:
+- 🚀 **Performance**: Faster subsequent Wikipedia requests
+- 📡 **Reduced API calls**: Respects Wikipedia's rate limits
+- 💾 **Persistent**: Cache survives application restarts
+- 🧹 **Self-managing**: Automatic cleanup and size management
 
 ### Game Flow
 1. **Agents Converse**: DionisioBot (temptation), ApoloBot (restraint), JusticeBot (judgment)
@@ -121,6 +152,39 @@ mcpDriver.addServer({
   url: 'http://localhost:3001',
   timeout: 5000
 });
+```
+
+### WikiMCPBrowser Cache Configuration
+```typescript
+// Cache is automatically configured in WikiMCPBrowser constructor
+// Default settings:
+const cacheConfig = {
+  enabled: true,
+  directory: path.join(process.cwd(), '.cache', 'wikipedia'),
+  maxAge: 24 * 60 * 60 * 1000, // 24 hours
+  maxSize: 100 // 100MB
+};
+
+// Cache initialization logs:
+// 🗂️  WikiMCP Cache Configuration:
+//    • Enabled: true
+//    • Directory: {full_path}/.cache/wikipedia
+//    • Process CWD: {working_directory}
+//    • Max Age: 24 hours
+//    • Max Size: 100 MB
+```
+
+### Cache Directory Structure Example
+```
+E:\LAB_AGOSTO\state-machine-mcp-driver\
+├── .cache/
+│   └── wikipedia/
+│       ├── 840e6559a877fc10028a0665e1a40d6a19d7e4d4a936ee0975cd7d7caf727bd7.json
+│       ├── 60ea1892584ebfaaf6e4b20793b6f5e00205d221305130b28d423946fcdc119a.json
+│       └── 1b814b853f8440e7853b896a915069a306faca4d8a2f082bbe6dc307d57a161e.json
+├── src/
+├── examples/
+└── package.json
 ```
 
 ### Setup Runtime with Chat Provider
@@ -157,6 +221,42 @@ ollama pull llama3.2:3b
 npm install
 ```
 
+### 📁 File System Requirements
+
+The application creates and manages several directories that require appropriate permissions:
+
+#### Cache Directory
+- **Location**: `{project_root}/.cache/wikipedia/`
+- **Purpose**: Stores Wikipedia API responses for performance optimization
+- **Size**: Up to 100 MB (configurable)
+- **Permissions Required**: Read/Write access to project directory
+
+**Verification**:
+```bash
+# Check if cache directory exists and permissions
+ls -la .cache/wikipedia/ 2>/dev/null || echo "Cache directory will be created on first use"
+
+# Manual cache directory creation (optional)
+mkdir -p .cache/wikipedia
+
+# Check available disk space
+df -h .
+```
+
+**Troubleshooting Cache Issues**:
+```bash
+# If cache fails to initialize, check permissions
+chmod 755 .cache/
+chmod 755 .cache/wikipedia/
+
+# View cache initialization logs
+npm run mcp:wiki
+# Look for: "✅ WikiMCP: Cache directory initialized successfully"
+
+# Clear cache if needed
+rm -rf .cache/wikipedia/*.json
+```
+
 ### Environment Variables
 ```bash
 OLLAMA_URL=http://localhost:11434
@@ -181,6 +281,49 @@ MCP_WIKI_URL=http://localhost:3002
 | `npm run mcp:wiki` | Wiki MCP server only |
 | `npm run example:x-plus-1` | X+1 game only (no setup) |
 | `npm run launcher` | Custom application launcher |
+
+### 📊 Cache Monitoring & Management
+
+Monitor and control the WikiMCPBrowser cache system:
+
+#### Cache Status Commands
+```bash
+# View detailed cache statistics
+# Start WikiMCPBrowser and use MCP tools:
+# - get_cache_stats: Shows utilization, file count, size
+# - clear_cache: Removes all cached entries
+
+# Manual cache inspection
+ls -lh .cache/wikipedia/           # List cache files with sizes
+du -sh .cache/wikipedia/           # Total cache directory size
+find .cache -name "*.json" | wc -l # Count cached entries
+```
+
+#### Cache File Structure
+```
+.cache/wikipedia/
+├── {sha256_hash_1}.json    # Wikipedia API response cache
+├── {sha256_hash_2}.json    # Each file contains:
+└── {sha256_hash_3}.json    # - data: API response
+                           # - timestamp: Creation time
+                           # - etag: HTTP etag (if available)
+                           # - expires: Expiration time
+```
+
+#### Cache Maintenance
+```bash
+# Check cache health
+npm run mcp:wiki
+# Look for initialization messages:
+# "✅ WikiMCP: Cache directory initialized successfully"
+
+# Manual cache cleanup (if needed)
+find .cache/wikipedia -name "*.json" -mtime +1 -delete  # Remove files older than 1 day
+rm -rf .cache/wikipedia/*.json                          # Clear all cache
+
+# Monitor cache during usage
+watch -n 5 'ls -lh .cache/wikipedia/ | tail -10'       # Watch cache files being created
+```
 
 ### ⚠️ Process Management
 

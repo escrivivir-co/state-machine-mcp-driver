@@ -1,0 +1,43 @@
+{
+  "data": {
+    "type": "standard",
+    "title": "Machine learning",
+    "displaytitle": "<span class=\"mw-page-title-main\">Machine learning</span>",
+    "namespace": {
+      "id": 0,
+      "text": ""
+    },
+    "wikibase_item": "Q2539",
+    "titles": {
+      "canonical": "Machine_learning",
+      "normalized": "Machine learning",
+      "display": "<span class=\"mw-page-title-main\">Machine learning</span>"
+    },
+    "pageid": 233488,
+    "lang": "en",
+    "dir": "ltr",
+    "revision": "1307356641",
+    "tid": "301a1768-7fdd-11f0-811d-663db4270d54",
+    "timestamp": "2025-08-23T04:54:02Z",
+    "description": "Study of algorithms that improve automatically through experience",
+    "description_source": "local",
+    "content_urls": {
+      "desktop": {
+        "page": "https://en.wikipedia.org/wiki/Machine_learning",
+        "revisions": "https://en.wikipedia.org/wiki/Machine_learning?action=history",
+        "edit": "https://en.wikipedia.org/wiki/Machine_learning?action=edit",
+        "talk": "https://en.wikipedia.org/wiki/Talk:Machine_learning"
+      },
+      "mobile": {
+        "page": "https://en.m.wikipedia.org/wiki/Machine_learning",
+        "revisions": "https://en.m.wikipedia.org/wiki/Special:History/Machine_learning",
+        "edit": "https://en.m.wikipedia.org/wiki/Machine_learning?action=edit",
+        "talk": "https://en.m.wikipedia.org/wiki/Talk:Machine_learning"
+      }
+    },
+    "extract": "Machine learning (ML) is a field of study in artificial intelligence concerned with the development and study of statistical algorithms that can learn from data and generalise to unseen data, and thus perform tasks without explicit instructions. Within a subdiscipline in machine learning, advances in the field of deep learning have allowed neural networks, a class of statistical algorithms, to surpass many previous machine learning approaches in performance.",
+    "extract_html": "<p><b>Machine learning</b> (<b>ML</b>) is a field of study in artificial intelligence concerned with the development and study of statistical algorithms that can learn from data and generalise to unseen data, and thus perform tasks without explicit instructions. Within a subdiscipline in machine learning, advances in the field of deep learning have allowed neural networks, a class of statistical algorithms, to surpass many previous machine learning approaches in performance.</p>"
+  },
+  "timestamp": 1756425150230,
+  "etag": "W/\"1307356641/5d308670-8022-11f0-b7da-af26395de245\""
+}
