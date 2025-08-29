@@ -47,6 +47,40 @@ npm run mcp:wiki          # Wiki MCP server on port 3002
 npm run example:x-plus-1  # Run game only (assumes servers running)
 ```
 
+## 🤖 AI Agent Takeover (New!)
+
+**Revolutionary bidirectional control**: AI assistants can now read console state and control applications in real-time!
+
+### **Agent Control Protocol**
+The system includes comprehensive `.agent` documentation for AI assistants to:
+
+1. **🚀 Launch Application**: Automatic startup with 3 consoles (2 MCP servers + game)
+2. **📖 Read Console State**: Real-time monitoring via MCP tools:
+   - `get_console_output` - Current console content
+   - `get_ui_status` - Complete game state  
+   - `get_current_prompt` - Active input prompts
+   - `get_interaction_state` - Available commands
+
+3. **🎮 Control User Simulator**: Take over the built-in UserSimulator:
+   - **Agent Selection**: Choose which AI agent responds next
+   - **Strategic Decisions**: Answer critical questions intelligently  
+   - **Mode Control**: Switch between manual/automatic modes
+   - **Remote Commands**: Send any command via MCP tools
+
+4. **🧠 Intelligent Gameplay**: Implement advanced strategies:
+   - Conservative (build safe streaks)
+   - Aggressive (push for high values)
+   - Adaptive (context-aware decisions)
+
+**Documentation**: See `.agent/` folder for complete takeover guides:
+- `agent-control-system.md` - Quick start protocol
+- `agent-takeover-guide.md` - Detailed process walkthrough  
+- `testing-cycle-checklist.md` - Comprehensive verification tests
+
+**🎯 Result**: AI assistants can now operate as intelligent game controllers, making strategic decisions and learning from outcomes!
+
+---
+
 ## 📖 How It Works
 
 ### Architecture Overview
