@@ -9,7 +9,7 @@
 import express from 'express';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp';
-import { logger } from '../utils/logger';
+import { logger, Logger } from '../utils/logger';
 
 /**
  * MCP Server Configuration
@@ -94,7 +94,7 @@ export abstract class BaseMCPServer {
         await this.server.connect(transport);
         await transport.handleRequest(req, res, req.body);
       } catch (error) {
-        logger.error(`${this.config.name}: Error handling MCP request at root`, { error });
+        Logger.mcpError(`${this.config.name}: Error handling MCP request at root`, { error });
         if (!res.headersSent) {
           res.status(500).json({
             jsonrpc: '2.0',
@@ -120,7 +120,7 @@ export abstract class BaseMCPServer {
     this.app.get('/resources/:resourceId(*)', async (req, res) => {
       try {
         const resourceId = req.params.resourceId;
-        logger.info(`${this.config.name}: Resource request received`, { 
+        Logger.mcpVerbose(`${this.config.name}: Resource request received`, { 
           resourceId, 
           url: req.url,
           method: req.method 
@@ -131,7 +131,7 @@ export abstract class BaseMCPServer {
         let effectiveResourceId = resourceId;
         if (resourceId.startsWith('stategraphs/')) {
           // Keep as-is; downstream matching will handle
-          logger.info(`${this.config.name}: Detected stategraphs request`, { resourceId });
+          Logger.mcpVerbose(`${this.config.name}: Detected stategraphs request`, { resourceId });
         }
         
         // Use MCP server's native resource handling
@@ -157,7 +157,7 @@ export abstract class BaseMCPServer {
           res.status(404).json({ error: 'Resource not found', resourceId: requestedId });
         }
       } catch (error) {
-        logger.error(`${this.config.name}: Error handling resource request:`, error);
+        Logger.mcpError(`${this.config.name}: Error handling resource request:`, error);
         res.status(500).json({ error: 'Internal server error' });
       }
     });
@@ -177,7 +177,7 @@ export abstract class BaseMCPServer {
           res.status(404).json({ error: 'Tool not found', toolName });
         }
       } catch (error) {
-        logger.error(`${this.config.name}: Error handling tool request:`, error);
+        Logger.mcpError(`${this.config.name}: Error handling tool request:`, error);
         res.status(500).json({ error: 'Internal server error' });
       }
     });
@@ -197,7 +197,7 @@ export abstract class BaseMCPServer {
           res.status(404).json({ error: 'Prompt not found', promptId });
         }
       } catch (error) {
-        logger.error(`${this.config.name}: Error handling prompt request:`, error);
+        Logger.mcpError(`${this.config.name}: Error handling prompt request:`, error);
         res.status(500).json({ error: 'Internal server error' });
       }
     });
@@ -208,7 +208,7 @@ export abstract class BaseMCPServer {
    */
   private async handleResourceRequest(resourceId: string): Promise<any> {
     try {
-      logger.info(`${this.config.name}: Handling resource request for: ${resourceId}`);
+      Logger.mcpVerbose(`${this.config.name}: Handling resource request for: ${resourceId}`);
       
       // Create a minimal MCP request
       const request = {
@@ -220,21 +220,21 @@ export abstract class BaseMCPServer {
       
       // Get resource handlers from the MCP server
       const resourceHandlers = (this.server as any)._resourceHandlers;
-      logger.info(`${this.config.name}: Available resource handlers:`, resourceHandlers ? Array.from(resourceHandlers.keys()) : 'none');
+      Logger.mcpVerbose(`${this.config.name}: Available resource handlers:`, resourceHandlers ? Array.from(resourceHandlers.keys()) : 'none');
       
       if (resourceHandlers) {
         // Try exact match first
         if (resourceHandlers.has(resourceId)) {
           const handler = resourceHandlers.get(resourceId);
-          logger.info(`${this.config.name}: Found exact match for resource: ${resourceId}`);
+          Logger.mcpVerbose(`${this.config.name}: Found exact match for resource: ${resourceId}`);
           return await handler.callback(request.params);
         }
         
-        logger.info(`${this.config.name}: No exact match found, trying pattern matching for: ${resourceId}`);
+        Logger.mcpVerbose(`${this.config.name}: No exact match found, trying pattern matching for: ${resourceId}`);
         
         // Try pattern matching for more complex URIs
         for (const [handlerKey, handler] of resourceHandlers) {
-          logger.debug(`${this.config.name}: Checking pattern: ${handlerKey} against ${resourceId}`);
+          Logger.mcpVerbose(`${this.config.name}: Checking pattern: ${handlerKey} against ${resourceId}`);
           // Check if the resourceId matches patterns like:
           // stategraphs/x-plus-1-game -> x-plus-1-game-stategraph
           // or stategraphs/x-plus-1-game -> matches URI containing 'x-plus-1-game'
@@ -243,34 +243,34 @@ export abstract class BaseMCPServer {
               (resourceId.includes('stategraphs/') && handlerKey.includes('stategraph')) ||
               (resourceId.includes('x-plus-1-game') && handlerKey.includes('x-plus-1-game'))) {
             
-            logger.info(`${this.config.name}: Found pattern match: ${resourceId} -> ${handlerKey}`);
+            Logger.mcpVerbose(`${this.config.name}: Found pattern match: ${resourceId} -> ${handlerKey}`);
             return await handler.callback(request.params);
           }
         }
         
-        logger.info(`${this.config.name}: No pattern match found, trying URI matching`);
+        Logger.mcpVerbose(`${this.config.name}: No pattern match found, trying URI matching`);
         
         // If no match found, try to find by URI pattern from handler metadata
         for (const [handlerKey, handler] of resourceHandlers) {
           try {
             // Check if the handler URI matches the requested resourceId
             const handlerUri = handler.description?.uri || '';
-            logger.debug(`${this.config.name}: Checking URI: ${handlerUri} against ${resourceId}`);
+            Logger.mcpVerbose(`${this.config.name}: Checking URI: ${handlerUri} against ${resourceId}`);
             if (handlerUri && (handlerUri.includes(resourceId) || resourceId.includes(handlerUri.split('://')[1] || handlerUri))) {
-              logger.info(`${this.config.name}: Found URI match: ${resourceId} -> ${handlerUri}`);
+              Logger.mcpVerbose(`${this.config.name}: Found URI match: ${resourceId} -> ${handlerUri}`);
               return await handler.callback(request.params);
             }
           } catch (error) {
             // Continue to next handler if this one fails
-            logger.debug(`${this.config.name}: Handler ${handlerKey} failed, continuing...`);
+            Logger.mcpVerbose(`${this.config.name}: Handler ${handlerKey} failed, continuing...`);
           }
         }
       }
       
-      logger.warn(`${this.config.name}: No resource handler found for: ${resourceId}`);
+      Logger.mcpVerbose(`${this.config.name}: No resource handler found for: ${resourceId}`);
       return null;
     } catch (error) {
-      logger.error(`${this.config.name}: Error in handleResourceRequest:`, error);
+      Logger.mcpError(`${this.config.name}: Error in handleResourceRequest:`, error);
       throw error;
     }
   }
@@ -298,7 +298,7 @@ export abstract class BaseMCPServer {
       
       return null;
     } catch (error) {
-      logger.error(`${this.config.name}: Error in handleToolRequest:`, error);
+      Logger.mcpError(`${this.config.name}: Error in handleToolRequest:`, error);
       throw error;
     }
   }
@@ -326,7 +326,7 @@ export abstract class BaseMCPServer {
       
       return null;
     } catch (error) {
-      logger.error(`${this.config.name}: Error in handlePromptRequest:`, error);
+      Logger.mcpError(`${this.config.name}: Error in handlePromptRequest:`, error);
       throw error;
     }
   }
@@ -341,12 +341,12 @@ export abstract class BaseMCPServer {
    * Initialize the server
    */
   async initialize(): Promise<void> {
-    logger.info(`${this.config.name}: Initializing MCP server`);
+    Logger.mcpVerbose(`${this.config.name}: Initializing MCP server`);
     
     // Let subclass setup its specifics
     this.setupServerSpecifics();
     
-    logger.info(`${this.config.name}: Server initialized successfully`);
+    Logger.mcpVerbose(`${this.config.name}: Server initialized successfully`);
   }
 
   /**
@@ -366,7 +366,7 @@ export abstract class BaseMCPServer {
   await transport.handleRequest(req, res, req.body);
   // Avoid closing transport/server here to keep process alive; transport will clean up per request
       } catch (error) {
-        logger.error(`${this.config.name}: Error handling MCP request`, { error });
+        Logger.mcpError(`${this.config.name}: Error handling MCP request`, { error });
         if (!res.headersSent) {
           res.status(500).json({
             jsonrpc: '2.0',
@@ -381,7 +381,7 @@ export abstract class BaseMCPServer {
     });
 
     this.app.get('/mcp', async (req, res) => {
-      logger.debug(`${this.config.name}: Received GET MCP request`);
+      Logger.mcpVerbose(`${this.config.name}: Received GET MCP request`);
       res.writeHead(405).end(JSON.stringify({
         jsonrpc: "2.0",
         error: {
@@ -394,7 +394,7 @@ export abstract class BaseMCPServer {
     
     // Start Express server
   this.app.listen(this.config.port, () => {
-      logger.info(`${this.config.name}: MCP server started on port ${this.config.port}`);
+      Logger.mcpVerbose(`${this.config.name}: MCP server started on port ${this.config.port}`);
       console.log(`✅ ${this.config.name} ready on port ${this.config.port}`);
       console.log('📡 Listening for MCP protocol connections...');
     });
@@ -425,7 +425,7 @@ export abstract class BaseMCPServer {
    * Shutdown the server gracefully
    */
   async shutdown(): Promise<void> {
-    logger.info(`${this.config.name}: Shutting down MCP server`);
+    Logger.mcpVerbose(`${this.config.name}: Shutting down MCP server`);
     // Add any cleanup logic here
   }
 }

@@ -7,9 +7,9 @@ import * as readline from 'readline';
 import { EventEmitter } from 'events';
 import { Runtime, RuntimeEvent } from '../runtime/Runtime';
 import { Agent, AgentRole, AgentStatus } from '../models/Agent';
-import { AgentPostulation, AgentPostulationManager, PostulationContext } from '../models/AgentPostulation';
+import { AgentPostulation, AgentPostulationManager, PostulationContext, AgentGreediness } from '../models/AgentPostulation';
 import { State } from '../models/State';
-import { logger } from '../utils/logger';
+import { logger, Logger } from '../utils/logger';
 
 /**
  * Configuration for console UI
@@ -97,6 +97,7 @@ export class ConsoleGamificationUI extends EventEmitter {
   private postulationManager?: AgentPostulationManager;
   private pendingPostulations: AgentPostulation[] = [];
   private awaitingAgentSelection = false;
+  private gameCommands: Map<string, (input: string) => Promise<void>> = new Map();
 
   // Color codes for console output
   private colors = {
@@ -160,7 +161,7 @@ export class ConsoleGamificationUI extends EventEmitter {
       // Start input loop
       this.startInputLoop();
 
-      logger.info('Console UI started successfully');
+      Logger.mcpVerbose('Console UI started successfully');
 
     } catch (error) {
       logger.error('Failed to start console UI', error as Error);
@@ -223,9 +224,41 @@ export class ConsoleGamificationUI extends EventEmitter {
     };
 
     this.addMessageToThread(message);
-    this.displayAgentMessage(agent, content);
+    this.displayAgentMessage(agent, content, metadata);
     
     this.emit(ConsoleUIEvent.AGENT_MESSAGE, { agent, message });
+  }
+
+  /**
+   * Send agent message with postulation context (enhanced version)
+   */
+  async sendAgentMessageWithPostulation(
+    agentId: string, 
+    content: string, 
+    postulation?: AgentPostulation,
+    autoSelected = false
+  ): Promise<void> {
+    // Show selection info if not auto-selected
+    if (postulation && !autoSelected && !postulation.metadata?.greedyRandomSelection) {
+      console.log(`\n🎯 You selected: ${postulation.agent.name}`);
+      console.log(`📝 Reason: ${postulation.reason}\n`);
+    } else if (postulation?.metadata?.greedyRandomSelection) {
+      console.log(`\n🎲 Randomly selected: ${postulation.agent.name}`);
+      console.log(`📝 Reason: ${postulation.reason}\n`);
+    }
+
+    // Send the message with postulation metadata
+    const metadata = {
+      postulation: postulation ? {
+        reason: postulation.reason,
+        priority: postulation.priority,
+        greediness: postulation.greediness,
+        autoSelected,
+        forcedSelection: postulation.metadata?.forcedGreedySelection || false
+      } : undefined
+    };
+
+    await this.sendAgentMessage(agentId, content, metadata);
   }
 
   /**
@@ -276,6 +309,11 @@ export class ConsoleGamificationUI extends EventEmitter {
     const postulations = this.postulationManager.generatePostulations(fullContext);
     this.pendingPostulations = postulations;
     
+    // Automatically display postulation info if debug mode or when many postulations
+    if (this.config.debugMode || postulations.length > 1) {
+      this.displayPostulationInfo(postulations);
+    }
+    
     this.emit(ConsoleUIEvent.POSTULATIONS_GENERATED, { postulations, context: fullContext });
     
     return postulations;
@@ -308,6 +346,40 @@ export class ConsoleGamificationUI extends EventEmitter {
   }
 
   /**
+   * Display information about generated postulations (debug/info)
+   * Can be overridden by subclasses for custom display
+   */
+  protected displayPostulationInfo(postulations: AgentPostulation[]): void {
+    if (postulations.length === 0) {
+      console.log('\n🤐 No agents are postulating this turn');
+      console.log('🎲 A greedy random agent will be selected...');
+      return;
+    }
+
+    console.log(`\n📊 ${postulations.length} agent(s) postulating:`);
+    postulations.forEach((p, i) => {
+      const priority = '⭐'.repeat(Math.min(3, Math.max(1, Math.floor(p.priority / 2))));
+      let agentInfo = `  ${i + 1}. ${p.agent.name} ${priority} - ${p.reason}`;
+      
+      // Add special indicators
+      if (p.metadata?.forcedGreedySelection) {
+        agentInfo += ' 🎯';
+      }
+      if (p.metadata?.greedyRandomSelection) {
+        agentInfo += ' 🎲';
+      }
+      
+      console.log(agentInfo);
+    });
+
+    // Show helpful info about forced selections
+    const forcedSelections = postulations.filter(p => p.metadata?.forcedGreedySelection);
+    if (forcedSelections.length > 0) {
+      console.log(`\n🎯 ${forcedSelections.length} greedy agent(s) forced to ensure options available`);
+    }
+  }
+
+  /**
    * Request agent selection from user
    */
   async requestAgentSelection(postulations?: AgentPostulation[]): Promise<void> {
@@ -318,6 +390,13 @@ export class ConsoleGamificationUI extends EventEmitter {
     const activePostulations = postulations || this.generateAgentPostulations();
     
     if (activePostulations.length === 0) {
+      // Handle no postulations - select a greedy random agent
+      const greedyAgent = this.selectGreedyRandomAgent();
+      if (greedyAgent) {
+        this.displayMessage('🤐 No agents are postulating this turn', 'system');
+        this.displayMessage(`🎲 Selecting greedy random agent: ${greedyAgent.agent.name}`, 'system');
+        this.emit(ConsoleUIEvent.AGENT_SELECTED, { postulation: greedyAgent, autoSelected: true });
+      }
       return;
     }
 
@@ -375,6 +454,57 @@ export class ConsoleGamificationUI extends EventEmitter {
   }
 
   /**
+   * Select a greedy random agent when no agents are postulating
+   */
+  protected selectGreedyRandomAgent(): AgentPostulation | null {
+    const activeAgents = this.getActiveAgents();
+    if (activeAgents.length === 0) {
+      return null;
+    }
+
+    // IMPROVED: Prioritize greedy agents more intelligently
+    const greedyAgents = activeAgents.filter(agent => {
+      const config = this.postulationManager?.getAgentConfigs().get(agent.id);
+      return config?.greediness === AgentGreediness.VERY_GREEDY;
+    });
+
+    const neutralAgents = activeAgents.filter(agent => {
+      const config = this.postulationManager?.getAgentConfigs().get(agent.id);
+      return config?.greediness === AgentGreediness.NEUTRAL;
+    });
+
+    // Selection priority: Very Greedy > Neutral > Any Available
+    let selectedAgents = greedyAgents;
+    let greedyType = 'very greedy';
+    
+    if (selectedAgents.length === 0) {
+      selectedAgents = neutralAgents;
+      greedyType = 'moderately greedy';
+    }
+    
+    if (selectedAgents.length === 0) {
+      selectedAgents = activeAgents;
+      greedyType = 'any available';
+    }
+
+    const randomAgent = selectedAgents[Math.floor(Math.random() * selectedAgents.length)];
+
+    // Create a postulation with appropriate greediness
+    return {
+      agent: randomAgent,
+      greediness: greedyAgents.includes(randomAgent) ? AgentGreediness.VERY_GREEDY : AgentGreediness.NEUTRAL,
+      reason: `selected randomly from ${greedyType} agents when no postulations occurred`,
+      priority: 1,
+      weight: 1.0,
+      metadata: {
+        greedyRandomSelection: true,
+        selectedFromPool: greedyType,
+        poolSize: selectedAgents.length
+      }
+    };
+  }
+
+  /**
    * Check if thread has capacity for more messages
    */
   hasThreadCapacity(): boolean {
@@ -396,6 +526,62 @@ export class ConsoleGamificationUI extends EventEmitter {
       // Start new thread
       await this.startNewThread();
     }
+  }
+
+  /**
+   * Register a game command that can be executed by user input
+   */
+  protected registerGameCommand(command: string, handler: (input: string) => Promise<void>): void {
+    this.gameCommands.set(command.toLowerCase(), handler);
+  }
+
+  /**
+   * Check if input matches a registered game command
+   */
+  protected async handleGameCommand(input: string): Promise<boolean> {
+    const parts = input.toLowerCase().split(' ');
+    const command = parts[0];
+    
+    const handler = this.gameCommands.get(command);
+    if (handler) {
+      await handler(input);
+      return true;
+    }
+    
+    return false;
+  }
+
+  /**
+   * Show help for available commands (can be overridden by subclasses)
+   */
+  protected showHelp(): void {
+    console.log('\n📖 Available Commands:');
+    console.log('  help     - Show this help message');
+    console.log('  status   - Show current game status');
+    console.log('  exit     - Exit the game');
+    console.log('  /debug   - Debug commands (on, off, state, agents, stats)');
+    
+    if (this.gameCommands.size > 0) {
+      console.log('\n🎮 Game-specific commands:');
+      for (const command of this.gameCommands.keys()) {
+        console.log(`  ${command}    - Game-specific command`);
+      }
+    }
+    
+    console.log('');
+  }
+
+  /**
+   * Show current status (can be overridden by subclasses)
+   */
+  protected showStatus(): void {
+    console.log('\n📊 Current Status:');
+    console.log(`  Current thread: ${this.currentThread?.id || 'none'}`);
+    console.log(`  Messages: ${this.currentThread?.messageCount || 0}/${this.config.maxMessagesPerThread}`);
+    console.log(`  Thread status: ${this.currentThread?.status || 'none'}`);
+    console.log(`  Active agents: ${this.getActiveAgents().length}`);
+    console.log(`  Game active: ${this.isGameActive}`);
+    console.log('');
   }
 
   // Private methods
@@ -513,6 +699,23 @@ export class ConsoleGamificationUI extends EventEmitter {
       return; // Agent selection was handled
     }
 
+    const trimmedInput = input.trim().toLowerCase();
+
+    // Handle built-in commands
+    if (trimmedInput === 'help') {
+      this.showHelp();
+      return;
+    }
+    if (trimmedInput === 'status') {
+      this.showStatus();
+      return;
+    }
+
+    // Try game-specific commands
+    if (await this.handleGameCommand(input)) {
+      return; // Command was handled
+    }
+
     // Check thread capacity
     if (this.currentThread.messageCount >= this.config.maxMessagesPerThread) {
       await this.completeCurrentThread();
@@ -556,8 +759,24 @@ export class ConsoleGamificationUI extends EventEmitter {
         const stats = this.runtime.getStatistics();
         this.displayDebug(`Stats: ${JSON.stringify(stats, null, 2)}`);
         break;
+      case 'verbose':
+        Logger.enableVerbose();
+        this.displayMessage('🔊 Verbose logging enabled', 'system');
+        break;
+      case 'quiet':
+        Logger.enableQuiet();
+        this.displayMessage('🔇 Quiet logging enabled', 'system');
+        break;
+      case 'normal':
+        Logger.normalMode();
+        this.displayMessage('🔧 Normal logging mode enabled', 'system');
+        break;
+      case 'logmode':
+        const currentMode = Logger.getMode();
+        this.displayMessage(`📊 Current logging mode: ${currentMode}`, 'system');
+        break;
       default:
-        this.displayMessage('🔧 Debug commands: on, off, state, agents, stats', 'system');
+        this.displayMessage('🔧 Debug commands: on, off, state, agents, stats, verbose, quiet, normal, logmode', 'system');
     }
   }
 
@@ -568,12 +787,23 @@ export class ConsoleGamificationUI extends EventEmitter {
     }
   }
 
-  private displayAgentMessage(agent: Agent, content: string): void {
+  private displayAgentMessage(agent: Agent, content: string, metadata?: Record<string, any>): void {
     const roleColor = this.getAgentRoleColor(agent.role);
     const agentName = this.colorize(`${agent.name}:`, roleColor, true);
     const messageContent = this.colorize(content, roleColor);
     
-    console.log(`\n${agentName} ${messageContent}`);
+    // Add postulation indicators if available
+    let indicators = '';
+    if (metadata?.postulation) {
+      if (metadata.postulation.forcedSelection) {
+        indicators += ' 🎯';
+      }
+      if (metadata.postulation.autoSelected) {
+        indicators += ' 🤖';
+      }
+    }
+    
+    console.log(`\n${agentName}${indicators} ${messageContent}`);
   }
 
   private displayMessage(content: string, type: 'system' | 'user' | 'error' = 'system'): void {

@@ -43,7 +43,11 @@ export interface SendOptions {
 type OllamaChatResponse = {
   model: string;
   created_at: string;
-  message: { role: 'assistant' | 'system' | 'user'; content: string };
+  message: { 
+    role: 'assistant' | 'system' | 'user'; 
+    content: string;
+    thinking?: string; // Some models put reasoning here
+  };
   done: boolean;
   total_duration?: number;
   eval_count?: number;
@@ -206,6 +210,9 @@ export class OllamaChatProvider {
     const resp = await this.callOllama(req);
     const elapsed = Date.now() - start;
 
+    console.log(`⏱️ Ollama call took ${elapsed}ms`);
+    console.log(`📨 Received response content: "${resp.message?.content || 'EMPTY'}" (length: ${resp.message?.content?.length || 0})`);
+
     // Update stats
     this.stats.totalMessages += 1;
     const totalResponses = this.stats.totalMessages; // proxy count
@@ -218,6 +225,8 @@ export class OllamaChatProvider {
     ctx.messages.push(assistantMsg);
     ctx.updated = Date.now();
 
+    console.log(`💬 Assistant message created with content: "${assistantMsg.content || 'EMPTY'}" (length: ${assistantMsg.content?.length || 0})`);
+    
     // Try to detect a tool call
     let toolCall: ToolCall | null = null;
     if (this.cfg.enableMCP && this.mcpDriver) {
@@ -365,6 +374,8 @@ export class OllamaChatProvider {
       },
     };
 
+    console.log(`🚀 Calling Ollama with payload:`, JSON.stringify(payload, null, 2));
+
     // Minimal retry logic
     let attempt = 0;
     let lastErr: unknown;
@@ -373,8 +384,37 @@ export class OllamaChatProvider {
         const { data } = await this.http.post<OllamaChatResponse>('/api/chat', payload, {
           timeout: this.cfg.timeout,
         });
+        
+        console.log(`📨 Ollama raw response:`, JSON.stringify(data, null, 2));
+        console.log(`📝 Message content: "${data.message?.content || 'EMPTY'}"`);
+        console.log(`📊 Response done: ${data.done}, model: ${data.model}`);
+        
+        // Handle empty content responses
+        if (!data.message?.content || data.message.content.trim() === '') {
+          console.log(`⚠️ Empty response detected, checking thinking field...`);
+          // Try to extract content from thinking field if available
+          if (data.message?.thinking) {
+            console.log(`🧠 Found thinking content, attempting to extract meaningful response...`);
+            // Simple extraction from thinking - look for quoted content or complete sentences
+            const thinkingText = data.message.thinking;
+            const quotedMatch = thinkingText.match(/"([^"]{10,90})"/);
+            if (quotedMatch) {
+              data.message.content = quotedMatch[1];
+              console.log(`✨ Extracted from thinking: "${data.message.content}"`);
+            } else {
+              // Try to find a complete sentence that looks like agent speech
+              const sentenceMatch = thinkingText.match(/([A-Z][^.!?]*[.!?])/);
+              if (sentenceMatch && sentenceMatch[1].length < 100) {
+                data.message.content = sentenceMatch[1];
+                console.log(`✨ Extracted sentence from thinking: "${data.message.content}"`);
+              }
+            }
+          }
+        }
+        
         return data;
       } catch (err) {
+        console.error(`❌ Ollama request failed (attempt ${attempt + 1}):`, err);
         lastErr = err;
         attempt += 1;
         if (attempt > this.cfg.maxRetries) break;

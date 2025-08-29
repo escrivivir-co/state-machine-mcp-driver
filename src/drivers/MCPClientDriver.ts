@@ -1,7 +1,11 @@
 /**
  * MCP Client Driver - Native MCP Protocol Implementation
  * Uses @modelcontextprotocol/sdk for native MCP communication
- * Implements IMCPDriver interface for compatibility with Runtime
+ * Implements IMCPDriver interface      Logger.mcpVerbose(`MCPClientDriver: Tool ${toolName} executed successfully`, { serverId, executionTime: mcpResponse.executionTime });
+      
+      return mcpResponse.content;
+    } catch (error) {
+      Logger.mcpError(`MCPClientDriver: Tool execution failed:`, { serverId, toolName, error });compatibility with Runtime
  */
 
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
@@ -16,7 +20,7 @@ import {
 } from '@modelcontextprotocol/sdk/types.js';
 import { IMCPDriver, MCPServerConfig } from './IMCPDriver';
 import { MCPToolResponse } from './MCPTypes';
-import { logger } from '../utils/logger';
+import { logger, Logger } from '../utils/logger';
 
 /**
  * Native MCP Client Driver using official SDK
@@ -29,7 +33,7 @@ export class MCPClientDriver implements IMCPDriver {
   private healthStatus: Map<string, boolean> = new Map();
 
   constructor() {
-    logger.info('MCPClientDriver: Initializing native MCP client driver');
+    Logger.mcpVerbose('MCPClientDriver: Initializing native MCP client driver');
   }
 
   /**
@@ -53,7 +57,7 @@ export class MCPClientDriver implements IMCPDriver {
 
       // Set up error handler
       client.onerror = (error) => {
-        logger.error(`MCPClientDriver: Client error for ${config.id}:`, error);
+        Logger.mcpError(`MCPClientDriver: Client error for ${config.id}:`, { error });
       };
 
       // Create transport
@@ -68,10 +72,10 @@ export class MCPClientDriver implements IMCPDriver {
       this.transports.set(config.id, transport);
       this.healthStatus.set(config.id, true);
       
-      logger.info(`MCPClientDriver: Successfully connected to ${config.name} at ${config.url}`);
+      Logger.mcpInfo(`MCPClientDriver: Successfully connected to ${config.name} at ${config.url}`);
       
     } catch (error) {
-      logger.error(`MCPClientDriver: Failed to add server ${config.id}:`, error);
+      Logger.mcpError(`MCPClientDriver: Failed to add server ${config.id}:`, { error });
       this.healthStatus.set(config.id, false);
       throw error;
     }
@@ -93,12 +97,12 @@ export class MCPClientDriver implements IMCPDriver {
       this.healthStatus.delete(serverId);
       
       if (removed) {
-        logger.info(`MCPClientDriver: Removed server ${serverId}`);
+        Logger.mcpVerbose(`MCPClientDriver: Removed server ${serverId}`);
       }
       
       return removed;
     } catch (error) {
-      logger.error(`MCPClientDriver: Error removing server ${serverId}:`, error);
+      Logger.mcpError(`MCPClientDriver: Error removing server ${serverId}:`, { error });
       return false;
     }
   }
@@ -164,7 +168,7 @@ export class MCPClientDriver implements IMCPDriver {
       
       return mcpResponse.result;
     } catch (error) {
-      logger.error(`MCPClientDriver: Tool execution failed:`, { serverId, toolName, error });
+      Logger.mcpError(`MCPClientDriver: Tool execution failed:`, { serverId, toolName, error });
       throw error;
     }
   }
@@ -187,7 +191,7 @@ export class MCPClientDriver implements IMCPDriver {
       const result = await client.request(request, ReadResourceResultSchema);
       return result.contents;
     } catch (error) {
-      logger.error(`MCPClientDriver: Resource retrieval failed:`, { serverId, resourceId, error });
+      Logger.mcpError(`MCPClientDriver: Resource retrieval failed:`, { serverId, resourceId, error });
       throw error;
     }
   }
@@ -214,7 +218,7 @@ export class MCPClientDriver implements IMCPDriver {
         'content' in msg ? msg.content.text : JSON.stringify(msg)
       ).join('\n');
     } catch (error) {
-      logger.error(`MCPClientDriver: Prompt retrieval failed:`, { serverId, promptId, error });
+      Logger.mcpError(`MCPClientDriver: Prompt retrieval failed:`, { serverId, promptId, error });
       throw error;
     }
   }
@@ -236,7 +240,7 @@ export class MCPClientDriver implements IMCPDriver {
       this.healthStatus.set(serverId, true);
       return true;
     } catch (error) {
-      logger.error(`MCPClientDriver: Health check failed for ${serverId}:`, error);
+      Logger.mcpError(`MCPClientDriver: Health check failed for ${serverId}:`, error);
       this.healthStatus.set(serverId, false);
       return false;
     }
@@ -289,7 +293,7 @@ export class MCPClientDriver implements IMCPDriver {
   async close(): Promise<void> {
     const closePromises = Array.from(this.transports.values()).map(
       transport => transport.close().catch(error => 
-        logger.error('MCPClientDriver: Error closing transport:', error)
+        Logger.mcpError('MCPClientDriver: Error closing transport:', error)
       )
     );
     
@@ -312,7 +316,7 @@ export class MCPClientDriver implements IMCPDriver {
     try {
       return await this.getResource(serverId, `stategraph:${graphId}`);
     } catch (error) {
-      logger.error(`MCPClientDriver: Error loading state graph ${graphId}:`, error);
+      Logger.mcpError(`MCPClientDriver: Error loading state graph ${graphId}:`, error);
       throw error;
     }
   }
@@ -324,7 +328,7 @@ export class MCPClientDriver implements IMCPDriver {
     try {
       await this.executeTool(serverId, 'save_state', { state });
     } catch (error) {
-      logger.error('MCPClientDriver: Error saving state:', error);
+      Logger.mcpError('MCPClientDriver: Error saving state:', error);
       throw error;
     }
   }
@@ -336,7 +340,7 @@ export class MCPClientDriver implements IMCPDriver {
     try {
       return await this.getResource(serverId, `state:${graphId}:${userId}`);
     } catch (error) {
-      logger.error(`MCPClientDriver: Error loading state for ${graphId}:${userId}:`, error);
+      Logger.mcpError(`MCPClientDriver: Error loading state for ${graphId}:${userId}:`, error);
       throw error;
     }
   }
@@ -363,7 +367,7 @@ export class MCPClientDriver implements IMCPDriver {
         Array.isArray(msg.content) ? msg.content.map(c => c.text || '').join('') : ''
       ).join('\n');
     } catch (error) {
-      logger.error(`MCPClientDriver: Error getting prompt ${promptId}:`, error);
+      Logger.mcpError(`MCPClientDriver: Error getting prompt ${promptId}:`, error);
       throw error;
     }
   }

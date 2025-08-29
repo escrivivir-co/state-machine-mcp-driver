@@ -19,6 +19,19 @@ import {
 } from '../models';
 import { logger, Logger } from '../utils/logger';
 
+// Chat provider types (supporting both strict typing and flexibility)
+export interface ChatProviderLike {
+  send?: (conversationId: string, userContent: string, options?: any) => Promise<any>;
+  sendMessage?: (message: string, options?: any) => Promise<string>;
+  generateResponse?: (context: any) => Promise<string>;
+  // Support for common OllamaChatProvider methods
+  startConversation?: (userId?: string, tools?: any[], metadata?: Record<string, any>) => { id: string; [key: string]: any };
+  endConversation?: (conversationId: string) => boolean;
+  getConversation?: (conversationId: string) => any;
+  getStats?: () => any;
+  // Add more common methods as needed
+}
+
 /**
  * Runtime configuration interface
  */
@@ -93,6 +106,7 @@ export enum RuntimeEvent {
  */
 export class Runtime extends EventEmitter {
   private mcpDriver: IMCPDriver;
+  private chatProvider?: ChatProviderLike;
   private config: RuntimeConfig;
   private stateGraph?: StateGraph;
   private currentState?: State;
@@ -104,9 +118,10 @@ export class Runtime extends EventEmitter {
   private actionQueue: AgentAction[] = [];
   private isProcessingActions = false;
 
-  constructor(mcpDriver: IMCPDriver, config: RuntimeConfig) {
+  constructor(mcpDriver: IMCPDriver, config: RuntimeConfig, chatProvider?: ChatProviderLike) {
     super();
     this.mcpDriver = mcpDriver;
+    this.chatProvider = chatProvider;
     this.config = {
       maxMessagesPerThread: 50,
       sessionTimeout: 3600000, // 1 hour
@@ -430,6 +445,20 @@ export class Runtime extends EventEmitter {
    */
   getAgent(agentId: string): Agent | undefined {
     return this.agents.get(agentId);
+  }
+
+  /**
+   * Get MCP driver instance
+   */
+  getMCPDriver(): IMCPDriver {
+    return this.mcpDriver;
+  }
+
+  /**
+   * Get chat provider instance (if available)
+   */
+  getChatProvider(): ChatProviderLike | undefined {
+    return this.chatProvider;
   }
 
   /**

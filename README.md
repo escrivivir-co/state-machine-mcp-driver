@@ -1,5 +1,9 @@
 # State Machine MCP Driver (vibe coding alert)
 
+https://deepwiki.com/escrivivir-co/state-machine-mcp-driver
+
+![](./docs/wiki-deepwiki.png)
+
 **State Machine MCP Driver** is a Node.js service to handle state machines via MCP protocol with integrated chat providers and multi-agent orchestration.
 
 - I can launch the application

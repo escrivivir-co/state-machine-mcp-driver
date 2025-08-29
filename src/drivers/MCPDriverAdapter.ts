@@ -7,7 +7,7 @@
 import { IMCPDriver, MCPServerConfig } from './IMCPDriver';
 import { MCPDriver } from './MCPDriver';
 import { MCPClientDriver } from './MCPClientDriver';
-import { logger } from '../utils/logger';
+import { logger, Logger } from '../utils/logger';
 
 /**
  * Adapter configuration
@@ -39,7 +39,7 @@ export class MCPDriverAdapter implements IMCPDriver {
     this.nativeDriver = new MCPClientDriver();
     this.legacyDriver = new MCPDriver();
 
-    logger.info(`MCPDriverAdapter: Initialized with ${this.useNative ? 'native' : 'legacy'} protocol`);
+    Logger.mcpVerbose(`MCPDriverAdapter: Initialized with ${this.useNative ? 'native' : 'legacy'} protocol`);
   }
 
   /**
@@ -65,11 +65,11 @@ export class MCPDriverAdapter implements IMCPDriver {
       }
     } catch (error) {
       if (this.config.enableFallback && this.useNative) {
-        logger.warn(`MCPDriverAdapter: ${operation} failed with native driver, falling back to legacy`, error);
+        Logger.mcpVerbose(`MCPDriverAdapter: ${operation} failed with native driver, falling back to legacy`, { error });
         try {
           return await legacyAction();
         } catch (fallbackError) {
-          logger.error(`MCPDriverAdapter: ${operation} failed with both drivers`, { original: error, fallback: fallbackError });
+          Logger.mcpError(`MCPDriverAdapter: ${operation} failed with both drivers`, { original: error, fallback: fallbackError });
           throw error; // Throw original error
         }
       }
@@ -153,7 +153,7 @@ export class MCPDriverAdapter implements IMCPDriver {
           const obj = toObject(contents);
           if (obj && obj.states) return obj;
         } catch (err1) {
-          logger.warn('MCPDriverAdapter: native loadStateGraph failed with stategraph: scheme, trying server-specific URI', { serverId, graphId, err1 });
+          Logger.mcpVerbose('MCPDriverAdapter: native loadStateGraph failed with stategraph: scheme, trying server-specific URI', { serverId, graphId, err1 });
         }
 
         // Try server-specific URI (e.g., xplus1://stategraphs/<id>)
@@ -194,7 +194,7 @@ export class MCPDriverAdapter implements IMCPDriver {
       );
     } catch (error) {
       // Return null if state doesn't exist (new player)
-      logger.info(`MCPDriverAdapter: State not found for ${graphId}:${userId}, will create new state`);
+      Logger.mcpVerbose(`MCPDriverAdapter: State not found for ${graphId}:${userId}, will create new state`);
       return null;
     }
   }
@@ -236,7 +236,7 @@ export class MCPDriverAdapter implements IMCPDriver {
    */
   switchToNative(): void {
     this.useNative = true;
-    logger.info('MCPDriverAdapter: Switched to native MCP protocol');
+    Logger.mcpInfo('MCPDriverAdapter: Switched to native MCP protocol');
   }
 
   /**
@@ -244,7 +244,7 @@ export class MCPDriverAdapter implements IMCPDriver {
    */
   switchToLegacy(): void {
     this.useNative = false;
-    logger.info('MCPDriverAdapter: Switched to legacy REST protocol');
+    Logger.mcpInfo('MCPDriverAdapter: Switched to legacy REST protocol');
   }
 
   /**

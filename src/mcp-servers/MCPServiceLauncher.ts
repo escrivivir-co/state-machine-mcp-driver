@@ -6,7 +6,7 @@
 import { BaseMCPServer, MCPServerConfig } from './BaseMCPServer';
 import { z } from 'zod';
 import { spawn, ChildProcess } from 'child_process';
-import { logger } from '../utils/logger';
+import { logger, Logger } from '../utils/logger';
 import * as path from 'path';
 import axios from 'axios';
 
@@ -147,7 +147,7 @@ export class MCPServiceLauncher extends BaseMCPServer {
           const config = this.getServerConfig(serverId, customConfig);
           const result = await this.launchServer(config);
 
-          logger.info(`MCP Launcher: Successfully launched ${config.name}`, { serverId, port: config.port });
+          Logger.mcpVerbose(`MCP Launcher: Successfully launched ${config.name}`, { serverId, port: config.port });
 
           return {
             content: [
@@ -167,7 +167,7 @@ export class MCPServiceLauncher extends BaseMCPServer {
             ]
           };
         } catch (error) {
-          logger.error(`MCP Launcher: Failed to launch server ${serverId}`, { error });
+          Logger.mcpError(`MCP Launcher: Failed to launch server ${serverId}`, { error });
           
           const errorMessage = error instanceof Error ? error.message : String(error);
           return {
@@ -199,7 +199,7 @@ export class MCPServiceLauncher extends BaseMCPServer {
         try {
           const result = await this.stopServer(serverId, graceful);
 
-          logger.info(`MCP Launcher: Successfully stopped ${serverId}`, { graceful });
+          Logger.mcpVerbose(`MCP Launcher: Successfully stopped ${serverId}`, { graceful });
 
           return {
             content: [
@@ -216,7 +216,7 @@ export class MCPServiceLauncher extends BaseMCPServer {
             ]
           };
         } catch (error) {
-          logger.error(`MCP Launcher: Failed to stop server ${serverId}`, { error });
+          Logger.mcpError(`MCP Launcher: Failed to stop server ${serverId}`, { error });
           
           return {
             content: [
@@ -257,7 +257,7 @@ export class MCPServiceLauncher extends BaseMCPServer {
             ]
           };
         } catch (error) {
-          logger.error(`MCP Launcher: Failed to get server status`, { serverId, error });
+          Logger.mcpError(`MCP Launcher: Failed to get server status`, { serverId, error });
           
           return {
             content: [
@@ -288,7 +288,7 @@ export class MCPServiceLauncher extends BaseMCPServer {
         try {
           await this.restartServer(serverId, graceful);
 
-          logger.info(`MCP Launcher: Successfully restarted ${serverId}`, { graceful });
+          Logger.mcpVerbose(`MCP Launcher: Successfully restarted ${serverId}`, { graceful });
 
           return {
             content: [
@@ -305,7 +305,7 @@ export class MCPServiceLauncher extends BaseMCPServer {
             ]
           };
         } catch (error) {
-          logger.error(`MCP Launcher: Failed to restart server ${serverId}`, { error });
+          Logger.mcpError(`MCP Launcher: Failed to restart server ${serverId}`, { error });
           
           return {
             content: [
@@ -335,7 +335,7 @@ export class MCPServiceLauncher extends BaseMCPServer {
         try {
           const results = await this.launchAllServers(healthCheck);
 
-          logger.info(`MCP Launcher: Launched all servers`, { results });
+          Logger.mcpVerbose(`MCP Launcher: Launched all servers`, { results });
 
           return {
             content: [
@@ -351,7 +351,7 @@ export class MCPServiceLauncher extends BaseMCPServer {
             ]
           };
         } catch (error) {
-          logger.error(`MCP Launcher: Failed to launch all servers`, { error });
+          Logger.mcpError(`MCP Launcher: Failed to launch all servers`, { error });
           
           return {
             content: [
@@ -383,7 +383,7 @@ export class MCPServiceLauncher extends BaseMCPServer {
           const success = await this.saveVSCodeMCPConfig(mcpConfig, outputPath);
 
           if (success) {
-            logger.info(`MCP Launcher: Generated VS Code MCP config at ${outputPath}`);
+            Logger.mcpVerbose(`MCP Launcher: Generated VS Code MCP config at ${outputPath}`);
 
             return {
               content: [
@@ -404,7 +404,7 @@ export class MCPServiceLauncher extends BaseMCPServer {
             throw new Error('Failed to save configuration file');
           }
         } catch (error) {
-          logger.error(`MCP Launcher: Failed to generate VS Code config`, { error });
+          Logger.mcpError(`MCP Launcher: Failed to generate VS Code config`, { error });
           
           return {
             content: [
@@ -448,7 +448,7 @@ export class MCPServiceLauncher extends BaseMCPServer {
             ]
           };
         } catch (error) {
-          logger.error(`MCP Launcher: Health check failed`, { serverId, error });
+          Logger.mcpError(`MCP Launcher: Health check failed`, { serverId, error });
           
           return {
             content: [
@@ -878,7 +878,7 @@ export class MCPServiceLauncher extends BaseMCPServer {
 
       return true;
     } catch (error) {
-      logger.error(`MCP Launcher: Failed to save VS Code config`, { error, outputPath });
+      Logger.mcpError(`MCP Launcher: Failed to save VS Code config`, { error, outputPath });
       return false;
     }
   }
@@ -962,13 +962,13 @@ export class MCPServiceLauncher extends BaseMCPServer {
       const response = await axios.get(`http://localhost:${config.port}/health`, { timeout: 1000 });
       if (response.status === 200) {
         portOccupied = true;
-        logger.info(`MCP Launcher: Port ${config.port} is already in use by a running server`);
+        Logger.mcpVerbose(`MCP Launcher: Port ${config.port} is already in use by a running server`);
         
         // Check if this might be our server already running
         try {
           const healthData = response.data;
           if (healthData.server === config.id || healthData.name === config.name) {
-            logger.info(`MCP Launcher: Found existing ${config.name} on port ${config.port}, registering it`);
+            Logger.mcpVerbose(`MCP Launcher: Found existing ${config.name} on port ${config.port}, registering it`);
             
             // Register the existing server without launching a new one
             const status: ServerStatus = {
@@ -1020,7 +1020,7 @@ export class MCPServiceLauncher extends BaseMCPServer {
       MCP_SERVER_PORT: config.port.toString()
     };
 
-    logger.info(`MCP Launcher: Starting ${config.name}`, { 
+    Logger.mcpVerbose(`MCP Launcher: Starting ${config.name}`, { 
       script: config.script, 
       port: config.port,
       args 
@@ -1071,10 +1071,10 @@ export class MCPServiceLauncher extends BaseMCPServer {
       await this.sleep(500);
     }
     if (reachable) {
-      logger.info(`MCP Launcher: ${config.name} exposed on port ${config.port}`);
+      Logger.mcpVerbose(`MCP Launcher: ${config.name} exposed on port ${config.port}`);
       status.status = 'running';
     } else {
-      logger.warn(`MCP Launcher: ${config.name} did not become reachable on port ${config.port} within ${timeoutMs}ms`);
+      Logger.mcpVerbose(`MCP Launcher: ${config.name} did not become reachable on port ${config.port} within ${timeoutMs}ms`);
     }
 
     // Setup periodic health checks if configured
@@ -1093,7 +1093,7 @@ export class MCPServiceLauncher extends BaseMCPServer {
    */
   private setupProcessHandlers(config: ManagedServerConfig, process: ChildProcess): void {
     process.on('exit', (code, signal) => {
-      logger.info(`MCP Launcher: Process ${config.id} exited`, { code, signal });
+      Logger.mcpVerbose(`MCP Launcher: Process ${config.id} exited`, { code, signal });
       
       const status = this.session.managedServers.get(config.id);
       if (status) {
@@ -1112,7 +1112,7 @@ export class MCPServiceLauncher extends BaseMCPServer {
     });
 
     process.on('error', (error) => {
-      logger.error(`MCP Launcher: Process ${config.id} error`, { error });
+      Logger.mcpError(`MCP Launcher: Process ${config.id} error`, { error });
       
       const status = this.session.managedServers.get(config.id);
       if (status) {
@@ -1125,13 +1125,13 @@ export class MCPServiceLauncher extends BaseMCPServer {
     // Log stdout/stderr for debugging
     if (process.stdout) {
       process.stdout.on('data', (data) => {
-        logger.debug(`MCP Launcher: ${config.id} stdout`, { data: data.toString() });
+        Logger.mcpVerbose(`MCP Launcher: ${config.id} stdout`, { data: data.toString() });
       });
     }
 
     if (process.stderr) {
       process.stderr.on('data', (data) => {
-        logger.debug(`MCP Launcher: ${config.id} stderr`, { data: data.toString() });
+        Logger.mcpVerbose(`MCP Launcher: ${config.id} stderr`, { data: data.toString() });
       });
     }
   }
@@ -1144,7 +1144,7 @@ export class MCPServiceLauncher extends BaseMCPServer {
       try {
         await this.healthCheckServer(config.id);
       } catch (error) {
-        logger.warn(`MCP Launcher: Health check failed for ${config.id}`, { error });
+        Logger.mcpVerbose(`MCP Launcher: Health check failed for ${config.id}`, { error });
       }
     }, config.healthCheckInterval!);
 
@@ -1171,11 +1171,11 @@ export class MCPServiceLauncher extends BaseMCPServer {
 
     // Limit restart attempts
     if (status.restartCount >= 3) {
-      logger.warn(`MCP Launcher: Max restart attempts reached for ${config.id}`);
+      Logger.mcpVerbose(`MCP Launcher: Max restart attempts reached for ${config.id}`);
       return;
     }
 
-    logger.info(`MCP Launcher: Auto-restarting ${config.id}`, { 
+    Logger.mcpVerbose(`MCP Launcher: Auto-restarting ${config.id}`, { 
       restartCount: status.restartCount + 1 
     });
 
@@ -1190,7 +1190,7 @@ export class MCPServiceLauncher extends BaseMCPServer {
     try {
       await this.launchServer(config);
     } catch (error) {
-      logger.error(`MCP Launcher: Auto-restart failed for ${config.id}`, { error });
+      Logger.mcpError(`MCP Launcher: Auto-restart failed for ${config.id}`, { error });
       status.status = 'failed';
       status.lastError = `Auto-restart failed: ${this.getErrorMessage(error)}`;
       this.session.managedServers.set(config.id, status);
@@ -1470,7 +1470,7 @@ export class MCPServiceLauncher extends BaseMCPServer {
       try {
         await this.stopServer(serverId, true);
       } catch (error) {
-        logger.warn(`MCP Launcher: Error stopping ${serverId}`, { error });
+        Logger.mcpVerbose(`MCP Launcher: Error stopping ${serverId}`, { error });
       }
     }
 

@@ -8,7 +8,8 @@ import { ConsoleGamificationUI, ConsoleUIConfig, ConsoleUIEvent } from '../../sr
 import { Runtime } from '../../src/runtime/Runtime';
 import { MCPDriverAdapter } from '../../src/drivers/MCPDriverAdapter';
 import { AgentStatus } from '../../src/models/Agent';
-import { AgentPostulation } from '../../src/models/AgentPostulation';
+import { AgentPostulation, AgentGreediness } from '../../src/models/AgentPostulation';
+import { integrateToolsWithChat, createToolContext } from '../../src/chat-provider/mcpTools';
 import {
   createXPlus1RuntimeConfig,
   GAME_CONFIG,
@@ -72,10 +73,6 @@ export class XPlus1GameConsole extends ConsoleGamificationUI {
       timeout: 5000
     });
     
-    const runtimeConfig = await createXPlus1RuntimeConfig();
-
-    const runtime = new Runtime(mcpDriver, runtimeConfig);
-
     // Chat provider with MCP integration
     const ollamaUrl = process.env.OLLAMA_URL || 'http://localhost:11434';
     const defaultModel = process.env.OLLAMA_MODEL || 'GPT-OSS:20b';
@@ -86,6 +83,10 @@ export class XPlus1GameConsole extends ConsoleGamificationUI {
       defaultMaxTokens: 150,
       enableMCP: true
     }); // MCPDriverAdapter is not required as a second parameter
+    
+    const runtimeConfig = await createXPlus1RuntimeConfig();
+
+    const runtime = new Runtime(mcpDriver, runtimeConfig, chatProvider);
 
     const uiConfig: ConsoleUIConfig = {
       maxMessagesPerThread: GAME_CONFIG.MAX_MESSAGES_THREAD,
@@ -115,10 +116,9 @@ export class XPlus1GameConsole extends ConsoleGamificationUI {
       await this.handleAgentSelected(postulation, autoSelected);
     });
 
-    // Handle when postulations are generated
-    this.on(ConsoleUIEvent.POSTULATIONS_GENERATED, ({ postulations }) => {
-      this.displayPostulationInfo(postulations);
-    });
+    // Register X+1 specific commands
+    this.registerGameCommand('quit', async () => await this.stop());
+    this.registerGameCommand('sim', async (input) => await this.handleSimulatorCommand(input));
   }
 
   /**
@@ -179,16 +179,11 @@ export class XPlus1GameConsole extends ConsoleGamificationUI {
   private async handleAgentSelected(postulation: AgentPostulation, autoSelected: boolean): Promise<void> {
     const agent = postulation.agent;
     
-    if (!autoSelected) {
-      console.log(`\n🎯 You selected: ${agent.name}`);
-      console.log(`📝 Reason: ${postulation.reason}\n`);
-    }
-
-    // Simulate agent message (in real implementation, this would trigger chat provider)
+    // Generate agent message (in real implementation, this would trigger chat provider)
     const agentMessage = await this.generateAgentMessage(agent.id, postulation);
     
-    // Display the agent message
-    await this.sendAgentMessage(agent.id, agentMessage);
+    // Use enhanced base method for sending message with postulation context
+    await this.sendAgentMessageWithPostulation(agent.id, agentMessage, postulation, autoSelected);
     
     this.gameState.messageCount++;
     
@@ -204,53 +199,207 @@ export class XPlus1GameConsole extends ConsoleGamificationUI {
   }
 
   /**
-   * Display information about generated postulations (debug/info)
+   * Generate a real agent message using chat provider with MCP tools
    */
-  private displayPostulationInfo(postulations: AgentPostulation[]): void {
-    if (postulations.length === 0) {
-      console.log('\n🤐 No agents are postulating this turn');
-      return;
-    }
+  private async generateAgentMessage(agentId: string, postulation: AgentPostulation): Promise<string> {
+    try {
+      // Check if we have a runtime with necessary components
+      if (!this.runtimeInstance) {
+        console.log('⚠️  Runtime not available, using fallback');
+        return this.generateFallbackMessage(agentId, postulation);
+      }
 
-    console.log(`\n📊 ${postulations.length} agent(s) postulating:`);
-    postulations.forEach((p, i) => {
-      const priority = '⭐'.repeat(Math.min(3, Math.max(1, Math.floor(p.priority / 2))));
-      console.log(`  ${i + 1}. ${p.agent.name} ${priority} - ${p.reason}`);
-    });
+      // Get current game context
+      const currentState = this.runtimeInstance.getCurrentState();
+      const gameContext = {
+        currentX: currentState?.gameData?.variables?.x || this.gameState.x || 0,
+        messagesRemaining: GAME_CONFIG.MAX_MESSAGES_THREAD - this.gameState.messageCount,
+        lastAgentSpoke: this.getCurrentThread()?.messages[this.getCurrentThread()!.messages.length - 1]?.agentId,
+        threadId: this.getCurrentThread()?.id,
+        postulationReason: postulation.reason
+      };
+
+      // Use MCP tools integration to generate message with Wikipedia context
+      const toolContext = createToolContext(
+        this.getMCPToolsForAgent(agentId),
+        gameContext
+      );
+
+      // Build the actual message using integrated tools and chat
+      const enhancedMessage = await integrateToolsWithChat(
+        this.runtimeInstance,
+        {
+          agentId,
+          context: gameContext,
+          personality: this.getAgentPersonality(agentId),
+          objective: this.getAgentObjective(agentId, postulation),
+          toolSuggestions: this.getToolSuggestionsForAgent(agentId)
+        },
+        toolContext
+      );
+
+      return enhancedMessage || this.generateFallbackMessage(agentId, postulation);
+
+    } catch (error) {
+      console.error(`❌ Error generating agent message for ${agentId}:`, error);
+      return this.generateFallbackMessage(agentId, postulation);
+    }
   }
 
   /**
-   * Generate a simulated agent message based on postulation
+   * Get MCP tools configuration for each agent
    */
-  private async generateAgentMessage(agentId: string, postulation: AgentPostulation): Promise<string> {
-    // This is a simplified simulation - in real implementation, 
-    // this would use the chat provider with appropriate prompts
+  private getMCPToolsForAgent(agentId: string): string[] {
+    const toolMappings = {
+      'dionisio-bot': ['search_wikipedia', 'get_random_article'],
+      'apolo-bot': ['search_wikipedia', 'load_wikipedia_article', 'get_article_categories'],
+      'justice-bot': ['load_wikipedia_article', 'search_wikipedia'],
+      'user-simulator': [] // No tools for user simulator
+    };
+
+    return toolMappings[agentId as keyof typeof toolMappings] || [];
+  }
+
+  /**
+   * Get agent personality description
+   */
+  private getAgentPersonality(agentId: string): string {
+    const personalities = {
+      'dionisio-bot': 'hedonistic, pleasure-seeking, spontaneous, cosmic wisdom seeker',
+      'apolo-bot': 'disciplined, wise, philosophical, historically informed',
+      'justice-bot': 'impartial, analytical, truth-seeking, decision-focused',
+      'user-simulator': 'neutral, responsive, adaptive'
+    };
+
+    return personalities[agentId as keyof typeof personalities] || 'neutral';
+  }
+
+  /**
+   * Get tool usage suggestions based on agent and context
+   */
+  private getToolSuggestionsForAgent(agentId: string): any {
+    const suggestions = {
+      'dionisio-bot': {
+        search_terms: ['pleasure', 'hedonism', 'wine', 'dionysus', 'festival', 'celebration'],
+        article_preferences: ['philosophy', 'mythology', 'culture'],
+        strategy: 'random_discovery' // Use get_random_article more
+      },
+      'apolo-bot': {
+        search_terms: ['discipline', 'stoicism', 'apollo', 'philosophy', 'wisdom', 'virtue'],
+        article_preferences: ['philosophy', 'ethics', 'history'],
+        strategy: 'targeted_search' // Use search_wikipedia with specific terms
+      },
+      'justice-bot': {
+        search_terms: ['justice', 'ethics', 'moral philosophy', 'decision', 'judgment'],
+        article_preferences: ['philosophy', 'law', 'ethics'],
+        strategy: 'deep_reading' // Use load_wikipedia_article for full content
+      }
+    };
+
+    return suggestions[agentId as keyof typeof suggestions] || {};
+  }
+
+  /**
+   * Get agent objective based on current game state and postulation
+   */
+  private getAgentObjective(agentId: string, postulation: AgentPostulation): string {
+    const messagesLeft = GAME_CONFIG.MAX_MESSAGES_THREAD - this.gameState.messageCount;
     
+    if (agentId === 'justice-bot' && messagesLeft <= 2) {
+      return 'Ask the critical question: "Did you consume today, do I reset?"';
+    }
+
+    const objectives = {
+      'dionisio-bot': `Tempt toward pleasure using Wikipedia wisdom. ${postulation.reason}`,
+      'apolo-bot': `Encourage discipline using historical examples. ${postulation.reason}`,
+      'justice-bot': `Guide toward truth and decision. ${postulation.reason}`,
+      'user-simulator': 'Respond naturally to the conversation'
+    };
+
+    return objectives[agentId as keyof typeof objectives] || postulation.reason;
+  }
+
+  /**
+   * Fallback to original hardcoded messages if MCP fails
+   */
+  private generateFallbackMessage(agentId: string, postulation: AgentPostulation): string {
     const templates = {
       'dionisio-bot': [
-        'Life is short! Why deny yourself the small pleasures? That coffee, that snack, that moment of indulgence...',
-        'You\'ve been so disciplined lately. Don\'t you think you deserve a little reward?',
-        'Come on, live a little! One small indulgence won\'t hurt your progress.',
-        'The universe is vast and we are so small. Why not enjoy what little pleasures we can find?'
+        '🍷 Life flows like wine - why resist?',
+        '✨ The cosmos whispers: indulge today!',
+        '🎭 Dance with temptation, dear mortal!',
+        '🌟 Every moment denied is joy lost forever.',
+        '🍯 Sweet pleasures await... why hesitate?',
+        '🔥 Feed your soul with cosmic delights!',
+        '💫 The universe celebrates those who embrace bliss.',
+        '🎪 Reality is fleeting - taste its sweetness!'
       ],
       'apolo-bot': [
         'Consider the path of growth. Each "no" to immediate pleasure builds your inner strength.',
         'True fulfillment comes from discipline and conscious choice, not instant gratification.',
-        'Remember: you are building habits that will serve your future self.',
-        'The strongest trees grow slowly, with deep roots. Same with human character.'
+        'Remember: the goal is not to avoid all pleasure, but to choose consciously.',
+        'Every moment of restraint is a moment of self-mastery. That\'s true power.',
+        'The wise person finds joy in progress, not just in consumption.',
+        'Your future self will thank you for today\'s discipline.'
       ],
       'justice-bot': [
-        'The moment of truth approaches. How will you choose?',
-        'Every decision shapes who you become. Choose wisely.',
-        'Balance is key. Both restraint and enjoyment have their place.',
-        'The question that matters most is coming...'
+        'The question remains: what is the right path forward?',
+        'Have you consumed today? Answer honestly - the system depends on truth.',
+        'Justice requires honesty. Did you give in to temptation today?',
+        'Time for accountability. Did you consume today, do I reset X to 0?',
+        'The scales of justice await your honest answer.',
+        'Truth is the foundation of progress. Did you consume?'
       ]
     };
 
-    const agentTemplates = templates[agentId as keyof typeof templates] || ['Ready to proceed.'];
-    const randomMessage = agentTemplates[Math.floor(Math.random() * agentTemplates.length)];
+    const agentTemplates = templates[agentId as keyof typeof templates] || templates['justice-bot'];
+    const randomIndex = Math.floor(Math.random() * agentTemplates.length);
     
-    return randomMessage;
+    // For dionisio-bot, occasionally add a Wikipedia reference to feel more authentic
+    let message = agentTemplates[randomIndex];
+    if (agentId === 'dionisio-bot' && Math.random() < 0.3) {
+      const wikiRefs = [
+        '(Ancient wisdom says pleasure is life\'s essence!)',
+        '(The Greeks knew: joy is our natural state!)',
+        '(History shows us: celebrate while you can!)',
+        '(Philosophy teaches: embrace the moment!)'
+      ];
+      message += ' ' + wikiRefs[Math.floor(Math.random() * wikiRefs.length)];
+    }
+    
+    return message;
+  }
+
+  /**
+   * Override greedy random selection to use X+1 specific logic
+   */
+  protected selectGreedyRandomAgent(): AgentPostulation | null {
+    const context = {
+      messageCount: this.gameState.messageCount,
+      maxMessages: GAME_CONFIG.MAX_MESSAGES_THREAD,
+      gameState: { x: this.gameState.x, flags: { userSimulatorEnabled: this.gameState.simulateUser } },
+      lastMessage: this.getCurrentThread()?.messages.slice(-1)[0]?.content
+    };
+
+    const suggestedAgentId = this.postulationSystem.getSuggestedAgent(context);
+    const agent = this.getActiveAgents().find(a => a.id === suggestedAgentId);
+    
+    if (!agent) {
+      return super.selectGreedyRandomAgent();
+    }
+
+    // Create a postulation for the suggested agent
+    return {
+      agent,
+      greediness: AgentGreediness.VERY_GREEDY,
+      reason: 'selected by X+1 greedy random algorithm',
+      priority: 1,
+      weight: 1.0,
+      metadata: {
+        greedyRandomSelection: true,
+        suggestedByX1Logic: true
+      }
+    };
   }
 
   /**
@@ -270,25 +419,6 @@ export class XPlus1GameConsole extends ConsoleGamificationUI {
     }
 
     const lower = input.toLowerCase();
-    
-    if (lower === 'help') {
-      this.showHelp();
-      return;
-    }
-    if (lower === 'status') {
-      this.showStatus();
-      return;
-    }
-    if (lower === 'quit') {
-      await this.stop();
-      return;
-    }
-
-    // Handle simulator commands
-    if (lower.startsWith('sim ') || lower === 'sim') {
-      await this.handleSimulatorCommand(input);
-      return;
-    }
 
     // Handle decision phase responses
     if (this.gameState.currentPhase === 'decision') {
@@ -479,7 +609,7 @@ export class XPlus1GameConsole extends ConsoleGamificationUI {
 
   private updateSimulateModeFromState(): void {
     try {
-  const s = this.runtimeInstance.getCurrentState();
+      const s = this.runtimeInstance.getCurrentState();
       const flag = s?.gameData?.flags?.['userSimulatorEnabled'];
       if (typeof flag === 'boolean') {
         this.gameState.simulateUser = flag;
@@ -489,7 +619,10 @@ export class XPlus1GameConsole extends ConsoleGamificationUI {
     }
   }
 
-  private showHelp(): void {
+  /**
+   * Override base help to show X+1 specific commands
+   */
+  protected showHelp(): void {
     console.log('\n📖 X+1 Game Commands:');
     console.log('  help    - Show this help message');
     console.log('  status  - Show current game status');
@@ -509,17 +642,18 @@ export class XPlus1GameConsole extends ConsoleGamificationUI {
     console.log('  - When OFF: You control agent selection and answers\n');
   }
 
-  private showStatus(): void {
+  /**
+   * Override base status to show X+1 specific status
+   */
+  protected showStatus(): void {
     console.log('\n📊 Current Game Status:');
     console.log(`  X Value: ${this.gameState.x}`);
     console.log(`  Messages used: ${this.gameState.messageCount}/${GAME_CONFIG.MAX_MESSAGES_THREAD}`);
     console.log(`  Game phase: ${this.gameState.currentPhase}`);
     console.log(`  Total turns: ${this.gameState.turnHistory.length}`);
-  console.log(`  Active agents: ${this.runtimeInstance?.getAgents().length || 0}`);
-  console.log(`  User simulator: ${this.gameState.simulateUser ? 'enabled' : 'disabled'}\n`);
-  }
-
-  /**
+    console.log(`  Active agents: ${this.runtimeInstance?.getAgents().length || 0}`);
+    console.log(`  User simulator: ${this.gameState.simulateUser ? 'enabled' : 'disabled'}\n`);
+  }  /**
    * Enable or disable the user simulator
    */
   private async setSimulatorEnabled(enabled: boolean): Promise<void> {

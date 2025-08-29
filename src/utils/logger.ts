@@ -20,6 +20,8 @@ export interface LoggerConfig {
   enableFile: boolean;
   logDir: string;
   format: 'json' | 'simple' | 'combined';
+  verboseMode?: boolean;
+  quietMode?: boolean;
 }
 
 // Default logger configuration
@@ -28,7 +30,9 @@ const defaultConfig: LoggerConfig = {
   enableConsole: true,
   enableFile: process.env.NODE_ENV === 'production',
   logDir: process.env.LOG_DIR || 'logs',
-  format: (process.env.LOG_FORMAT as 'json' | 'simple' | 'combined') || 'simple'
+  format: (process.env.LOG_FORMAT as 'json' | 'simple' | 'combined') || 'simple',
+  verboseMode: process.env.MCP_VERBOSE === 'true' || process.env.DEBUG === '*',
+  quietMode: process.env.MCP_QUIET === 'true'
 };
 
 // Create custom formats
@@ -205,7 +209,70 @@ export class Logger {
    * Log runtime operation
    */
   static runtime(message: string, context?: Record<string, any>): void {
-    logger.info(`[RUNTIME] ${message}`, context);
+    if (!defaultConfig.quietMode) {
+      logger.info(`[RUNTIME] ${message}`, context);
+    }
+  }
+
+  /**
+   * Log MCP operation with verbose control
+   */
+  static mcpVerbose(message: string, context?: Record<string, any>): void {
+    if (defaultConfig.verboseMode && !defaultConfig.quietMode) {
+      logger.debug(`]: ${message}`, context);
+    }
+  }
+
+  /**
+   * Log MCP operation - always shown unless quiet mode
+   */
+  static mcpInfo(message: string, context?: Record<string, any>): void {
+    if (!defaultConfig.quietMode) {
+      logger.info(`]: ${message}`, context);
+    }
+  }
+
+  /**
+   * Log MCP errors - always shown
+   */
+  static mcpError(message: string, context?: Record<string, any>): void {
+    logger.error(`]: ${message}`, context);
+  }
+
+  /**
+   * Enable verbose mode
+   */
+  static enableVerbose(): void {
+    defaultConfig.verboseMode = true;
+    defaultConfig.quietMode = false;
+    logger.info('MCP: Verbose mode enabled');
+  }
+
+  /**
+   * Enable quiet mode
+   */
+  static enableQuiet(): void {
+    defaultConfig.verboseMode = false;
+    defaultConfig.quietMode = true;
+    logger.info('MCP: Quiet mode enabled');
+  }
+
+  /**
+   * Disable verbose and quiet modes (normal mode)
+   */
+  static normalMode(): void {
+    defaultConfig.verboseMode = false;
+    defaultConfig.quietMode = false;
+    logger.info('MCP: Normal logging mode enabled');
+  }
+
+  /**
+   * Get current logging mode
+   */
+  static getMode(): 'verbose' | 'quiet' | 'normal' {
+    if (defaultConfig.verboseMode) return 'verbose';
+    if (defaultConfig.quietMode) return 'quiet';
+    return 'normal';
   }
 
   /**
@@ -213,6 +280,9 @@ export class Logger {
    */
   static configure(config: Partial<LoggerConfig>): void {
     const newConfig = { ...defaultConfig, ...config };
+    
+    // Update the current config
+    Object.assign(defaultConfig, newConfig);
     
     // Clear existing transports
     logger.clear();

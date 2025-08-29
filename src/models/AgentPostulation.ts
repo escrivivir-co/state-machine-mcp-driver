@@ -114,6 +114,14 @@ export class AgentPostulationManager {
       }
     }
 
+    // IMPROVEMENT: Ensure at least one greedy agent is always available
+    if (postulations.length === 0 || !this.hasGreedyAgent(postulations)) {
+      const forceGreedyPostulation = this.forceGreedyAgentPostulation(context, remainingMessages);
+      if (forceGreedyPostulation) {
+        postulations.push(forceGreedyPostulation);
+      }
+    }
+
     // Sort by priority (descending) then by weight (descending)
     return postulations.sort((a, b) => {
       if (a.priority !== b.priority) {
@@ -182,16 +190,17 @@ export class AgentPostulationManager {
   ): boolean {
     switch (greediness) {
       case AgentGreediness.VERY_GREEDY:
-        // Always want to participate if there's room
-        return remainingMessages > 2; // Leave room for others
+        // IMPROVED: Always want to participate if there's any room (was > 2, now > 0)
+        // This ensures greedy agents are almost always available
+        return remainingMessages > 0;
 
       case AgentGreediness.SATISFIED:
         // Only when needed or urgent
         return remainingMessages <= 3 || context.messageCount === 0 || !!context.flags?.isUrgent;
 
       case AgentGreediness.NEUTRAL:
-        // Moderate participation
-        return remainingMessages > 1 && Math.random() > 0.3;
+        // IMPROVED: More generous participation (was > 1 && random > 0.3, now > 0 && random > 0.2)
+        return remainingMessages > 0 && Math.random() > 0.2;
 
       case AgentGreediness.PASSIVE:
         // Rarely participates
@@ -316,5 +325,80 @@ export class AgentPostulationManager {
    */
   getAgentConfigs(): Map<string, AgentPostulationConfig> {
     return new Map(this.agentConfigs);
+  }
+
+  /**
+   * Check if there's at least one greedy agent in the postulations
+   */
+  private hasGreedyAgent(postulations: AgentPostulation[]): boolean {
+    return postulations.some(p => 
+      p.greediness === AgentGreediness.VERY_GREEDY || 
+      p.greediness === AgentGreediness.NEUTRAL
+    );
+  }
+
+  /**
+   * Force at least one greedy agent to postulate
+   */
+  private forceGreedyAgentPostulation(
+    context: PostulationContext, 
+    remainingMessages: number
+  ): AgentPostulation | null {
+    // Find the most greedy agent that isn't currently postulating
+    const greedyConfigs = Array.from(this.agentConfigs.values())
+      .filter(config => 
+        config.greediness === AgentGreediness.VERY_GREEDY ||
+        config.greediness === AgentGreediness.NEUTRAL
+      )
+      .sort((a, b) => {
+        // Prioritize VERY_GREEDY over NEUTRAL
+        if (a.greediness === AgentGreediness.VERY_GREEDY && b.greediness !== AgentGreediness.VERY_GREEDY) {
+          return -1;
+        }
+        if (b.greediness === AgentGreediness.VERY_GREEDY && a.greediness !== AgentGreediness.VERY_GREEDY) {
+          return 1;
+        }
+        return b.priorityMultiplier - a.priorityMultiplier;
+      });
+
+    for (const config of greedyConfigs) {
+      // Find the corresponding agent
+      const agent = context.availableAgents.find(a => a.id === config.agentId);
+      if (!agent) continue;
+
+      // Force generate a postulation for this agent
+      const forcedPostulation: AgentPostulation = {
+        agent,
+        greediness: config.greediness,
+        reason: `${config.baseReason} (forced to ensure greedy option available)`,
+        priority: Math.max(1, config.priorityMultiplier - 1), // Lower priority since it's forced
+        weight: Math.max(0.5, config.baseWeight * 0.8), // Lower weight since it's forced
+        metadata: {
+          remainingMessages,
+          configId: config.agentId,
+          forcedGreedySelection: true,
+          originallyWouldNotPostulate: true
+        }
+      };
+
+      // Apply custom logic but with forced context
+      if (config.customLogic) {
+        const customResult = config.customLogic(context);
+        if (customResult && customResult !== null) {
+          // Merge but keep the forced nature
+          Object.assign(forcedPostulation, customResult, {
+            metadata: {
+              ...forcedPostulation.metadata,
+              ...customResult.metadata,
+              forcedGreedySelection: true
+            }
+          });
+        }
+      }
+
+      return forcedPostulation;
+    }
+
+    return null; // No greedy agents available to force
   }
 }
