@@ -20,6 +20,8 @@ import {
   PromptOption,
   ConsoleStateChangeEvent
 } from './IConsoleReader';
+import { MCPEvent } from '../drivers/MCPClientDriver';
+import { InterfaceOrchestrator } from '../orchestration/InterfaceOrchestrator';
 
 /**
  * Configuration for console UI
@@ -134,6 +136,10 @@ export class ConsoleGamificationUI extends EventEmitter implements IConsoleReade
     cyan: '\x1b[36m',
     white: '\x1b[37m'
   };
+
+  private orchestrator?: InterfaceOrchestrator;
+  private mcpEventLog: MCPEvent[] = [];
+  private maxEventLogSize = 100;
 
   constructor(runtime: Runtime, config: ConsoleUIConfig) {
     super();
@@ -1160,6 +1166,173 @@ export class ConsoleGamificationUI extends EventEmitter implements IConsoleReade
         logger.error('ConsoleUI: Error getting UI status for listeners', { error: err });
       });
     }
+  }
+
+  /**
+   * Connect to orchestrator for coordinated updates
+   */
+  connectOrchestrator(orchestrator: InterfaceOrchestrator): void {
+    this.orchestrator = orchestrator;
+    
+    // Subscribe to MCP events
+    orchestrator.on('mcp:event', (event: MCPEvent) => {
+      this.handleMCPEvent(event);
+    });
+    
+    // Subscribe to state updates
+    orchestrator.on('state:updated', (data) => {
+      this.updateDisplay(data.state);
+    });
+  }
+
+  /**
+   * Handle incoming MCP events
+   */
+  private handleMCPEvent(event: MCPEvent): void {
+    // Log event
+    this.mcpEventLog.push(event);
+    if (this.mcpEventLog.length > this.maxEventLogSize) {
+      this.mcpEventLog.shift();
+    }
+    
+    // Display based on event type
+    switch (event.type) {
+      case 'tool':
+        this.displayToolEvent(event);
+        break;
+      case 'state':
+        this.displayStateEvent(event);
+        break;
+      case 'health':
+        this.displayHealthEvent(event);
+        break;
+      case 'error':
+        this.displayError(`MCP Error: ${event.action}`, event.data);
+        break;
+    }
+  }
+
+  /**
+   * Display tool execution event
+   */
+  private displayToolEvent(event: MCPEvent): void {
+    const icon = event.action === 'executed' ? '⚡' : '⏳';
+    this.displayInfo(
+      `${icon} Tool ${event.action}: ${event.data.toolName}`,
+      event.data.result
+    );
+  }
+
+  /**
+   * Display state change event
+   */
+  private displayStateEvent(event: MCPEvent): void {
+    if (event.action === 'synced') {
+      this.displaySuccess('✅ State synchronized');
+    } else if (event.action === 'notification') {
+      this.displayNotification('📬 Server notification', event.data);
+    }
+  }
+
+  /**
+   * Display health status event
+   */
+  private displayHealthEvent(event: MCPEvent): void {
+    const icon = event.data.status === 'connected' ? '🟢' : '🔴';
+    this.displayInfo(
+      `${icon} Server ${event.serverId}: ${event.data.status}`
+    );
+  }
+
+  /**
+   * Get MCP event history
+   */
+  getMCPEventHistory(): MCPEvent[] {
+    return [...this.mcpEventLog];
+  }
+
+  // ===== UI Helper Methods for Orchestrator Integration =====
+
+  /**
+   * Display informational message
+   */
+  displayInfo(message: string, data?: any): void {
+    this.displayMessage(`ℹ️  ${message}${data ? `: ${JSON.stringify(data)}` : ''}`, 'system');
+  }
+
+  /**
+   * Display success message
+   */
+  displaySuccess(message: string): void {
+    this.displayMessage(`✅ ${message}`, 'system');
+  }
+
+  /**
+   * Display error message
+   */
+  displayError(message: string, error?: any): void {
+    this.displayMessage(`❌ ${message}${error ? `: ${JSON.stringify(error)}` : ''}`, 'error');
+  }
+
+  /**
+   * Display notification message
+   */
+  displayNotification(title: string, data?: any): void {
+    this.displayMessage(`📬 ${title}${data ? `: ${JSON.stringify(data)}` : ''}`, 'system');
+  }
+
+  /**
+   * Update UI state display
+   */
+  updateState(state: any): void {
+    // Update internal state and refresh display
+    this.displayInfo('State updated', { stateId: state.id, stateName: state.name });
+  }
+
+  /**
+   * Update display based on state
+   */
+  updateDisplay(state: any): void {
+    this.updateState(state);
+  }
+
+  /**
+   * Display tool execution result
+   */
+  displayToolResult(result: { tool: string; result: any; executionTime?: number }): void {
+    this.displayInfo(
+      `Tool executed: ${result.tool}`,
+      { result: result.result, time: result.executionTime }
+    );
+  }
+
+  /**
+   * Display health status
+   */
+  displayHealthStatus(status: { serverId: string; healthy: boolean; message: string }): void {
+    const icon = status.healthy ? '🟢' : '🔴';
+    this.displayMessage(`${icon} ${status.message}`, 'system');
+  }
+
+  /**
+   * Display action result
+   */
+  displayActionResult(result: { action: string; result: any; success: boolean }): void {
+    const icon = result.success ? '✅' : '❌';
+    this.displayMessage(`${icon} Action ${result.action}: ${result.success ? 'Success' : 'Failed'}`, 'system');
+  }
+
+  /**
+   * Display game status
+   */
+  displayGameStatus(): void {
+    const state = this.getCurrentState();
+    this.displayInfo('Current game status', {
+      stateId: state.id,
+      currentState: state.currentStateId,
+      agents: this.getActiveAgents().length,
+      thread: this.getCurrentThread()?.id
+    });
   }
 }
 

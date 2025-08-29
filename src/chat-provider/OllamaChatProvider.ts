@@ -5,6 +5,7 @@
 
 import axios, { AxiosInstance } from 'axios';
 import { v4 as uuidv4 } from 'uuid';
+import { EventEmitter } from 'events';
 import {
   ChatCompletionRequest,
   ChatCompletionResponse,
@@ -18,6 +19,8 @@ import {
 import { MCPToolResponse } from '../drivers/MCPTypes';
 import { MCPDriverAdapter } from '../drivers/MCPDriverAdapter';
 import { buildToolInstruction, validateArgs, findToolByName } from './promptUtils';
+import { MCPClientDriver } from '../drivers/MCPClientDriver';
+import { InterfaceOrchestrator } from '../orchestration/InterfaceOrchestrator';
 
 /**  DEPRECATED IN FAVOR OF src\drivers
  * 
@@ -113,7 +116,7 @@ function parseToolCallFromText(text: string): ToolCall | null {
 
 // helpers moved to promptUtils.ts
 
-export class OllamaChatProvider {
+export class OllamaChatProvider extends EventEmitter {
   private cfg: Required<Omit<ChatProviderConfig, 'enableMCP'>> & { enableMCP: boolean };
   private http: AxiosInstance;
   private conversations = new Map<string, ConversationContext>();
@@ -127,8 +130,11 @@ export class OllamaChatProvider {
     conversationsByModel: {},
   };
   private mcpDriver?: MCPDriverAdapter;
+  private mcpClient?: MCPClientDriver;
+  private orchestrator?: InterfaceOrchestrator;
 
   constructor(config?: Partial<ChatProviderConfig>, mcpClient?: MCPDriverAdapter) {
+    super();
     this.cfg = {
       baseUrl: config?.baseUrl ?? 'http://localhost:11434',
       defaultModel: config?.defaultModel ?? 'gpt-oss:20b',
@@ -142,6 +148,58 @@ export class OllamaChatProvider {
     
     // Set MCP driver adapter
     this.mcpDriver = mcpClient;
+  }
+
+  /**
+   * Connect to MCP infrastructure
+   */
+  connectMCP(mcpClient: MCPClientDriver, orchestrator?: InterfaceOrchestrator): void {
+    this.mcpClient = mcpClient;
+    this.orchestrator = orchestrator;
+    
+    // Auto-register MCP tools
+    this.registerMCPTools();
+  }
+
+  /**
+   * Register all MCP tools as chat tools
+   */
+  private async registerMCPTools(): Promise<void> {
+    if (!this.mcpClient) return;
+
+    const servers = this.mcpClient.getServers();
+    
+    for (const server of servers) {
+      try {
+        const tools = await this.mcpClient.listTools(server.id);
+        
+        // TODO: Implement proper tool registration
+        // For now, tools are passed via startConversation method
+        console.log(`Found ${tools.length} tools from server ${server.id}`);
+        
+      } catch (error) {
+        console.warn(`Could not register tools from ${server.id}`, error);
+      }
+    }
+  }
+
+  /**
+   * Register a tool (to be implemented)
+   */
+  registerTool(tool: { name: string; description: string; parameters: any; execute: (params: any) => Promise<any> }): void {
+    // TODO: Implement tool registration
+    console.log(`Registering tool: ${tool.name}`);
+  }
+
+  /**
+   * Get current conversation (compatibility method)
+   */
+  getCurrentConversation(): ConversationContext | undefined {
+    // Return the first active conversation for now
+    for (const [id, conversation] of this.conversations) {
+      return conversation;
+    }
+    return undefined;
   }
 
   // Conversation management

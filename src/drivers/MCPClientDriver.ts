@@ -21,18 +21,29 @@ import {
 import { IMCPDriver, MCPServerConfig } from './IMCPDriver';
 import { MCPToolResponse } from './MCPTypes';
 import { logger, Logger } from '../utils/logger';
+import { EventEmitter } from 'events';
 
 /**
  * Native MCP Client Driver using official SDK
  * Implements IMCPDriver interface for Runtime compatibility
  */
-export class MCPClientDriver implements IMCPDriver {
+export interface MCPEvent {
+  type: 'tool' | 'resource' | 'prompt' | 'state' | 'health' | 'error';
+  action: string;
+  serverId: string;
+  data: any;
+  timestamp: number;
+}
+
+export class MCPClientDriver extends EventEmitter implements IMCPDriver {
   private clients: Map<string, Client> = new Map();
   private transports: Map<string, StreamableHTTPClientTransport> = new Map();
   private configs: Map<string, MCPServerConfig> = new Map();
   private healthStatus: Map<string, boolean> = new Map();
+  private healthIntervals: Map<string, NodeJS.Timeout> = new Map();
 
   constructor() {
+    super();
     Logger.mcpVerbose('MCPClientDriver: Initializing native MCP client driver');
   }
 
@@ -370,5 +381,141 @@ export class MCPClientDriver implements IMCPDriver {
       Logger.mcpError(`MCPClientDriver: Error getting prompt ${promptId}:`, { error });
       throw error;
     }
+  }
+
+  /**
+   * Emit structured MCP event
+   */
+  private emitMCPEvent(event: MCPEvent): void {
+    // Emit specific event
+    this.emit(`${event.type}:${event.action}`, event);
+    
+    // Emit general event
+    this.emit('mcp:event', event);
+    
+    // Log event
+    Logger.mcpVerbose(`MCP Event: ${event.type}:${event.action}`, {
+      serverId: event.serverId,
+      data: event.data
+    });
+  }
+
+  /**
+   * List available tools from a server
+   */
+  async listTools(serverId: string): Promise<any[]> {
+    const client = this.getClient(serverId);
+    
+    try {
+      const response = await client.request({
+        method: 'tools/list' as const,
+        params: {}
+      }, ListToolsResultSchema);
+
+      this.emitMCPEvent({
+        type: 'tool',
+        action: 'listed',
+        serverId,
+        data: response.tools,
+        timestamp: Date.now()
+      });
+
+      return response.tools;
+    } catch (error) {
+      this.emitMCPEvent({
+        type: 'error',
+        action: 'list_tools_failed',
+        serverId,
+        data: error,
+        timestamp: Date.now()
+      });
+      throw error;
+    }
+  }
+
+  /**
+   * Subscribe to server events
+   */
+  subscribeToServerEvents(serverId: string): void {
+    // Note: MCP Client from @modelcontextprotocol/sdk doesn't expose direct event listeners
+    // We'll simulate events by periodically checking health and emitting our own events
+    Logger.mcpVerbose(`Setting up event monitoring for server: ${serverId}`);
+    
+    // Start health monitoring
+    this.startHealthMonitoring(serverId);
+  }
+
+  /**
+   * Start health monitoring for a server
+   */
+  private startHealthMonitoring(serverId: string): void {
+    const interval = setInterval(async () => {
+      try {
+        // Try to ping the server by listing tools
+        await this.listTools(serverId);
+        
+        const wasHealthy = this.healthStatus.get(serverId);
+        if (!wasHealthy) {
+          this.healthStatus.set(serverId, true);
+          this.emitMCPEvent({
+            type: 'health',
+            action: 'connected',
+            serverId,
+            data: { status: 'connected' },
+            timestamp: Date.now()
+          });
+        }
+      } catch (error) {
+        const wasHealthy = this.healthStatus.get(serverId);
+        if (wasHealthy !== false) {
+          this.healthStatus.set(serverId, false);
+          this.emitMCPEvent({
+            type: 'health',
+            action: 'disconnected',
+            serverId,
+            data: { status: 'disconnected', error },
+            timestamp: Date.now()
+          });
+        }
+      }
+    }, 5000); // Check every 5 seconds
+
+    // Store interval for cleanup
+    this.healthIntervals = this.healthIntervals || new Map();
+    this.healthIntervals.set(serverId, interval);
+  }
+
+  /**
+   * Get server health status
+   */
+  getServerHealth(serverId: string): boolean {
+    return this.healthStatus.get(serverId) ?? false;
+  }
+
+  /**
+   * Cleanup resources
+   */
+  cleanup(): void {
+    // Stop all health monitoring
+    if (this.healthIntervals) {
+      for (const interval of this.healthIntervals.values()) {
+        clearInterval(interval);
+      }
+      this.healthIntervals.clear();
+    }
+
+    // Close all connections
+    for (const [serverId, client] of this.clients) {
+      try {
+        client.close();
+      } catch (error) {
+        Logger.mcpError(`Error closing client for ${serverId}:`, error as Error);
+      }
+    }
+
+    this.clients.clear();
+    this.transports.clear();
+    this.configs.clear();
+    this.healthStatus.clear();
   }
 }
