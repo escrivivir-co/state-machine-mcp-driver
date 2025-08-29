@@ -240,7 +240,7 @@ export class MCPClientDriver implements IMCPDriver {
       this.healthStatus.set(serverId, true);
       return true;
     } catch (error) {
-      Logger.mcpError(`MCPClientDriver: Health check failed for ${serverId}:`, error);
+      Logger.mcpError(`MCPClientDriver: Health check failed for ${serverId}:`, { error });
       this.healthStatus.set(serverId, false);
       return false;
     }
@@ -316,7 +316,7 @@ export class MCPClientDriver implements IMCPDriver {
     try {
       return await this.getResource(serverId, `stategraph:${graphId}`);
     } catch (error) {
-      Logger.mcpError(`MCPClientDriver: Error loading state graph ${graphId}:`, error);
+      Logger.mcpError(`MCPClientDriver: Error loading state graph ${graphId}:`, { error });
       throw error;
     }
   }
@@ -328,7 +328,7 @@ export class MCPClientDriver implements IMCPDriver {
     try {
       await this.executeTool(serverId, 'save_state', { state });
     } catch (error) {
-      Logger.mcpError('MCPClientDriver: Error saving state:', error);
+      Logger.mcpError('MCPClientDriver: Error saving state:', { error });
       throw error;
     }
   }
@@ -340,7 +340,7 @@ export class MCPClientDriver implements IMCPDriver {
     try {
       return await this.getResource(serverId, `state:${graphId}:${userId}`);
     } catch (error) {
-      Logger.mcpError(`MCPClientDriver: Error loading state for ${graphId}:${userId}:`, error);
+      Logger.mcpError(`MCPClientDriver: Error loading state for ${graphId}:${userId}:`, { error });
       throw error;
     }
   }
@@ -367,7 +367,7 @@ export class MCPClientDriver implements IMCPDriver {
         Array.isArray(msg.content) ? msg.content.map(c => c.text || '').join('') : ''
       ).join('\n');
     } catch (error) {
-      Logger.mcpError(`MCPClientDriver: Error getting prompt ${promptId}:`, error);
+      Logger.mcpError(`MCPClientDriver: Error getting prompt ${promptId}:`, { error });
       throw error;
     }
   }

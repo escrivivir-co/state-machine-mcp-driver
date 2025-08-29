@@ -157,7 +157,7 @@ export abstract class BaseMCPServer {
           res.status(404).json({ error: 'Resource not found', resourceId: requestedId });
         }
       } catch (error) {
-        Logger.mcpError(`${this.config.name}: Error handling resource request:`, error);
+        Logger.mcpError(`${this.config.name}: Error handling resource request:`, { error });
         res.status(500).json({ error: 'Internal server error' });
       }
     });
@@ -177,7 +177,7 @@ export abstract class BaseMCPServer {
           res.status(404).json({ error: 'Tool not found', toolName });
         }
       } catch (error) {
-        Logger.mcpError(`${this.config.name}: Error handling tool request:`, error);
+        Logger.mcpError(`${this.config.name}: Error handling tool request:`, { error });
         res.status(500).json({ error: 'Internal server error' });
       }
     });
@@ -197,7 +197,7 @@ export abstract class BaseMCPServer {
           res.status(404).json({ error: 'Prompt not found', promptId });
         }
       } catch (error) {
-        Logger.mcpError(`${this.config.name}: Error handling prompt request:`, error);
+        Logger.mcpError(`${this.config.name}: Error handling prompt request:`, { error });
         res.status(500).json({ error: 'Internal server error' });
       }
     });
@@ -220,7 +220,9 @@ export abstract class BaseMCPServer {
       
       // Get resource handlers from the MCP server
       const resourceHandlers = (this.server as any)._resourceHandlers;
-      Logger.mcpVerbose(`${this.config.name}: Available resource handlers:`, resourceHandlers ? Array.from(resourceHandlers.keys()) : 'none');
+      Logger.mcpVerbose(`${this.config.name}: Available resource handlers:`, { 
+        handlers: resourceHandlers ? Array.from(resourceHandlers.keys()) : 'none' 
+      });
       
       if (resourceHandlers) {
         // Try exact match first
@@ -270,7 +272,7 @@ export abstract class BaseMCPServer {
       Logger.mcpVerbose(`${this.config.name}: No resource handler found for: ${resourceId}`);
       return null;
     } catch (error) {
-      Logger.mcpError(`${this.config.name}: Error in handleResourceRequest:`, error);
+      Logger.mcpError(`${this.config.name}: Error in handleResourceRequest:`, { error });
       throw error;
     }
   }
@@ -298,7 +300,7 @@ export abstract class BaseMCPServer {
       
       return null;
     } catch (error) {
-      Logger.mcpError(`${this.config.name}: Error in handleToolRequest:`, error);
+      Logger.mcpError(`${this.config.name}: Error in handleToolRequest:`, { error });
       throw error;
     }
   }
@@ -326,7 +328,7 @@ export abstract class BaseMCPServer {
       
       return null;
     } catch (error) {
-      Logger.mcpError(`${this.config.name}: Error in handlePromptRequest:`, error);
+      Logger.mcpError(`${this.config.name}: Error in handlePromptRequest:`, { error });
       throw error;
     }
   }

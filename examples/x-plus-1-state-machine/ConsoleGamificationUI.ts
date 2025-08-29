@@ -35,6 +35,9 @@ export class XPlus1GameConsole extends ConsoleGamificationUI {
     simulateUser: true,
   };
 
+  // Track MCP synchronization
+  private mcpSyncEnabled = true;
+
   private constructor(runtime: Runtime, mcp: MCPDriverAdapter, chat: OllamaChatProvider, uiConfig: ConsoleUIConfig) {
     super(runtime, uiConfig);
     this.runtimeInstance = runtime;
@@ -46,6 +49,76 @@ export class XPlus1GameConsole extends ConsoleGamificationUI {
     this.setPostulationManager(this.postulationSystem.getManager());
 
     this.setupX1EventHandlers();
+  }
+
+  /**
+   * Synchronize local game state with XPlus1MCPMachine state
+   */
+  private async syncWithMCPState(): Promise<void> {
+    if (!this.mcpSyncEnabled) return;
+
+    try {
+      // Get current state from MCP server
+      const result = await this.mcpDriver.executeTool('xplus1-mcp-machine', 'get_x_status', {});
+      if (result?.content?.[0]?.text) {
+        const mcpState = JSON.parse(result.content[0].text);
+        
+        // Update local state to match MCP state
+        const oldX = this.gameState.x;
+        this.gameState.x = mcpState.currentX || 0;
+        
+        if (oldX !== this.gameState.x) {
+          console.log(`🔄 State synchronized: X = ${this.gameState.x} (was ${oldX})`);
+        }
+      }
+    } catch (error) {
+      console.error('⚠️ Failed to sync with MCP state:', error);
+      // Disable sync temporarily on errors
+      this.mcpSyncEnabled = false;
+      setTimeout(() => { this.mcpSyncEnabled = true; }, 5000);
+    }
+  }
+
+  /**
+   * Advance X using MCP server instead of local state
+   */
+  private async advanceXViaMCP(reason: string): Promise<boolean> {
+    try {
+      const result = await this.mcpDriver.executeTool('xplus1-mcp-machine', 'advance_x', { reason });
+      if (result?.content?.[0]?.text) {
+        const response = JSON.parse(result.content[0].text);
+        if (response.success) {
+          this.gameState.x = response.newValue;
+          console.log(`✅ ${response.message} (Reason: ${reason})`);
+          return true;
+        }
+      }
+      return false;
+    } catch (error) {
+      console.error('❌ Failed to advance X via MCP:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Reset X using MCP server instead of local state
+   */
+  private async resetXViaMCP(reason: string): Promise<boolean> {
+    try {
+      const result = await this.mcpDriver.executeTool('xplus1-mcp-machine', 'reset_x', { reason });
+      if (result?.content?.[0]?.text) {
+        const response = JSON.parse(result.content[0].text);
+        if (response.success) {
+          this.gameState.x = response.newValue;
+          console.log(`🔄 ${response.message} (Reason: ${reason})`);
+          return true;
+        }
+      }
+      return false;
+    } catch (error) {
+      console.error('❌ Failed to reset X via MCP:', error);
+      return false;
+    }
   }
 
   /**
@@ -119,6 +192,34 @@ export class XPlus1GameConsole extends ConsoleGamificationUI {
     // Register X+1 specific commands
     this.registerGameCommand('quit', async () => await this.stop());
     this.registerGameCommand('sim', async (input) => await this.handleSimulatorCommand(input));
+    
+    // MCP sync commands
+    this.registerGameCommand('mcp-sync', async () => {
+      await this.syncWithMCPState();
+      console.log('🔄 MCP state synchronized');
+    });
+    
+    this.registerGameCommand('mcp-status', async () => {
+      try {
+        const result = await this.mcpDriver.executeTool('xplus1-mcp-machine', 'get_x_status', {});
+        if (result?.content?.[0]?.text) {
+          const status = JSON.parse(result.content[0].text);
+          console.log('📊 MCP Server Status:', status);
+        }
+      } catch (error) {
+        console.error('❌ Failed to get MCP status:', error);
+      }
+    });
+    
+    this.registerGameCommand('mcp-advance', async (reason) => {
+      const success = await this.advanceXViaMCP(reason || 'Manual advance command');
+      if (!success) console.log('❌ Failed to advance X via MCP');
+    });
+    
+    this.registerGameCommand('mcp-reset', async (reason) => {
+      const success = await this.resetXViaMCP(reason || 'Manual reset command');
+      if (!success) console.log('❌ Failed to reset X via MCP');
+    });
   }
 
   /**
@@ -127,6 +228,9 @@ export class XPlus1GameConsole extends ConsoleGamificationUI {
   async start(): Promise<void> {
     // Initialize runtime first so base UI can show state/agents
     await this.runtimeInstance.initialize();
+
+    // Synchronize with MCP state on startup
+    await this.syncWithMCPState();
 
     // Determine simulation mode from agent status and persist in state
     const simAgent = this.runtimeInstance.getAgent('user-simulator');
@@ -251,10 +355,10 @@ export class XPlus1GameConsole extends ConsoleGamificationUI {
    */
   private getMCPToolsForAgent(agentId: string): string[] {
     const toolMappings = {
-      'dionisio-bot': ['search_wikipedia', 'get_random_article'],
-      'apolo-bot': ['search_wikipedia', 'load_wikipedia_article', 'get_article_categories'],
-      'justice-bot': ['load_wikipedia_article', 'search_wikipedia'],
-      'user-simulator': [] // No tools for user simulator
+      'dionisio-bot': ['search_wikipedia', 'get_random_article', 'get_x_status'], // Added X+1 awareness
+      'apolo-bot': ['search_wikipedia', 'load_wikipedia_article', 'get_article_categories', 'get_x_status'], // Added X+1 awareness
+      'justice-bot': ['get_x_status', 'evaluate_advancement', 'advance_x', 'reset_x'], // X+1 focused tools
+      'user-simulator': ['get_x_status'] // Basic X+1 awareness
     };
 
     return toolMappings[agentId as keyof typeof toolMappings] || [];
@@ -282,17 +386,20 @@ export class XPlus1GameConsole extends ConsoleGamificationUI {
       'dionisio-bot': {
         search_terms: ['pleasure', 'hedonism', 'wine', 'dionysus', 'festival', 'celebration'],
         article_preferences: ['philosophy', 'mythology', 'culture'],
-        strategy: 'random_discovery' // Use get_random_article more
+        strategy: 'random_discovery', // Use get_random_article more
+        x_usage: 'Check current X value to contextualize temptations'
       },
       'apolo-bot': {
         search_terms: ['discipline', 'stoicism', 'apollo', 'philosophy', 'wisdom', 'virtue'],
         article_preferences: ['philosophy', 'ethics', 'history'],
-        strategy: 'targeted_search' // Use search_wikipedia with specific terms
+        strategy: 'targeted_search', // Use search_wikipedia with specific terms
+        x_usage: 'Reference X status to encourage continued progress'
       },
       'justice-bot': {
         search_terms: ['justice', 'ethics', 'moral philosophy', 'decision', 'judgment'],
         article_preferences: ['philosophy', 'law', 'ethics'],
-        strategy: 'deep_reading' // Use load_wikipedia_article for full content
+        strategy: 'decision_making', // Focus on X+1 tools
+        x_usage: 'Use evaluate_advancement, advance_x, reset_x tools for game mechanics'
       }
     };
 
@@ -317,6 +424,39 @@ export class XPlus1GameConsole extends ConsoleGamificationUI {
     };
 
     return objectives[agentId as keyof typeof objectives] || postulation.reason;
+  }
+
+  /**
+   * Get agent-specific prompt from X+1 MCP server
+   */
+  private async getAgentPromptFromMCP(agentId: string, gameContext: any): Promise<string | null> {
+    try {
+      const promptMap = {
+        'dionisio-bot': 'agent_narrator',
+        'apolo-bot': 'agent_guide', 
+        'justice-bot': 'agent_system'
+      };
+      
+      const promptId = promptMap[agentId as keyof typeof promptMap];
+      if (!promptId) return null;
+
+      const currentState = this.runtimeInstance.getCurrentState();
+      const result = await this.mcpDriver.getPrompt('xplus1-mcp-machine', promptId, {
+        state: currentState,
+        stateNode: { id: currentState?.currentStateId },
+        agent: this.runtimeInstance.getAgent(agentId)
+      });
+
+      // getPrompt returns a PromptMessage, extract text content
+      if (typeof result === 'object' && result && 'messages' in result) {
+        return (result as any).messages?.[0]?.content?.text || null;
+      }
+      
+      return typeof result === 'string' ? result : null;
+    } catch (error) {
+      console.error(`⚠️ Failed to get MCP prompt for ${agentId}:`, error);
+      return null;
+    }
   }
 
   /**
