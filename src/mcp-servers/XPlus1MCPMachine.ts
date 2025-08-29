@@ -24,11 +24,42 @@ interface XPlusOneState {
 }
 
 /**
+ * Remote control command types
+ */
+interface RemoteCommand {
+  type: 'user_input' | 'select_agent' | 'answer_question' | 'toggle_simulator';
+  payload: any;
+  timestamp: number;
+  id: string;
+}
+
+/**
+ * Shared game state for remote control
+ */
+interface SharedGameState {
+  currentX: number;
+  currentPhase: 'waiting_input' | 'selecting_agent' | 'answering_question' | 'idle';
+  availableAgents: string[];
+  conversationThread: Array<{
+    id: string;
+    sender: string;
+    message: string;
+    timestamp: number;
+  }>;
+  lastAction: string;
+  isWaitingForRemote: boolean;
+  simulatorMode: boolean;
+}
+
+/**
  * X+1 MCP Machine Server
  * Handles the X+1 inductive pattern logic via MCP protocol
  */
 export class XPlus1MCPMachine extends BaseMCPServer {
   private state: XPlusOneState;
+  private gameState: SharedGameState;
+  private commandQueue: RemoteCommand[] = [];
+  private eventListeners: Set<(event: any) => void> = new Set();
 
   constructor() {
     const config: MCPServerConfig = {
@@ -53,6 +84,17 @@ export class XPlus1MCPMachine extends BaseMCPServer {
       advancementHistory: [],
       sessionStart: Date.now()
     };
+
+    // Initialize shared game state for remote control
+    this.gameState = {
+      currentX: 0,
+      currentPhase: 'idle',
+      availableAgents: [],
+      conversationThread: [],
+      lastAction: 'initialization',
+      isWaitingForRemote: false,
+      simulatorMode: false
+    };
   }
 
   /**
@@ -62,6 +104,89 @@ export class XPlus1MCPMachine extends BaseMCPServer {
     this.setupTools();
     this.setupResources();
     this.setupPrompts();
+  }
+
+  // === REMOTE CONTROL EVENT METHODS ===
+
+  /**
+   * Get recent events for streaming
+   */
+  private getRecentEvents(): Array<any> {
+    // For now, return a sample of recent activities
+    return [
+      {
+        type: 'state_update',
+        data: { currentX: this.state.x, phase: this.gameState.currentPhase },
+        timestamp: Date.now()
+      },
+      {
+        type: 'queue_status',
+        data: { queueSize: this.commandQueue.length },
+        timestamp: Date.now()
+      }
+    ];
+  }
+
+  /**
+   * Publish event to listeners
+   */
+  private publishEvent(event: any): void {
+    this.eventListeners.forEach(listener => {
+      try {
+        listener(event);
+      } catch (error) {
+        logger.error('X+1 MCP: Error in event listener', { error });
+      }
+    });
+  }
+
+  /**
+   * Update conversation thread
+   */
+  public updateConversation(message: { id: string; sender: string; message: string }): void {
+    this.gameState.conversationThread.push({
+      ...message,
+      timestamp: Date.now()
+    });
+    
+    this.publishEvent({
+      type: 'conversation_update',
+      data: message,
+      timestamp: Date.now()
+    });
+  }
+
+  /**
+   * Update available agents
+   */
+  public updateAvailableAgents(agents: string[]): void {
+    this.gameState.availableAgents = agents;
+    this.gameState.currentPhase = agents.length > 0 ? 'selecting_agent' : 'idle';
+    
+    this.publishEvent({
+      type: 'postulation_update',
+      data: { availableAgents: agents },
+      timestamp: Date.now()
+    });
+  }
+
+  /**
+   * Process pending remote commands
+   */
+  public getNextCommand(): RemoteCommand | null {
+    return this.commandQueue.shift() || null;
+  }
+
+  /**
+   * Update game phase
+   */
+  public updateGamePhase(phase: SharedGameState['currentPhase']): void {
+    this.gameState.currentPhase = phase;
+    this.publishEvent({
+      type: 'phase_change',
+      data: { phase },
+      timestamp: Date.now()
+    });
   }
 
   /**
@@ -268,6 +393,383 @@ export class XPlus1MCPMachine extends BaseMCPServer {
               }, null, 2)
             }
           ]
+        };
+      }
+    );
+
+    // === REMOTE CONTROL TOOLS ===
+    
+    // Send user input tool
+    this.server.tool(
+      'send_user_input',
+      'Send input as if typed by the user',
+      {
+        text: z.string().describe('Text to send as user input'),
+        context: z.object({
+          simulateTyping: z.boolean().optional().describe('Simulate typing delay'),
+          delayMs: z.number().optional().describe('Delay in milliseconds')
+        }).optional()
+      },
+      async ({ text, context }) => {
+        const command: RemoteCommand = {
+          type: 'user_input',
+          payload: { text, context },
+          timestamp: Date.now(),
+          id: `cmd_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+        };
+
+        this.commandQueue.push(command);
+        this.gameState.lastAction = `user_input: ${text}`;
+        
+        logger.info('X+1 MCP: User input queued', { text, commandId: command.id });
+
+        return {
+          content: [{
+            type: 'text',
+            text: JSON.stringify({
+              success: true,
+              command: 'user_input',
+              text: text,
+              commandId: command.id,
+              queued: true,
+              timestamp: Date.now()
+            }, null, 2)
+          }]
+        };
+      }
+    );
+
+    // Select agent tool
+    this.server.tool(
+      'select_agent',
+      'Select a specific agent from available postulations',
+      {
+        agentId: z.string().describe('ID or name of the agent to select'),
+        reason: z.string().optional().describe('Reason for selecting this agent')
+      },
+      async ({ agentId, reason }) => {
+        const command: RemoteCommand = {
+          type: 'select_agent',
+          payload: { agentId, reason },
+          timestamp: Date.now(),
+          id: `cmd_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+        };
+
+        this.commandQueue.push(command);
+        this.gameState.lastAction = `select_agent: ${agentId}`;
+        
+        logger.info('X+1 MCP: Agent selection queued', { agentId, reason, commandId: command.id });
+
+        return {
+          content: [{
+            type: 'text',
+            text: JSON.stringify({
+              success: true,
+              command: 'select_agent',
+              agentId: agentId,
+              reason: reason,
+              commandId: command.id,
+              queued: true,
+              timestamp: Date.now()
+            }, null, 2)
+          }]
+        };
+      }
+    );
+
+    // Answer critical question tool
+    this.server.tool(
+      'answer_critical_question',
+      'Answer yes/no to the critical question from JusticeBot',
+      {
+        answer: z.enum(['yes', 'no']).describe('Answer to the critical question'),
+        reasoning: z.string().optional().describe('Reasoning behind the answer')
+      },
+      async ({ answer, reasoning }) => {
+        const command: RemoteCommand = {
+          type: 'answer_question',
+          payload: { answer, reasoning },
+          timestamp: Date.now(),
+          id: `cmd_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+        };
+
+        this.commandQueue.push(command);
+        this.gameState.lastAction = `answer_question: ${answer}`;
+        
+        logger.info('X+1 MCP: Critical answer queued', { answer, reasoning, commandId: command.id });
+
+        return {
+          content: [{
+            type: 'text',
+            text: JSON.stringify({
+              success: true,
+              command: 'answer_critical_question',
+              answer: answer,
+              reasoning: reasoning,
+              commandId: command.id,
+              queued: true,
+              timestamp: Date.now()
+            }, null, 2)
+          }]
+        };
+      }
+    );
+
+    // Get current conversation tool
+    this.server.tool(
+      'get_current_conversation',
+      'Get the current conversation thread',
+      {},
+      async () => {
+        logger.info('X+1 MCP: Conversation requested');
+
+        return {
+          content: [{
+            type: 'text',
+            text: JSON.stringify({
+              success: true,
+              conversation: this.gameState.conversationThread,
+              messageCount: this.gameState.conversationThread.length,
+              timestamp: Date.now()
+            }, null, 2)
+          }]
+        };
+      }
+    );
+
+    // Get available postulations tool
+    this.server.tool(
+      'get_available_postulations',
+      'Get the list of available agent postulations',
+      {},
+      async () => {
+        logger.info('X+1 MCP: Available postulations requested');
+
+        return {
+          content: [{
+            type: 'text',
+            text: JSON.stringify({
+              success: true,
+              availableAgents: this.gameState.availableAgents,
+              currentPhase: this.gameState.currentPhase,
+              isWaitingForSelection: this.gameState.currentPhase === 'selecting_agent',
+              timestamp: Date.now()
+            }, null, 2)
+          }]
+        };
+      }
+    );
+
+    // Toggle simulator mode tool
+    this.server.tool(
+      'toggle_simulator_mode',
+      'Toggle between manual and automatic simulator mode',
+      {
+        mode: z.enum(['on', 'off', 'toggle']).optional().describe('Set mode explicitly or toggle')
+      },
+      async ({ mode }) => {
+        const command: RemoteCommand = {
+          type: 'toggle_simulator',
+          payload: { mode },
+          timestamp: Date.now(),
+          id: `cmd_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+        };
+
+        this.commandQueue.push(command);
+        
+        if (mode === 'on') {
+          this.gameState.simulatorMode = true;
+        } else if (mode === 'off') {
+          this.gameState.simulatorMode = false;
+        } else {
+          this.gameState.simulatorMode = !this.gameState.simulatorMode;
+        }
+
+        this.gameState.lastAction = `toggle_simulator: ${this.gameState.simulatorMode ? 'on' : 'off'}`;
+        
+        logger.info('X+1 MCP: Simulator mode toggled', { 
+          mode: this.gameState.simulatorMode ? 'on' : 'off', 
+          commandId: command.id 
+        });
+
+        return {
+          content: [{
+            type: 'text',
+            text: JSON.stringify({
+              success: true,
+              command: 'toggle_simulator_mode',
+              simulatorMode: this.gameState.simulatorMode,
+              commandId: command.id,
+              timestamp: Date.now()
+            }, null, 2)
+          }]
+        };
+      }
+    );
+
+    // === STATE SYNCHRONIZATION TOOLS ===
+
+    // Get next remote command tool
+    this.server.tool(
+      'get_next_command',
+      'Get the next remote command from the queue',
+      {},
+      async () => {
+        const command = this.commandQueue.shift();
+        
+        logger.info('X+1 MCP: Next command requested', { 
+          commandFound: !!command, 
+          queueSize: this.commandQueue.length 
+        });
+
+        return {
+          content: [{
+            type: 'text',
+            text: JSON.stringify({
+              success: true,
+              command: command || null,
+              queueSize: this.commandQueue.length,
+              timestamp: Date.now()
+            }, null, 2)
+          }]
+        };
+      }
+    );
+
+    // Update shared game state tool
+    this.server.tool(
+      'update_game_state',
+      'Update the shared game state from the UI',
+      {
+        phase: z.string().optional().describe('Current game phase'),
+        messageCount: z.number().optional().describe('Current message count'),
+        availableAgents: z.array(z.string()).optional().describe('Available agents'),
+        lastAction: z.string().optional().describe('Last action performed')
+      },
+      async ({ phase, messageCount, availableAgents, lastAction }) => {
+        // Update shared game state
+        if (phase) this.gameState.currentPhase = phase as any;
+        if (availableAgents) this.gameState.availableAgents = availableAgents;
+        if (lastAction) this.gameState.lastAction = lastAction;
+        
+        // Sync X value with internal state
+        this.gameState.currentX = this.state.x;
+        
+        // Publish update event
+        this.publishEvent({
+          type: 'game_state_updated',
+          data: { 
+            phase, 
+            messageCount, 
+            availableAgents, 
+            lastAction,
+            currentX: this.state.x
+          },
+          timestamp: Date.now()
+        });
+
+        logger.info('X+1 MCP: Game state updated', { 
+          phase, 
+          messageCount, 
+          availableAgents: availableAgents?.length || 0,
+          lastAction 
+        });
+
+        return {
+          content: [{
+            type: 'text',
+            text: JSON.stringify({
+              success: true,
+              updatedState: {
+                currentX: this.gameState.currentX,
+                currentPhase: this.gameState.currentPhase,
+                availableAgents: this.gameState.availableAgents,
+                lastAction: this.gameState.lastAction
+              },
+              timestamp: Date.now()
+            }, null, 2)
+          }]
+        };
+      }
+    );
+
+    // Add conversation message tool
+    this.server.tool(
+      'add_conversation_message',
+      'Add a message to the conversation thread',
+      {
+        sender: z.string().describe('Message sender (user, agent name, etc.)'),
+        message: z.string().describe('Message content'),
+        messageId: z.string().optional().describe('Optional message ID')
+      },
+      async ({ sender, message, messageId }) => {
+        const msgId = messageId || `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        
+        const conversationMessage = {
+          id: msgId,
+          sender,
+          message,
+          timestamp: Date.now()
+        };
+
+        this.gameState.conversationThread.push(conversationMessage);
+        
+        // Keep only last 50 messages to prevent memory issues
+        if (this.gameState.conversationThread.length > 50) {
+          this.gameState.conversationThread = this.gameState.conversationThread.slice(-50);
+        }
+
+        // Publish conversation update event
+        this.publishEvent({
+          type: 'conversation_message_added',
+          data: conversationMessage,
+          timestamp: Date.now()
+        });
+
+        logger.info('X+1 MCP: Conversation message added', { sender, messageLength: message.length });
+
+        return {
+          content: [{
+            type: 'text',
+            text: JSON.stringify({
+              success: true,
+              messageId: msgId,
+              conversationLength: this.gameState.conversationThread.length,
+              timestamp: Date.now()
+            }, null, 2)
+          }]
+        };
+      }
+    );
+
+    // Get full game state tool
+    this.server.tool(
+      'get_full_game_state',
+      'Get the complete shared game state',
+      {},
+      async () => {
+        // Ensure state is synchronized
+        this.gameState.currentX = this.state.x;
+
+        logger.info('X+1 MCP: Full game state requested');
+
+        return {
+          content: [{
+            type: 'text',
+            text: JSON.stringify({
+              success: true,
+              internalState: {
+                x: this.state.x,
+                lastAdvancement: this.state.lastAdvancement,
+                resetCount: this.state.resetCount,
+                sessionStart: this.state.sessionStart,
+                advancementHistory: this.state.advancementHistory
+              },
+              sharedState: this.gameState,
+              commandQueueSize: this.commandQueue.length,
+              timestamp: Date.now()
+            }, null, 2)
+          }]
         };
       }
     );
@@ -613,6 +1115,121 @@ Reset Count: ${this.state.resetCount}
       }
     );
 
+    // === REMOTE CONTROL RESOURCES ===
+    
+    // Game events stream resource
+    this.server.resource(
+      'game-events',
+      'xplus1://events/stream',
+      {
+        name: 'Game Events Stream',
+        description: 'Stream of real-time game events for remote monitoring',
+        mimeType: 'application/json'
+      },
+      async () => {
+        const events = this.getRecentEvents();
+        return {
+          contents: [
+            {
+              uri: 'xplus1://events/stream',
+              mimeType: 'application/json',
+              text: JSON.stringify({
+                events: events,
+                timestamp: Date.now(),
+                totalEvents: events.length
+              }, null, 2)
+            }
+          ]
+        };
+      }
+    );
+
+    // Conversation updates resource
+    this.server.resource(
+      'conversation-updates',
+      'xplus1://conversation/current',
+      {
+        name: 'Conversation Updates',
+        description: 'Updates to the current conversation thread',
+        mimeType: 'application/json'
+      },
+      async () => {
+        return {
+          contents: [
+            {
+              uri: 'xplus1://conversation/current',
+              mimeType: 'application/json',
+              text: JSON.stringify({
+                conversation: this.gameState.conversationThread,
+                messageCount: this.gameState.conversationThread.length,
+                lastUpdate: Date.now(),
+                currentPhase: this.gameState.currentPhase
+              }, null, 2)
+            }
+          ]
+        };
+      }
+    );
+
+    // Postulation events resource
+    this.server.resource(
+      'postulation-events',
+      'xplus1://postulations/current',
+      {
+        name: 'Postulation Events',
+        description: 'Current available agent postulations for selection',
+        mimeType: 'application/json'
+      },
+      async () => {
+        return {
+          contents: [
+            {
+              uri: 'xplus1://postulations/current',
+              mimeType: 'application/json',
+              text: JSON.stringify({
+                availableAgents: this.gameState.availableAgents,
+                currentPhase: this.gameState.currentPhase,
+                isWaitingForSelection: this.gameState.currentPhase === 'selecting_agent',
+                lastAction: this.gameState.lastAction,
+                timestamp: Date.now()
+              }, null, 2)
+            }
+          ]
+        };
+      }
+    );
+
+    // Command queue status resource
+    this.server.resource(
+      'command-queue-status',
+      'xplus1://commands/queue',
+      {
+        name: 'Command Queue Status',
+        description: 'Status of pending remote commands',
+        mimeType: 'application/json'
+      },
+      async () => {
+        return {
+          contents: [
+            {
+              uri: 'xplus1://commands/queue',
+              mimeType: 'application/json',
+              text: JSON.stringify({
+                queueSize: this.commandQueue.length,
+                pendingCommands: this.commandQueue.map(cmd => ({
+                  id: cmd.id,
+                  type: cmd.type,
+                  timestamp: cmd.timestamp
+                })),
+                isProcessing: this.gameState.isWaitingForRemote,
+                timestamp: Date.now()
+              }, null, 2)
+            }
+          ]
+        };
+      }
+    );
+
     logger.info('X+1 MCP: Resources setup completed');
   }
 
@@ -753,6 +1370,126 @@ Reset Count: ${this.state.resetCount}
               content: {
                 type: 'text',
                 text: `You are JusticeBot, a neutral system agent responsible for asking the critical question. Your role is to fairly moderate the X+1 pattern by asking "Did you consume today, do I reset?" and managing responses. Current X value: ${this.state.x}. Remain neutral and factual.`
+              }
+            }
+          ]
+        };
+      }
+    );
+
+    // === REMOTE CONTROL PROMPTS ===
+
+    // Remote control guide prompt
+    this.server.prompt(
+      'remote_control_guide',
+      'Guide for controlling the X+1 game remotely via MCP',
+      {
+        context: z.string().optional().describe('Current context or situation'),
+        phase: z.string().optional().describe('Current game phase')
+      },
+      async ({ context, phase }) => {
+        return {
+          messages: [
+            {
+              role: 'user',
+              content: {
+                type: 'text',
+                text: `🎮 **Remote Control Guide for X+1 Game**\n\n` +
+                      `**Available Commands:**\n` +
+                      `• send_user_input: Send text as if typed by user\n` +
+                      `• select_agent: Choose specific agent from postulations\n` +
+                      `• answer_critical_question: Respond yes/no to JusticeBot\n` +
+                      `• get_current_conversation: View conversation thread\n` +
+                      `• get_available_postulations: See available agents\n` +
+                      `• toggle_simulator_mode: Switch manual/auto mode\n\n` +
+                      `**Current Context:** ${context || 'Starting game'}\n` +
+                      `**Current Phase:** ${phase || 'Unknown'}\n\n` +
+                      `**Game Flow:**\n` +
+                      `1. Agents postulate for turns\n` +
+                      `2. Select agent or let simulator choose\n` +
+                      `3. Agent speaks, conversation continues\n` +
+                      `4. JusticeBot asks critical question\n` +
+                      `5. Answer determines X advancement\n\n` +
+                      `Use the MCP tools above to control the game remotely.`
+              }
+            }
+          ]
+        };
+      }
+    );
+
+    // Decision helper prompt
+    this.server.prompt(
+      'decision_helper',
+      'Help with agent selection and critical decisions',
+      {
+        availableAgents: z.string().optional().describe('Available agent names (comma-separated)'),
+        conversationContext: z.string().optional().describe('Recent conversation context'),
+        currentX: z.string().optional().describe('Current X value')
+      },
+      async ({ availableAgents, conversationContext, currentX }) => {
+        const x = currentX ? parseInt(currentX) : this.state.x;
+        return {
+          messages: [
+            {
+              role: 'user',
+              content: {
+                type: 'text',
+                text: `🎯 **Decision Helper for X+1 Game**\n\n` +
+                      `**Current Situation:**\n` +
+                      `• X Value: ${x}\n` +
+                      `• Available Agents: ${availableAgents || 'None'}\n` +
+                      `• Recent Context: ${conversationContext || 'No context'}\n\n` +
+                      `**Agent Personalities:**\n` +
+                      `• DionisioBot: Mystical, cosmic, philosophical\n` +
+                      `• ApoloBot: Encouraging, optimistic, achievement-focused\n` +
+                      `• JusticeBot: Neutral, asks critical consumption question\n\n` +
+                      `**Decision Guidelines:**\n` +
+                      `• Higher X = More risk, consider consumption patterns\n` +
+                      `• DionisioBot good for reflection and big picture\n` +
+                      `• ApoloBot good for motivation and progress\n` +
+                      `• Answer "no" to critical question to advance X\n` +
+                      `• Answer "yes" to reset X to 0\n\n` +
+                      `Choose wisely based on your goals and current state.`
+              }
+            }
+          ]
+        };
+      }
+    );
+
+    // Conversation analyzer prompt
+    this.server.prompt(
+      'conversation_analyzer',
+      'Analyze current conversation state and suggest next actions',
+      {
+        conversationSummary: z.string().optional().describe('Summary of conversation messages'),
+        messageCount: z.string().optional().describe('Current message count'),
+        maxMessages: z.string().optional().describe('Maximum messages allowed')
+      },
+      async ({ conversationSummary, messageCount, maxMessages }) => {
+        const count = messageCount ? parseInt(messageCount) : 0;
+        const max = maxMessages ? parseInt(maxMessages) : 10;
+        const remaining = max - count;
+
+        return {
+          messages: [
+            {
+              role: 'user',
+              content: {
+                type: 'text',
+                text: `📊 **Conversation Analysis**\n\n` +
+                      `**Thread Status:**\n` +
+                      `• Messages: ${count}/${max} (${remaining} remaining)\n\n` +
+                      `**Recent Activity:**\n` +
+                      `${conversationSummary || 'No conversation data available'}\n\n` +
+                      `**Recommendations:**\n` +
+                      `${remaining > 5 ? '• Continue conversation, plenty of messages left' : 
+                        remaining > 2 ? '• Consider moving toward decision phase' :
+                        '• Conversation nearing end, prepare for critical question'}\n` +
+                      `${count === 0 ? '• Start with DionisioBot or ApoloBot for opening' : ''}\n` +
+                      `${remaining <= 1 ? '• JusticeBot should ask critical question next' : ''}\n\n` +
+                      `Use this analysis to make informed remote control decisions.`
               }
             }
           ]

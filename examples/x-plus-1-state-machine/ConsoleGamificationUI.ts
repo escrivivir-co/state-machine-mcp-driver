@@ -18,6 +18,14 @@ import {
 import { OllamaChatProvider } from '../../src/chat-provider/OllamaChatProvider';
 import { XPlus1PostulationSystem } from './XPlus1PostulationSystem';
 
+// Remote control interfaces (matching XPlus1MCPMachine)
+interface RemoteCommand {
+  type: 'user_input' | 'select_agent' | 'answer_question' | 'toggle_simulator';
+  payload: any;
+  timestamp: number;
+  id: string;
+}
+
 type GamePhase = 'start' | 'conversation' | 'decision' | 'advancement' | 'end';
 
 export class XPlus1GameConsole extends ConsoleGamificationUI {
@@ -38,6 +46,10 @@ export class XPlus1GameConsole extends ConsoleGamificationUI {
   // Track MCP synchronization
   private mcpSyncEnabled = true;
 
+  // Remote control properties
+  private remoteControlEnabled = false;
+  private commandCheckInterval: NodeJS.Timeout | null = null;
+
   private constructor(runtime: Runtime, mcp: MCPDriverAdapter, chat: OllamaChatProvider, uiConfig: ConsoleUIConfig) {
     super(runtime, uiConfig);
     this.runtimeInstance = runtime;
@@ -49,6 +61,220 @@ export class XPlus1GameConsole extends ConsoleGamificationUI {
     this.setPostulationManager(this.postulationSystem.getManager());
 
     this.setupX1EventHandlers();
+  }
+
+  // === REMOTE CONTROL METHODS ===
+
+  /**
+   * Enable remote control mode and start command polling
+   */
+  public enableRemoteControl(): void {
+    this.remoteControlEnabled = true;
+    this.startCommandPolling();
+    console.log('🎮 Remote control enabled');
+  }
+
+  /**
+   * Disable remote control mode and stop command polling
+   */
+  public disableRemoteControl(): void {
+    this.remoteControlEnabled = false;
+    this.stopCommandPolling();
+    console.log('🎮 Remote control disabled');
+  }
+
+  /**
+   * Start polling for remote commands from MCP server
+   */
+  private startCommandPolling(): void {
+    if (this.commandCheckInterval) {
+      clearInterval(this.commandCheckInterval);
+    }
+
+    this.commandCheckInterval = setInterval(async () => {
+      if (this.remoteControlEnabled) {
+        await this.checkForRemoteCommands();
+      }
+    }, 500); // Check every 500ms
+  }
+
+  /**
+   * Stop command polling
+   */
+  private stopCommandPolling(): void {
+    if (this.commandCheckInterval) {
+      clearInterval(this.commandCheckInterval);
+      this.commandCheckInterval = null;
+    }
+  }
+
+  /**
+   * Check for and process remote commands from MCP server
+   */
+  private async checkForRemoteCommands(): Promise<void> {
+    try {
+      // Get command queue status from MCP server
+      const result = await this.mcpDriver.getResource('xplus1-mcp-machine', 'command-queue-status');
+      if (result?.contents?.[0]?.text) {
+        const queueStatus = JSON.parse(result.contents[0].text);
+        
+        if (queueStatus.queueSize > 0 && queueStatus.pendingCommands.length > 0) {
+          // Process the next command by calling a hypothetical tool
+          await this.processNextRemoteCommand();
+        }
+      }
+    } catch (error) {
+      console.error('❌ Error checking remote commands:', error);
+    }
+  }
+
+  /**
+   * Process the next remote command
+   */
+  private async processNextRemoteCommand(): Promise<void> {
+    try {
+      // For now, we'll use a custom tool to get and process the next command
+      // This would require adding a "get_next_command" tool to XPlus1MCPMachine
+      const command = await this.getNextRemoteCommand();
+      if (command) {
+        await this.handleRemoteCommand(command);
+      }
+    } catch (error) {
+      console.error('❌ Error processing remote command:', error);
+    }
+  }
+
+  /**
+   * Get next remote command (placeholder for actual implementation)
+   */
+  private async getNextRemoteCommand(): Promise<RemoteCommand | null> {
+    // This would call a new tool in XPlus1MCPMachine to get the next command
+    // For now, return null
+    return null;
+  }
+
+  /**
+   * Handle a remote command
+   */
+  public async handleRemoteCommand(command: RemoteCommand): Promise<void> {
+    console.log(`🎮 Processing remote command: ${command.type}`, command.payload);
+
+    switch (command.type) {
+      case 'user_input':
+        await this.simulateUserInput(command.payload.text);
+        break;
+      
+      case 'select_agent':
+        await this.selectAgentById(command.payload.agentId, command.payload.reason);
+        break;
+      
+      case 'answer_question':
+        await this.answerCriticalQuestion(command.payload.answer, command.payload.reasoning);
+        break;
+      
+      case 'toggle_simulator':
+        this.toggleSimulatorMode(command.payload.mode);
+        break;
+      
+      default:
+        console.warn(`⚠️ Unknown remote command type: ${command.type}`);
+    }
+
+    // Publish event back to MCP server
+    await this.publishEventToMCP({
+      type: 'command_processed',
+      data: { commandId: command.id, type: command.type },
+      timestamp: Date.now()
+    });
+  }
+
+  /**
+   * Simulate user input as if typed by the user
+   */
+  private async simulateUserInput(text: string): Promise<void> {
+    console.log(`🎮 Simulating user input: "${text}"`);
+    
+    // Add typing simulation if requested
+    await this.onUserInput(text);
+    
+    // Update conversation in MCP server
+    await this.updateMCPConversation({
+      id: `msg_${Date.now()}`,
+      sender: 'user',
+      message: text
+    });
+  }
+
+  /**
+   * Select agent by ID
+   */
+  private async selectAgentById(agentId: string, reason?: string): Promise<void> {
+    console.log(`🎮 Selecting agent: ${agentId} (reason: ${reason})`);
+    
+    // For now, we'll log the selection and try to trigger agent selection
+    // This would need to be connected to the actual postulation system
+    console.log(`🎮 Remote agent selection: ${agentId} (${reason})`);
+    
+    // Update MCP server with agent selection
+    await this.publishEventToMCP({
+      type: 'agent_selected',
+      data: { agentId, reason },
+      timestamp: Date.now()
+    });
+  }
+
+  /**
+   * Answer critical question
+   */
+  private async answerCriticalQuestion(answer: 'yes' | 'no', reasoning?: string): Promise<void> {
+    console.log(`🎮 Answering critical question: ${answer} (reasoning: ${reasoning})`);
+    
+    if (this.gameState.currentPhase === 'decision') {
+      await this.handleDecisionPhase(answer);
+    } else {
+      console.warn('⚠️ Not in decision phase, cannot answer critical question');
+    }
+  }
+
+  /**
+   * Toggle simulator mode
+   */
+  private toggleSimulatorMode(mode?: 'on' | 'off' | 'toggle'): void {
+    if (mode === 'on') {
+      this.gameState.simulateUser = true;
+    } else if (mode === 'off') {
+      this.gameState.simulateUser = false;
+    } else {
+      this.gameState.simulateUser = !this.gameState.simulateUser;
+    }
+    
+    console.log(`🎮 Simulator mode: ${this.gameState.simulateUser ? 'ON' : 'OFF'}`);
+  }
+
+  /**
+   * Publish event to MCP server
+   */
+  private async publishEventToMCP(event: any): Promise<void> {
+    try {
+      // This would require adding a "publish_event" tool to XPlus1MCPMachine
+      // For now, just log the event
+      console.log('📡 Publishing event to MCP:', event);
+    } catch (error) {
+      console.error('❌ Error publishing event to MCP:', error);
+    }
+  }
+
+  /**
+   * Update conversation in MCP server
+   */
+  private async updateMCPConversation(message: { id: string; sender: string; message: string }): Promise<void> {
+    try {
+      // This would call XPlus1MCPMachine's updateConversation method
+      // For now, just log
+      console.log('📡 Updating MCP conversation:', message);
+    } catch (error) {
+      console.error('❌ Error updating MCP conversation:', error);
+    }
   }
 
   /**

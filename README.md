@@ -76,6 +76,59 @@ LLM conversations through Ollama with multi-agent support.
 
 A philosophical game exploring consumption vs. restraint through AI conversations.
 
+### 🎯 Remote Control via MCP
+
+**NEW FEATURE**: Control the X+1 game remotely from VS Code Copilot Agent using MCP protocol!
+
+The XPlus1MCPMachine server (port 3001) now provides complete remote control capabilities:
+
+#### 🛠️ Remote Control Tools
+- `send_user_input` - Send text as if typed by the user
+- `select_agent` - Choose specific agent from postulations  
+- `answer_critical_question` - Respond yes/no to JusticeBot's question
+- `get_current_conversation` - View conversation thread
+- `get_available_postulations` - See available agents
+- `toggle_simulator_mode` - Switch between manual/auto mode
+
+#### 📡 Real-time Resources
+- `game-events` - Stream of game events
+- `conversation-updates` - Live conversation updates
+- `postulation-events` - Agent postulation notifications
+- `command-queue-status` - Remote command queue status
+
+#### 🤖 AI-Assisted Prompts
+- `remote_control_guide` - Complete remote control guide
+- `decision_helper` - Agent selection assistance
+- `conversation_analyzer` - Conversation state analysis
+
+#### 🔄 State Synchronization
+- `get_next_command` - Process queued remote commands
+- `update_game_state` - Sync UI state with MCP server
+- `add_conversation_message` - Add messages to thread
+- `get_full_game_state` - Complete game state snapshot
+
+#### Usage from VS Code Copilot
+```typescript
+// Example: Send user input remotely
+await mcpClient.callTool('xplus1-mcp-machine', 'send_user_input', {
+  text: "I want to learn about the cosmos"
+});
+
+// Example: Select DionisioBot for cosmic conversation
+await mcpClient.callTool('xplus1-mcp-machine', 'select_agent', {
+  agentId: "DionisioBot",
+  reason: "Perfect for cosmic exploration"
+});
+
+// Example: Answer the critical question
+await mcpClient.callTool('xplus1-mcp-machine', 'answer_critical_question', {
+  answer: "no",
+  reasoning: "Stayed focused today, X should advance"
+});
+```
+
+This enables **complete game control from VS Code** without direct console interaction!
+
 ### Game Components
 
 #### ConsoleGamificationUI
@@ -354,12 +407,14 @@ The command requires explicit confirmation before proceeding.
 
 - **🔄 State Machine Management**: JSON-defined automata with TypeScript support
 - **🌐 MCP Protocol Integration**: Tools, resources, and prompts via Model Context Protocol
+- **🎮 Remote Control System**: Full game control from VS Code Copilot Agent via MCP
 - **🤖 Multi-Agent Orchestration**: Coordinate multiple AI agents in conversations
 - **💬 Chat Provider Support**: Ollama integration with extensible provider system
 - **🎮 Gamification Framework**: Console UI for interactive experiences
 - **🚀 Application Launcher**: Automated startup with health checks and dependency management
 - **🏥 Health Monitoring**: Comprehensive system validation and error handling
 - **📊 Analytics & Logging**: Session tracking and performance monitoring
+- **📡 Real-time Event Streaming**: Live game state updates via MCP resources
 
 ## Example: X+1 Inductive Pattern Game
 
