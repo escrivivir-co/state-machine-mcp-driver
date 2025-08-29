@@ -69,8 +69,7 @@ export class DevOpsServer extends BaseMCPServer {
     super(config);
     // Initialize MCP adapter for connecting to other servers
     this.initializeMCPAdapter();
-    // Initialize plugin system
-    this.initializePluginSystem();
+    // Plugin system will be initialized in setupServerSpecifics
     // Initialize default content will be called in setupServerSpecifics
   }
 
@@ -317,7 +316,9 @@ Por favor, abre el navegador simple de VS Code para acceder a la consola web del
   protected setupServerSpecifics(): void {
     this.initializeDefaultContent();
     this.setupTools();
-    // Initialize plugins after core tools are setup
+    // Initialize plugin system after core tools are setup
+    this.initializePluginSystem();
+    // Initialize all registered plugins
     this.initializePlugins();
   }
 
@@ -1009,136 +1010,6 @@ Por favor, abre el navegador simple de VS Code para acceder a la consola web del
             }
           }]
         };
-      }
-    );
-
-    // ===== PLUGIN MANAGEMENT TOOLS =====
-
-    // List plugins
-    this.server.tool(
-      'list_plugins',
-      'List all registered plugins and their status',
-      {},
-      async () => {
-        if (!this.pluginManager) {
-          return {
-            content: [{
-              type: 'text',
-              text: JSON.stringify({
-                error: 'Plugin system not initialized',
-                plugins: []
-              }, null, 2)
-            }]
-          };
-        }
-
-        const plugins = this.pluginManager.getRegisteredPlugins();
-        const status = await this.pluginManager.getAllPluginStatus();
-
-        return {
-          content: [{
-            type: 'text',
-            text: JSON.stringify({
-              total: plugins.length,
-              plugins: plugins.map(plugin => ({
-                ...plugin,
-                status: status[plugin.id]
-              }))
-            }, null, 2)
-          }]
-        };
-      }
-    );
-
-    // Execute plugin command
-    this.server.tool(
-      'execute_plugin_command',
-      'Execute a command on a specific plugin',
-      {
-        pluginId: z.string().describe('Plugin ID to execute command on'),
-        command: z.string().describe('Command to execute'),
-        params: z.record(z.any()).optional().describe('Command parameters')
-      },
-      async ({ pluginId, command, params }: { pluginId: string; command: string; params?: Record<string, any> }) => {
-        if (!this.pluginManager) {
-          return {
-            content: [{
-              type: 'text',
-              text: JSON.stringify({
-                success: false,
-                error: 'Plugin system not initialized'
-              }, null, 2)
-            }]
-          };
-        }
-
-        try {
-          const result = await this.pluginManager.executePluginCommand(pluginId, command, params || {});
-          return {
-            content: [{
-              type: 'text',
-              text: JSON.stringify(result, null, 2)
-            }]
-          };
-        } catch (error) {
-          return {
-            content: [{
-              type: 'text',
-              text: JSON.stringify({
-                success: false,
-                error: error instanceof Error ? error.message : String(error)
-              }, null, 2)
-            }]
-          };
-        }
-      }
-    );
-
-    // Enable/disable plugin
-    this.server.tool(
-      'set_plugin_enabled',
-      'Enable or disable a specific plugin',
-      {
-        pluginId: z.string().describe('Plugin ID to enable/disable'),
-        enabled: z.boolean().describe('Enable (true) or disable (false) the plugin')
-      },
-      async ({ pluginId, enabled }: { pluginId: string; enabled: boolean }) => {
-        if (!this.pluginManager) {
-          return {
-            content: [{
-              type: 'text',
-              text: JSON.stringify({
-                success: false,
-                error: 'Plugin system not initialized'
-              }, null, 2)
-            }]
-          };
-        }
-
-        try {
-          await this.pluginManager.setPluginEnabled(pluginId, enabled);
-          return {
-            content: [{
-              type: 'text',
-              text: JSON.stringify({
-                success: true,
-                message: `Plugin ${pluginId} ${enabled ? 'enabled' : 'disabled'}`,
-                pluginId,
-                enabled
-              }, null, 2)
-            }]
-          };
-        } catch (error) {
-          return {
-            content: [{
-              type: 'text',
-              text: JSON.stringify({
-                success: false,
-                error: error instanceof Error ? error.message : String(error)
-              }, null, 2)
-            }]
-          };
-        }
       }
     );
   }
