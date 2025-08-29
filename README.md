@@ -548,6 +548,129 @@ MCP_XPLUS1_URL=http://localhost:3001
 MCP_WIKI_URL=http://localhost:3002
 ```
 
+## 🎯 VS Code MCP Integration (Auto-Configuration)
+
+### ⚡ Automatic Configuration Generation
+
+The application **automatically generates** VS Code MCP configuration every time you run the launcher:
+
+```bash
+npm start
+# or
+npm run launcher:x-plus-1
+```
+
+**What happens automatically:**
+1. 🔍 **Detects running MCP servers** (ports 3000-3003)
+2. 📝 **Generates `.vscode/mcp.json`** with current server configuration
+3. ✅ **Overwrites existing configuration** to ensure accuracy
+4. 📋 **Displays setup instructions** for VS Code integration
+
+### 📁 Generated Configuration
+
+The auto-generated `.vscode/mcp.json` will contain:
+
+```json
+{
+  "servers": {
+    "mcp-service-launcher": {
+      "type": "http",
+      "url": "http://localhost:3000"
+    },
+    "xplus1-mcp-machine": {
+      "type": "http", 
+      "url": "http://localhost:3001"
+    },
+    "wiki-mcp-browser": {
+      "type": "http",
+      "url": "http://localhost:3002"
+    },
+    "devops-mcp-server": {
+      "type": "http",
+      "url": "http://localhost:3003"
+    }
+  }
+}
+```
+
+### ⚠️ **Important: File Regeneration Warning**
+
+**🔄 The `.vscode/mcp.json` file is REGENERATED on every launcher execution!**
+
+- **✅ Benefits**: Always up-to-date with current server configuration
+- **⚠️ Warning**: Any manual changes will be **OVERWRITTEN**
+- **💡 Solution**: Use custom configuration approach below if you need persistent customizations
+
+### 🛠️ Disabling Auto-Generation
+
+If you want to maintain custom MCP configuration:
+
+#### Option 1: Skip VS Code Config Generation
+```bash
+# Set environment variable to disable auto-generation
+export MCP_SKIP_VSCODE_CONFIG=true
+npm start
+```
+
+#### Option 2: Use Custom Configuration File
+```bash
+# Create a custom config file that won't be overwritten
+cp .vscode/mcp.json .vscode/mcp.custom.json
+# Edit .vscode/mcp.custom.json with your customizations
+# Use this file manually in VS Code MCP extension
+```
+
+#### Option 3: Post-Generation Customization
+```bash
+# Let the launcher generate the base config, then customize
+npm start
+# Edit .vscode/mcp.json after generation
+# Remember: Changes will be lost on next launcher run!
+```
+
+### 📋 VS Code Setup Instructions
+
+After the launcher generates the configuration:
+
+1. **Install MCP Extension**
+   ```
+   VS Code → Extensions → Search "Model Context Protocol"
+   ```
+
+2. **Connect to Servers**
+   ```
+   Ctrl+Shift+P → "MCP: Connect to Server"
+   ```
+
+3. **Available Commands**
+   - `MCP: List Available Tools`
+   - `MCP: Browse Resources` 
+   - `MCP: Use Prompt`
+   - `MCP: Health Check`
+
+### 🔄 Best Practices
+
+#### For Development
+- **Let auto-generation handle server URLs** - they change with each restart
+- **Use the generated config as-is** for development workflow
+- **Check `.vscode/mcp.json` into version control** for team consistency
+
+#### For Production/Custom Setups
+- **Disable auto-generation** with `MCP_SKIP_VSCODE_CONFIG=true`
+- **Maintain custom configuration files** outside the auto-generation path
+- **Document custom MCP server endpoints** for team members
+
+#### For Teams
+```bash
+# Recommended: Add to .gitignore if you want custom configs per developer
+echo ".vscode/mcp.json" >> .gitignore
+
+# Or: Keep auto-generated for team consistency
+git add .vscode/mcp.json
+```
+
+---
+
 ## 📚 Documentation
 
 - **[Application Launcher](./docs/LAUNCHER.md)** - Complete launcher documentation

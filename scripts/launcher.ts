@@ -343,14 +343,32 @@ await this.launchMCPServers();
         { healthCheck: true }
       );
 
-      console.log('📊 Launch Results:', JSON.stringify(result, null, 2));
+      // Only show detailed results in verbose mode, not in quiet mode
+      if (process.env.MCP_QUIET !== 'true') {
+        console.log('📊 Launch Results:', JSON.stringify(result, null, 2));
+      }
+
+      // Parse the nested result structure
+      let parsedResult: any = result;
+      
+      // Handle wrapped text response format
+      if (Array.isArray(result) && result[0]?.type === 'text') {
+        try {
+          parsedResult = JSON.parse(result[0].text);
+        } catch (error) {
+          if (process.env.MCP_QUIET !== 'true') {
+            console.warn('⚠️ Failed to parse launch results:', error);
+          }
+          parsedResult = { success: false };
+        }
+      }
 
       // Check if launch was successful
-      if (result.success) {
+      if (parsedResult.success) {
         console.log('✅ All MCP servers launched successfully via service launcher');
       } else {
         console.warn('⚠️ Some servers may have failed to launch');
-        console.log('Results:', result);
+        console.log('Results:', parsedResult);
       }
 
     } catch (error) {
@@ -445,11 +463,29 @@ await this.launchMCPServers();
         {}
       );
 
-      console.log('📊 Health Check Results:', JSON.stringify(healthResults, null, 2));
+      // Only show detailed results in verbose mode, not in quiet mode
+      if (process.env.MCP_QUIET !== 'true') {
+        console.log('📊 Health Check Results:', JSON.stringify(healthResults, null, 2));
+      }
+
+      // Parse the nested result structure
+      let parsedResults: any = healthResults;
+      
+      // Handle wrapped text response format
+      if (Array.isArray(healthResults) && healthResults[0]?.type === 'text') {
+        try {
+          parsedResults = JSON.parse(healthResults[0].text);
+        } catch (error) {
+          if (process.env.MCP_QUIET !== 'true') {
+            console.warn('⚠️ Failed to parse health check results:', error);
+          }
+          parsedResults = { success: false };
+        }
+      }
 
       // Check individual server health
-      if (healthResults.success && healthResults.healthCheck) {
-        const results = healthResults.healthCheck;
+      if (parsedResults.success && parsedResults.healthCheck) {
+        const results = parsedResults.healthCheck;
         let allHealthy = true;
 
         for (const [serverId, result] of Object.entries(results)) {
@@ -465,8 +501,12 @@ await this.launchMCPServers();
         if (allHealthy) {
           console.log('🎉 All MCP servers are healthy!');
           
-          // Generate VS Code MCP configuration
-          await this.generateVSCodeMCPConfiguration();
+          // Generate VS Code MCP configuration (unless disabled)
+          if (process.env.MCP_SKIP_VSCODE_CONFIG !== 'true') {
+            await this.generateVSCodeMCPConfiguration();
+          } else {
+            console.log('⏭️ VS Code MCP configuration generation skipped (MCP_SKIP_VSCODE_CONFIG=true)');
+          }
         } else {
           console.warn('⚠️ Some MCP servers are not healthy');
         }
@@ -504,14 +544,40 @@ await this.launchMCPServers();
         }
       );
 
-      if (configResult.success) {
+      // Parse the nested result structure (similar to other MCP tool responses)
+      let parsedResult: any = configResult;
+      
+      // Handle wrapped text response format
+      if (Array.isArray(configResult) && configResult[0]?.type === 'text') {
+        try {
+          parsedResult = JSON.parse(configResult[0].text);
+        } catch (error) {
+          if (process.env.MCP_QUIET !== 'true') {
+            console.warn('⚠️ Failed to parse VS Code config result:', error);
+          }
+          parsedResult = { success: false, error: 'Failed to parse response' };
+        }
+      } else if (configResult?.content?.[0]?.type === 'text') {
+        try {
+          parsedResult = JSON.parse(configResult.content[0].text);
+        } catch (error) {
+          if (process.env.MCP_QUIET !== 'true') {
+            console.warn('⚠️ Failed to parse VS Code config result:', error);
+          }
+          parsedResult = { success: false, error: 'Failed to parse response' };
+        }
+      }
+
+      if (parsedResult.success) {
         console.log('✅ VS Code MCP configuration generated successfully!');
-        console.log(`📁 Configuration saved to: ${configResult.outputPath}`);
+        console.log(`📁 Configuration saved to: ${parsedResult.outputPath}`);
         
         // Show user instructions
-        this.showVSCodeInstructions(configResult.instructions);
+        if (parsedResult.instructions) {
+          this.showVSCodeInstructions(parsedResult.instructions);
+        }
       } else {
-        console.warn('⚠️ Failed to generate VS Code MCP configuration:', configResult.error);
+        console.warn('⚠️ Failed to generate VS Code MCP configuration:', parsedResult.error || 'Unknown error');
       }
 
     } catch (error) {

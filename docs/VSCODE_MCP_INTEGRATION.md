@@ -161,6 +161,100 @@ El usuario ve estas instrucciones en consola:
 - Comandos claros y documentados
 - Integración fluida con workflow existente
 
+## ⚠️ **IMPORTANTE: Regeneración Automática** (NUEVA FUNCIONALIDAD)
+
+### 🔄 **Comportamiento de Regeneración**
+
+**CRÍTICO**: El archivo `.vscode/mcp.json` se **REGENERA AUTOMÁTICAMENTE** en cada ejecución del launcher:
+
+```bash
+npm start                # ← REGENERA .vscode/mcp.json
+npm run launcher:x-plus-1 # ← REGENERA .vscode/mcp.json
+```
+
+### ⚠️ **Implicaciones para Desarrolladores**
+
+#### ✅ **Beneficios**
+- **Siempre actualizado**: URLs de servidores siempre correctas
+- **Cero mantenimiento**: No hay que actualizar puertos manualmente
+- **Consistencia garantizada**: Refleja el estado actual del sistema
+
+#### ⚠️ **Advertencias**
+- **Cambios manuales se PIERDEN**: Cualquier edición manual será sobrescrita
+- **No hay persistencia**: Configuraciones personalizadas no sobreviven restarts
+- **Sobrescritura completa**: El archivo entero se reemplaza, no se merge
+
+### 🛠️ **Cómo Desactivar la Regeneración Automática**
+
+#### Opción 1: Variable de Entorno
+```bash
+# Desactivar para sesión actual
+export MCP_SKIP_VSCODE_CONFIG=true
+npm start
+
+# Desactivar permanentemente (agregar a .env)
+echo "MCP_SKIP_VSCODE_CONFIG=true" >> .env
+```
+
+#### Opción 2: Script Personalizado
+```json
+{
+  "scripts": {
+    "start:no-vscode": "cross-env MCP_SKIP_VSCODE_CONFIG=true npm run launcher:x-plus-1",
+    "start:custom": "cross-env MCP_SKIP_VSCODE_CONFIG=true npm start"
+  }
+}
+```
+
+#### Opción 3: Configuración Personalizada Protegida
+```bash
+# Generar configuración base
+npm start
+
+# Crear copia protegida
+cp .vscode/mcp.json .vscode/mcp.custom.json
+
+# Editar configuración personalizada
+code .vscode/mcp.custom.json
+
+# Usar configuración personalizada en VS Code
+# (manualmente, no será sobrescrita)
+```
+
+### 📋 **Flujos de Trabajo Recomendados**
+
+#### Para Desarrollo Rápido (Recomendado)
+```bash
+# Deja que el sistema maneje todo automáticamente
+npm start
+# ✅ Configuración siempre actual
+# ✅ Cero mantenimiento
+# ⚠️ Sin personalización
+```
+
+#### Para Configuración Personalizada
+```bash
+# Desactivar auto-generación
+export MCP_SKIP_VSCODE_CONFIG=true
+npm start
+
+# Crear configuración personalizada
+cp .vscode/mcp.json .vscode/mcp.custom.json
+# Editar según necesidades
+# Usar archivo personalizado en VS Code
+```
+
+#### Para Equipos
+```bash
+# Opción A: Auto-generación en control de versiones (equipos pequeños)
+git add .vscode/mcp.json
+git commit -m "Update MCP config"
+
+# Opción B: Configuración personalizada por desarrollador (equipos grandes)
+echo ".vscode/mcp.json" >> .gitignore
+# Cada desarrollador mantiene su configuración local
+```
+
 ## 🎮 Experiencia Final del Usuario
 
 1. **Un comando**: `npm run launcher:x-plus-1`

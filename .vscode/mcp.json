@@ -1,18 +1,18 @@
 {
   "servers": {
-    "MCPServiceLauncher": {
+    "mcp-service-launcher": {
       "type": "http",
       "url": "http://localhost:3000"
     },
-    "XPlus1MCPMachine": {
+    "xplus1-mcp-machine": {
       "type": "http",
       "url": "http://localhost:3001"
     },
-    "WikiMCPBrowser": {
+    "wiki-mcp-browser": {
       "type": "http",
       "url": "http://localhost:3002"
     },
-    "DevOpsServer": {
+    "devops-mcp-server": {
       "type": "http",
       "url": "http://localhost:3003"
     }

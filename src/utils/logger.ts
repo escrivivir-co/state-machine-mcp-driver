@@ -114,6 +114,7 @@ export const logger = winston.createLogger({
   level: defaultConfig.level,
   format: customFormats[defaultConfig.format],
   transports: createTransports(defaultConfig),
+  exitOnError: false, // Prevent process exit on errors
   // Handle uncaught exceptions and unhandled rejections
   exceptionHandlers: defaultConfig.enableFile ? [
     new winston.transports.File({ filename: `${defaultConfig.logDir}/exceptions.log` })
