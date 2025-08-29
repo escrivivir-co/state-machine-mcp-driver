@@ -16,6 +16,142 @@ import { MCPServerConfig } from '../src/drivers/IMCPDriver';
 import { createXPlus1RuntimeConfig } from './x-plus-1-state-machine/game-config';
 
 /**
+ * Retry configuration
+ */
+interface RetryConfig {
+  maxAttempts: number;
+  baseDelay: number;
+  maxDelay: number;
+  backoffMultiplier: number;
+}
+
+const DEFAULT_RETRY_CONFIG: RetryConfig = {
+  maxAttempts: 5,
+  baseDelay: 2000,
+  maxDelay: 10000,
+  backoffMultiplier: 1.5
+};
+
+/**
+ * Check if MCP servers are ready
+ */
+async function checkMCPServersHealth(): Promise<boolean> {
+  const serverUrls = [
+    'http://localhost:3001', // X+1 MCP Machine
+    'http://localhost:3002'  // Wiki MCP Browser
+  ];
+  
+  for (const url of serverUrls) {
+    try {
+      const response = await fetch(url, { 
+        method: 'GET',
+        signal: AbortSignal.timeout(2000) 
+      });
+      if (!response.ok) {
+        console.warn(`⚠️  MCP server ${url} returned status ${response.status}`);
+        return false;
+      }
+    } catch (error) {
+      console.warn(`⚠️  MCP server ${url} not responding: ${(error as Error).message}`);
+      return false;
+    }
+  }
+  
+  return true;
+}
+
+/**
+ * Start MCP servers if they're not running
+ */
+async function ensureMCPServersRunning(): Promise<void> {
+  const isHealthy = await checkMCPServersHealth();
+  
+  if (isHealthy) {
+    console.log('✅ MCP servers are already running');
+    return;
+  }
+  
+  console.log('🚀 Starting MCP servers...');
+  console.log('💡 This may take a few seconds...');
+  
+  // Import spawn for cross-platform process management
+  const { spawn } = require('child_process');
+  
+  // Start servers in background
+  const servers = [
+    { name: 'MCP Service Launcher', script: 'npm run mcp:launcher', port: 3000 },
+    { name: 'X+1 MCP Machine', script: 'npm run mcp:xplus1', port: 3001 },
+    { name: 'Wiki MCP Browser', script: 'npm run mcp:wiki', port: 3002 },
+    { name: 'DevOps MCP Server', script: 'npm run mcp:devops', port: 3003 }
+  ];
+  
+  for (const server of servers) {
+    try {
+      const [cmd, ...args] = server.script.split(' ');
+      const child = spawn(cmd, args, {
+        detached: true,
+        stdio: 'ignore',
+        shell: true
+      });
+      
+      child.unref(); // Allow parent to exit independently
+      console.log(`   ✅ Started ${server.name} (port ${server.port})`);
+      
+      // Small delay between server starts
+      await sleep(500);
+    } catch (error) {
+      console.warn(`   ⚠️  Failed to start ${server.name}: ${(error as Error).message}`);
+    }
+  }
+  
+  console.log('⏳ Waiting for servers to initialize...');
+  await sleep(3000); // Give servers time to start
+}
+
+/**
+ * Sleep utility
+ */
+async function sleep(ms: number): Promise<void> {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+/**
+ * Retry wrapper with exponential backoff
+ */
+async function withRetry<T>(
+  operation: () => Promise<T>,
+  config: RetryConfig = DEFAULT_RETRY_CONFIG,
+  operationName = 'operation'
+): Promise<T> {
+  let lastError: Error | undefined;
+  
+  for (let attempt = 1; attempt <= config.maxAttempts; attempt++) {
+    try {
+      return await operation();
+    } catch (error) {
+      lastError = error as Error;
+      
+      if (attempt === config.maxAttempts) {
+        console.error(`❌ ${operationName} failed after ${config.maxAttempts} attempts`);
+        throw lastError;
+      }
+      
+      const delay = Math.min(
+        config.baseDelay * Math.pow(config.backoffMultiplier, attempt - 1),
+        config.maxDelay
+      );
+      
+      console.warn(`⚠️  ${operationName} failed (attempt ${attempt}/${config.maxAttempts}). Retrying in ${delay}ms...`);
+      console.warn(`   Error: ${lastError.message}`);
+      
+      await sleep(delay);
+    }
+  }
+  
+  throw lastError;
+}
+
+/**
  * Main multi-UI launcher function
  */
 async function main(): Promise<void> {
@@ -33,7 +169,11 @@ async function main(): Promise<void> {
   let multiUIManager: MultiUIGameManager | undefined;
 
   try {
-    // Load configuration
+    // 0. Ensure MCP servers are running
+    console.log('🔄 Checking MCP servers...');
+    await ensureMCPServersRunning();
+    
+    // 1. Load configuration
     console.log(`📋 Loading multi-UI configuration from: ${configPath}`);
     const configContent = await readFile(configPath, 'utf-8');
     config = JSON.parse(configContent);
@@ -46,9 +186,7 @@ async function main(): Promise<void> {
     
     // 1. Initialize MCP Driver Adapter first
     console.log('🔄 Initializing MCP Driver...');
-    const adapterConfig: MCPDriverAdapterConfig = {
-      useNativeProtocol: config.mcp.useNativeProtocol || false
-    };
+    const adapterConfig: MCPDriverAdapterConfig = {};
     mcpAdapter = new MCPDriverAdapter(adapterConfig);
     
     // Configure MCP servers
@@ -64,7 +202,27 @@ async function main(): Promise<void> {
     
     console.log('✅ MCP Driver initialized');
     
-    // 2. Initialize Runtime with MCP adapter
+    // 1.5. Wait for MCP servers to be ready
+    console.log('🔄 Waiting for MCP servers to be ready...');
+    await withRetry(
+      async () => {
+        const isReady = await checkMCPServersHealth();
+        if (!isReady) {
+          throw new Error('MCP servers not ready');
+        }
+        return true;
+      },
+      {
+        maxAttempts: 10,
+        baseDelay: 2000,
+        maxDelay: 8000,
+        backoffMultiplier: 1.2
+      },
+      'MCP servers health check'
+    );
+    console.log('✅ MCP servers are ready');
+    
+    // 2. Initialize Runtime with MCP adapter (with retries)
     console.log('🔄 Initializing Runtime...');
     let runtimeConfig: RuntimeConfig;
     
@@ -83,7 +241,18 @@ async function main(): Promise<void> {
     }
     
     runtime = new Runtime(mcpAdapter, runtimeConfig);
-    await runtime.initialize();
+    
+    // Initialize runtime with retries
+    await withRetry(
+      async () => await runtime!.initialize(),
+      {
+        maxAttempts: 8,
+        baseDelay: 3000,
+        maxDelay: 15000,
+        backoffMultiplier: 1.3
+      },
+      'Runtime initialization'
+    );
     console.log('✅ Runtime initialized');
     
     // 3. Initialize Interface Orchestrator
@@ -229,6 +398,23 @@ function setupGracefulShutdown(
 
 // Start the launcher
 main().catch((error) => {
-  console.error('❌ Multi-UI Launcher startup failed:', error);
+  console.error('❌ Multi-UI Launcher startup failed:');
+  console.error(`   Error: ${error.message}`);
+  if (error.type) {
+    console.error(`   Type: ${error.type}`);
+  }
+  if (error.serverId) {
+    console.error(`   Server: ${error.serverId}`);
+  }
+  
+  console.log('\n💡 Troubleshooting tips:');
+  console.log('   1. Ensure MCP servers are running:');
+  console.log('      npm run mcp:xplus1    # Port 3001');
+  console.log('      npm run mcp:wiki      # Port 3002');
+  console.log('   2. Check if ports are available:');
+  console.log('      netstat -ano | findstr ":300"');
+  console.log('   3. Try restarting all services:');
+  console.log('      npm run cleannode && npm start');
+  
   process.exit(1);
 });

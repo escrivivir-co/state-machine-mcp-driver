@@ -5,7 +5,6 @@
     "description": "X+1 game running with both console and web interfaces"
   },
   "mcp": {
-    "useNativeProtocol": false,
     "servers": [
       "xplus1-mcp-machine",
       "wiki-mcp-browser"
@@ -44,7 +43,7 @@
       "config": {
         "isPrimary": false,
         "autoStart": true,
-        "port": 3030,
+        "port": 8080,
         "title": "X+1 Game - Web Interface",
         "theme": "dark",
         "enableDevTools": true

@@ -22,7 +22,7 @@
       "config": {
         "isPrimary": true,
         "autoStart": true,
-        "port": 3030,
+        "port": 8080,
         "title": "X+1 Game - Web Only",
         "theme": "light",
         "enableDevTools": true,

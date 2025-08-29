@@ -107,7 +107,7 @@ This will automatically:
 - ⚡ Start MCP servers (X+1 Machine, Wiki Browser) 
 - 🏥 Perform health checks
 - 🎮 Launch X+1 game in **Multi-UI mode** (Console + Web)
-- 🌐 Web interface available at **http://localhost:3030**
+- 🌐 Web interface available at **http://localhost:8080**
 
 ## 🌐 Multi-UI Support (NEW!)
 
@@ -134,9 +134,9 @@ npm run multi:console
 - **🔄 Live coordination**: RxJS reactive streams for seamless UX
 
 ### Web Interface URLs
-- **Game Interface**: http://localhost:3030
-- **Admin Dashboard**: http://localhost:3030/admin (if enabled)
-- **Health Status**: http://localhost:3030/health
+- **Game Interface**: http://localhost:8080
+- **Admin Dashboard**: http://localhost:8080/admin (if enabled)
+- **Health Status**: http://localhost:8080/health
 
 ### Alternative: Single-UI Modes
 ```bash

@@ -24,6 +24,11 @@ export interface MCPServerConfig {
     resources?: boolean;
     prompts?: boolean;
   };
+  features?: {
+    enableManagers?: boolean;
+    enableWebConsole?: boolean;
+    enableHealthChecks?: boolean;
+  };
 }
 
 /**
@@ -37,7 +42,16 @@ export abstract class BaseMCPServer {
   constructor(config: MCPServerConfig) {
   // Allow overriding port via environment variable (used by launcher)
   const envPort = process.env.MCP_SERVER_PORT ? parseInt(process.env.MCP_SERVER_PORT, 10) : undefined;
-  this.config = { ...config, port: envPort || config.port };
+  this.config = { 
+    ...config, 
+    port: envPort || config.port,
+    features: {
+      enableManagers: false,
+      enableWebConsole: true,
+      enableHealthChecks: true,
+      ...config.features
+    }
+  };
     
     // Initialize Express app
     this.app = express();
@@ -337,7 +351,7 @@ export abstract class BaseMCPServer {
    * Abstract method to be implemented by subclasses
    * This is where each server defines its specific tools, resources, and prompts
    */
-  protected abstract setupServerSpecifics(): void;
+  protected abstract setupServerSpecifics(): Promise<void> | void;
 
   /**
    * Initialize the server
@@ -346,7 +360,7 @@ export abstract class BaseMCPServer {
     Logger.mcpVerbose(`${this.config.name}: Initializing MCP server`);
     
     // Let subclass setup its specifics
-    this.setupServerSpecifics();
+    await this.setupServerSpecifics();
     
     Logger.mcpVerbose(`${this.config.name}: Server initialized successfully`);
   }

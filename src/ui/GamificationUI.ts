@@ -284,9 +284,8 @@ export abstract class GamificationUI extends EventEmitter {
   // ===== MCP Integration =====
 
   private setupMCPIntegration(): void {
-    // Listen to MCP events from both native and legacy drivers
+    // Listen to MCP events from native driver only
     const nativeDriver = this.mcpAdapter.getNativeDriver();
-    const legacyDriver = this.mcpAdapter.getLegacyDriver();
 
     // Native driver events
     if (nativeDriver && typeof nativeDriver.on === 'function') {
@@ -296,13 +295,6 @@ export abstract class GamificationUI extends EventEmitter {
         });
       });
     }
-
-    // Legacy driver events
-    Object.values(MCPEventType).forEach(eventType => {
-      legacyDriver.on(eventType, (event: MCPEvent) => {
-        this.mcpEvents$.next(event);
-      });
-    });
 
     // MCP events stream processing
     this.mcpEvents$

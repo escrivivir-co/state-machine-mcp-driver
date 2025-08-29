@@ -235,6 +235,10 @@ export class HTML5GamificationUI extends GamificationUI {
    * Broadcast message to all clients via Server-Sent Events
    */
   private broadcastSSE(event: string, data: any): void {
+    if (!this.sseClients || this.sseClients.size === 0) {
+      return; // No clients connected
+    }
+    
     const message = `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
     
     this.sseClients.forEach(res => {

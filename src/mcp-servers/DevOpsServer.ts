@@ -13,34 +13,17 @@ import { DevOpsPluginManager } from './plugins/DevOpsPluginManager.js';
 import { XPlus1ControlPlugin } from './plugins/XPlus1ControlPlugin.js';
 import { PluginContext } from './plugins/IDevOpsPlugin.js';
 
-/**
- * Resource definition interface
- */
-interface ResourceDefinition {
-  id: string;
-  name: string;
-  description: string;
-  uri: string;
-  mimeType: string;
-  content: string;
-  metadata?: Record<string, any>;
-  createdAt: number;
-  updatedAt: number;
-}
+// Import manager architecture for better code organization
+import {
+  ContentManager,
+  CRUDToolsManager,
+  CoreComponentsManager,
+  // Use shared type definitions instead of local interfaces
+  ResourceDefinition,
+  PromptDefinition,
+} from './managers/index.js';
 
-/**
- * Prompt definition interface
- */
-interface PromptDefinition {
-  id: string;
-  name: string;
-  description: string;
-  parameters?: Record<string, any>;
-  content: string;
-  metadata?: Record<string, any>;
-  createdAt: number;
-  updatedAt: number;
-}
+// Note: Using shared PromptDefinition/ResourceDefinition types from managers
 
 /**
  * DevOps MCP Server
@@ -48,10 +31,13 @@ interface PromptDefinition {
  * NEW: Plugin system for modular functionality
  */
 export class DevOpsServer extends BaseMCPServer {
-  private resources: Map<string, ResourceDefinition> = new Map();
-  private prompts: Map<string, PromptDefinition> = new Map();
   private mcpAdapter?: MCPDriverAdapter;
   private pluginManager?: DevOpsPluginManager;
+
+  // Manager architecture for better code organization (NEW)
+  private contentManager?: ContentManager;
+  private crudToolsManager?: CRUDToolsManager;
+  private coreComponentsManager?: CoreComponentsManager;
 
   constructor() {
     const config: MCPServerConfig = {
@@ -64,9 +50,18 @@ export class DevOpsServer extends BaseMCPServer {
         resources: true,
         prompts: true,
       },
+      features: {
+        enableManagers: true,
+        enableWebConsole: true,
+        enableHealthChecks: true,
+      },
     };
 
     super(config);
+    
+    // Initialize manager architecture for better code organization
+    this.initializeManagers();
+    
     // Initialize MCP adapter for connecting to other servers
     this.initializeMCPAdapter();
     // Plugin system will be initialized in setupServerSpecifics
@@ -74,14 +69,35 @@ export class DevOpsServer extends BaseMCPServer {
   }
 
   /**
+   * Initialize the manager architecture for better code organization (NEW)
+   */
+  private initializeManagers(): void {
+    try {
+      // Content manager for CRUD operations
+      this.contentManager = new ContentManager(this.server, 'devops-mcp-server');
+      
+      // CRUD tools manager
+      this.crudToolsManager = new CRUDToolsManager(this.server, this.contentManager, 'devops-mcp-server');
+      
+      // Core components manager
+      this.coreComponentsManager = new CoreComponentsManager(this.server, 'devops-mcp-server', 3003);
+      
+      Logger.mcpInfo('DevOps: Manager architecture initialized');
+    } catch (error) {
+      Logger.mcpError('DevOps: Failed to initialize managers', { error });
+      // Disable managers if they fail
+      this.contentManager = undefined;
+      this.crudToolsManager = undefined;
+      this.coreComponentsManager = undefined;
+    }
+  }
+
+  /**
    * Initialize MCP Driver Adapter for connecting to other servers
    */
   private initializeMCPAdapter(): void {
     try {
-      this.mcpAdapter = new MCPDriverAdapter({
-        useNativeProtocol: process.env.MCP_USE_NATIVE_PROTOCOL === 'true',
-        enableFallback: true
-      });
+      this.mcpAdapter = new MCPDriverAdapter({});
 
       // Add default MCP servers that might be running
       this.setupMCPConnections();
@@ -173,17 +189,56 @@ export class DevOpsServer extends BaseMCPServer {
     if (!this.pluginManager) return;
 
     try {
-      // Register XPlus1 Control Plugin
+      // Optional env toggle to disable plugin entirely
+      if (process.env.XPLUS1_PLUGIN_DISABLED === 'true') {
+        Logger.mcpInfo('DevOps: XPlus1 plugin disabled via env (XPLUS1_PLUGIN_DISABLED=true)');
+        return;
+      }
+
+      // Register XPlus1 Control Plugin with dependency health guard
       const xplus1Plugin = new XPlus1ControlPlugin();
+
+      let isHealthy = false;
+      if (this.mcpAdapter) {
+        try {
+          isHealthy = await this.mcpAdapter.healthCheck('xplus1-mcp-machine');
+        } catch (hcError) {
+          Logger.mcpVerbose('DevOps: Health check for xplus1-mcp-machine failed', { error: hcError });
+        }
+      }
+
       await this.pluginManager.registerPlugin(xplus1Plugin, {
-        forceEnable: true, // Enable by default
+        forceEnable: isHealthy,
+        skipInitialization: !isHealthy,
         customSettings: {
           priority: 'high',
-          autoLoad: true
+          autoLoad: isHealthy
         }
       });
 
-      Logger.mcpInfo('DevOps: Default plugins registered');
+      if (!isHealthy) {
+        Logger.mcpWarn('DevOps: XPlus1 server unavailable. Plugin registered but not initialized (will retry once in 15s).');
+        // One-off delayed retry to initialize if the dependency becomes available shortly after startup
+        setTimeout(async () => {
+          try {
+            if (!this.pluginManager) return;
+            if (this.mcpAdapter) {
+              const ok = await this.mcpAdapter.healthCheck('xplus1-mcp-machine');
+              if (!ok) {
+                Logger.mcpWarn('DevOps: XPlus1 server still unavailable on retry; leaving plugin inactive.');
+                return;
+              }
+            }
+            await this.pluginManager.initializePlugin('xplus1-control');
+            await this.pluginManager.setPluginEnabled('xplus1-control', true);
+            Logger.mcpInfo('DevOps: XPlus1 plugin initialized successfully after retry');
+          } catch (retryErr) {
+            Logger.mcpWarn('DevOps: Failed to initialize XPlus1 plugin on retry', { error: retryErr });
+          }
+        }, 15000);
+      } else {
+        Logger.mcpInfo('DevOps: Default plugins registered and initialized');
+      }
     } catch (error) {
       Logger.mcpError('DevOps: Failed to register default plugins', { error });
     }
@@ -194,7 +249,7 @@ export class DevOpsServer extends BaseMCPServer {
    */
   private initializeDefaultContent(): void {
     // Initialize default DevOps prompts
-    this.addPrompt({
+  this.contentManager?.addPrompt({
       id: 'start-system',
       name: 'Arrancar el sistema',
       description: 'Prompt para arrancar el sistema usando npm start',
@@ -226,7 +281,7 @@ Por favor, utiliza las herramientas base de VS Code para ejecutar el comando \`n
       updatedAt: Date.now()
     });
 
-    this.addPrompt({
+  this.contentManager?.addPrompt({
       id: 'open-web-console',
       name: 'Abrir consola web',
       description: 'Prompt para abrir la consola web en localhost:8080',
@@ -260,7 +315,7 @@ Por favor, abre el navegador simple de VS Code para acceder a la consola web del
     });
 
     // Initialize default resources
-    this.addResource({
+  this.contentManager?.addResource({
       id: 'project-status',
       name: 'Estado del Proyecto',
       description: 'Estado actual del proyecto y servicios',
@@ -280,7 +335,7 @@ Por favor, abre el navegador simple de VS Code para acceder a la consola web del
       updatedAt: Date.now()
     });
 
-    this.addResource({
+  this.contentManager?.addResource({
       id: 'npm-scripts',
       name: 'Scripts NPM Disponibles',
       description: 'Lista de scripts NPM disponibles en el proyecto',
@@ -313,13 +368,34 @@ Por favor, abre el navegador simple de VS Code para acceder a la consola web del
   /**
    * Setup DevOps specific tools, resources, and prompts
    */
-  protected setupServerSpecifics(): void {
+  protected async setupServerSpecifics(): Promise<void> {
+    // Register manager tools first (NEW: Additional CRUD and core tools)
+    this.registerManagerTools();
+    
     this.initializeDefaultContent();
     this.setupTools();
     // Initialize plugin system after core tools are setup
     this.initializePluginSystem();
-    // Initialize all registered plugins
-    this.initializePlugins();
+  // Note: Plugins are initialized during registration; avoid double init
+  }
+
+  /**
+   * Register tools from all managers (NEW)
+   */
+  private registerManagerTools(): void {
+    try {
+      if (this.crudToolsManager) {
+        this.crudToolsManager.registerAllTools();
+        Logger.mcpInfo('DevOps: Additional CRUD tools registered via manager');
+      }
+      
+      if (this.coreComponentsManager) {
+        this.coreComponentsManager.registerAllTools();
+        Logger.mcpInfo('DevOps: Additional core tools registered via manager');
+      }
+    } catch (error) {
+      Logger.mcpError('DevOps: Failed to register manager tools', { error });
+    }
   }
 
   /**
@@ -483,581 +559,19 @@ Por favor, abre el navegador simple de VS Code para acceder a la consola web del
   }
 
   /**
-   * Setup DevOps tools including CRUD operations
+   * Setup DevOps tools (excluding CRUD operations handled by managers)
    */
   private setupTools(): void {
-    // ===== PROMPT CRUD TOOLS =====
+    // CRUD operations are now handled by CRUDToolsManager
+    // Core tools (start_system, open_web_console, get_server_status) are handled by CoreComponentsManager
     
-    // List prompts
-    this.server.tool(
-      'list_prompts',
-      'Listar todos los prompts disponibles en el servidor',
-      {
-        category: z.string().optional().describe('Filtrar por categoría'),
-        search: z.string().optional().describe('Buscar en nombre o descripción')
-      },
-      async ({ category, search }) => {
-        const promptsList = Array.from(this.prompts.values()).filter(prompt => {
-          if (category && (!prompt.metadata?.category || prompt.metadata.category !== category)) {
-            return false;
-          }
-          if (search && !prompt.name.toLowerCase().includes(search.toLowerCase()) && 
-              !prompt.description.toLowerCase().includes(search.toLowerCase())) {
-            return false;
-          }
-          return true;
-        });
-
-        return {
-          content: [{
-            type: 'text',
-            text: JSON.stringify({
-              total: promptsList.length,
-              prompts: promptsList.map(p => ({
-                id: p.id,
-                name: p.name,
-                description: p.description,
-                category: p.metadata?.category || 'general',
-                updatedAt: new Date(p.updatedAt).toISOString()
-              }))
-            }, null, 2)
-          }]
-        };
-      }
-    );
-
-    // Add prompt
-    this.server.tool(
-      'add_prompt',
-      'Añadir un nuevo prompt al servidor',
-      {
-        id: z.string().describe('ID único del prompt'),
-        name: z.string().describe('Nombre del prompt'),
-        description: z.string().describe('Descripción del prompt'),
-        content: z.string().describe('Contenido del prompt'),
-        parameters: z.record(z.any()).optional().describe('Parámetros del prompt'),
-        metadata: z.record(z.any()).optional().describe('Metadatos adicionales')
-      },
-      async ({ id, name, description, content, parameters, metadata }) => {
-        if (this.prompts.has(id)) {
-          throw new Error(`Prompt with ID '${id}' already exists`);
-        }
-
-        const prompt: PromptDefinition = {
-          id,
-          name,
-          description,
-          content,
-          parameters,
-          metadata,
-          createdAt: Date.now(),
-          updatedAt: Date.now()
-        };
-
-        this.addPrompt(prompt);
-
-        return {
-          content: [{
-            type: 'text',
-            text: JSON.stringify({
-              success: true,
-              message: `Prompt '${name}' added successfully`,
-              id,
-              createdAt: new Date(prompt.createdAt).toISOString()
-            }, null, 2)
-          }]
-        };
-      }
-    );
-
-    // Edit prompt
-    this.server.tool(
-      'edit_prompt',
-      'Editar un prompt existente',
-      {
-        id: z.string().describe('ID del prompt a editar'),
-        name: z.string().optional().describe('Nuevo nombre'),
-        description: z.string().optional().describe('Nueva descripción'),
-        content: z.string().optional().describe('Nuevo contenido'),
-        parameters: z.record(z.any()).optional().describe('Nuevos parámetros'),
-        metadata: z.record(z.any()).optional().describe('Nuevos metadatos')
-      },
-      async ({ id, name, description, content, parameters, metadata }) => {
-        const prompt = this.prompts.get(id);
-        if (!prompt) {
-          throw new Error(`Prompt with ID '${id}' not found`);
-        }
-
-        const updatedPrompt: PromptDefinition = {
-          ...prompt,
-          name: name ?? prompt.name,
-          description: description ?? prompt.description,
-          content: content ?? prompt.content,
-          parameters: parameters ?? prompt.parameters,
-          metadata: metadata ?? prompt.metadata,
-          updatedAt: Date.now()
-        };
-
-        this.prompts.set(id, updatedPrompt);
-        this.updatePromptHandler(updatedPrompt);
-
-        return {
-          content: [{
-            type: 'text',
-            text: JSON.stringify({
-              success: true,
-              message: `Prompt '${id}' updated successfully`,
-              updatedAt: new Date(updatedPrompt.updatedAt).toISOString()
-            }, null, 2)
-          }]
-        };
-      }
-    );
-
-    // Delete prompt
-    this.server.tool(
-      'delete_prompt',
-      'Eliminar un prompt del servidor',
-      {
-        id: z.string().describe('ID del prompt a eliminar')
-      },
-      async ({ id }) => {
-        const prompt = this.prompts.get(id);
-        if (!prompt) {
-          throw new Error(`Prompt with ID '${id}' not found`);
-        }
-
-        this.prompts.delete(id);
-        // Remove from server handlers
-        const promptHandlers = (this.server as any)._promptHandlers;
-        if (promptHandlers) {
-          promptHandlers.delete(id);
-        }
-
-        return {
-          content: [{
-            type: 'text',
-            text: JSON.stringify({
-              success: true,
-              message: `Prompt '${prompt.name}' deleted successfully`,
-              deletedAt: new Date().toISOString()
-            }, null, 2)
-          }]
-        };
-      }
-    );
-
-    // Get prompt
-    this.server.tool(
-      'get_prompt',
-      'Recuperar un prompt específico por ID',
-      {
-        id: z.string().describe('ID del prompt a recuperar')
-      },
-      async ({ id }) => {
-        const prompt = this.prompts.get(id);
-        if (!prompt) {
-          throw new Error(`Prompt with ID '${id}' not found`);
-        }
-
-        return {
-          content: [{
-            type: 'text',
-            text: JSON.stringify(prompt, null, 2)
-          }]
-        };
-      }
-    );
-
-    // ===== RESOURCE CRUD TOOLS =====
-
-    // List resources
-    this.server.tool(
-      'list_resources',
-      'Listar todos los recursos disponibles en el servidor',
-      {
-        category: z.string().optional().describe('Filtrar por categoría'),
-        search: z.string().optional().describe('Buscar en nombre o descripción')
-      },
-      async ({ category, search }) => {
-        const resourcesList = Array.from(this.resources.values()).filter(resource => {
-          if (category && (!resource.metadata?.category || resource.metadata.category !== category)) {
-            return false;
-          }
-          if (search && !resource.name.toLowerCase().includes(search.toLowerCase()) && 
-              !resource.description.toLowerCase().includes(search.toLowerCase())) {
-            return false;
-          }
-          return true;
-        });
-
-        return {
-          content: [{
-            type: 'text',
-            text: JSON.stringify({
-              total: resourcesList.length,
-              resources: resourcesList.map(r => ({
-                id: r.id,
-                name: r.name,
-                description: r.description,
-                uri: r.uri,
-                mimeType: r.mimeType,
-                category: r.metadata?.category || 'general',
-                updatedAt: new Date(r.updatedAt).toISOString()
-              }))
-            }, null, 2)
-          }]
-        };
-      }
-    );
-
-    // Add resource
-    this.server.tool(
-      'add_resource',
-      'Añadir un nuevo recurso al servidor',
-      {
-        id: z.string().describe('ID único del recurso'),
-        name: z.string().describe('Nombre del recurso'),
-        description: z.string().describe('Descripción del recurso'),
-        uri: z.string().describe('URI del recurso'),
-        mimeType: z.string().describe('Tipo MIME del recurso'),
-        content: z.string().describe('Contenido del recurso'),
-        metadata: z.record(z.any()).optional().describe('Metadatos adicionales')
-      },
-      async ({ id, name, description, uri, mimeType, content, metadata }) => {
-        if (this.resources.has(id)) {
-          throw new Error(`Resource with ID '${id}' already exists`);
-        }
-
-        const resource: ResourceDefinition = {
-          id,
-          name,
-          description,
-          uri,
-          mimeType,
-          content,
-          metadata,
-          createdAt: Date.now(),
-          updatedAt: Date.now()
-        };
-
-        this.addResource(resource);
-
-        return {
-          content: [{
-            type: 'text',
-            text: JSON.stringify({
-              success: true,
-              message: `Resource '${name}' added successfully`,
-              id,
-              uri,
-              createdAt: new Date(resource.createdAt).toISOString()
-            }, null, 2)
-          }]
-        };
-      }
-    );
-
-    // Edit resource
-    this.server.tool(
-      'edit_resource',
-      'Editar un recurso existente',
-      {
-        id: z.string().describe('ID del recurso a editar'),
-        name: z.string().optional().describe('Nuevo nombre'),
-        description: z.string().optional().describe('Nueva descripción'),
-        content: z.string().optional().describe('Nuevo contenido'),
-        metadata: z.record(z.any()).optional().describe('Nuevos metadatos')
-      },
-      async ({ id, name, description, content, metadata }) => {
-        const resource = this.resources.get(id);
-        if (!resource) {
-          throw new Error(`Resource with ID '${id}' not found`);
-        }
-
-        const updatedResource: ResourceDefinition = {
-          ...resource,
-          name: name ?? resource.name,
-          description: description ?? resource.description,
-          content: content ?? resource.content,
-          metadata: metadata ?? resource.metadata,
-          updatedAt: Date.now()
-        };
-
-        this.resources.set(id, updatedResource);
-        this.updateResourceHandler(updatedResource);
-
-        return {
-          content: [{
-            type: 'text',
-            text: JSON.stringify({
-              success: true,
-              message: `Resource '${id}' updated successfully`,
-              updatedAt: new Date(updatedResource.updatedAt).toISOString()
-            }, null, 2)
-          }]
-        };
-      }
-    );
-
-    // Delete resource
-    this.server.tool(
-      'delete_resource',
-      'Eliminar un recurso del servidor',
-      {
-        id: z.string().describe('ID del recurso a eliminar')
-      },
-      async ({ id }) => {
-        const resource = this.resources.get(id);
-        if (!resource) {
-          throw new Error(`Resource with ID '${id}' not found`);
-        }
-
-        this.resources.delete(id);
-        // Remove from server handlers
-        const resourceHandlers = (this.server as any)._resourceHandlers;
-        if (resourceHandlers) {
-          resourceHandlers.delete(id);
-          resourceHandlers.delete(resource.uri);
-        }
-
-        return {
-          content: [{
-            type: 'text',
-            text: JSON.stringify({
-              success: true,
-              message: `Resource '${resource.name}' deleted successfully`,
-              deletedAt: new Date().toISOString()
-            }, null, 2)
-          }]
-        };
-      }
-    );
-
-    // Get resource
-    this.server.tool(
-      'get_resource',
-      'Recuperar un recurso específico por ID',
-      {
-        id: z.string().describe('ID del recurso a recuperar')
-      },
-      async ({ id }) => {
-        const resource = this.resources.get(id);
-        if (!resource) {
-          throw new Error(`Resource with ID '${id}' not found`);
-        }
-
-        return {
-          content: [{
-            type: 'text',
-            text: JSON.stringify(resource, null, 2)
-          }]
-        };
-      }
-    );
-
-    // ===== DEVOPS SPECIFIC TOOLS =====
-
-    // Start system tool
-    this.server.tool(
-      'start_system',
-      'Arrancar el sistema usando npm start',
-      {
-        environment: z.string().optional().describe('Entorno de ejecución'),
-        verbose: z.boolean().optional().describe('Salida detallada')
-      },
-      async ({ environment, verbose }) => {
-        Logger.mcpVerbose('DevOps: Starting system via npm start');
-
-        const instructions = {
-          action: 'start_system',
-          command: 'npm start',
-          environment: environment || 'development',
-          steps: [
-            'Open VS Code integrated terminal (Ctrl+`)',
-            'Navigate to project root directory',
-            'Execute: npm start',
-            'Monitor output for successful startup',
-            'Check for port information in logs'
-          ],
-          expectedResult: 'System should start on configured port',
-          troubleshooting: [
-            'Verify package.json exists',
-            'Check node_modules are installed (npm install)',
-            'Ensure no port conflicts',
-            'Check system dependencies'
-          ]
-        };
-
-        return {
-          content: [{
-            type: 'text',
-            text: JSON.stringify(instructions, null, 2)
-          }]
-        };
-      }
-    );
-
-    // Open web console tool
-    this.server.tool(
-      'open_web_console',
-      'Abrir la consola web en el navegador',
-      {
-        port: z.number().optional().describe('Puerto del servidor web').default(8080),
-        host: z.string().optional().describe('Host del servidor').default('localhost')
-      },
-      async ({ port = 8080, host = 'localhost' }) => {
-        const url = `http://${host}:${port}`;
-        Logger.mcpVerbose(`DevOps: Opening web console at ${url}`);
-
-        const instructions = {
-          action: 'open_web_console',
-          url,
-          steps: [
-            'Use VS Code Simple Browser or external browser',
-            `Navigate to: ${url}`,
-            'Verify application is responding',
-            'Check console for any errors'
-          ],
-          alternatives: [
-            'Try different ports if 8080 is not available',
-            'Check server logs for actual port',
-            'Verify server is running before opening browser'
-          ],
-          vsCodeCommand: 'Simple Browser: Show',
-          expectedResult: 'Web application should load successfully'
-        };
-
-        return {
-          content: [{
-            type: 'text',
-            text: JSON.stringify(instructions, null, 2)
-          }]
-        };
-      }
-    );
-  }
-
-  /**
-   * Setup resource handlers for dynamic resources
-   */
-  private setupResourceHandlers(): void {
-    // Setup handlers for all existing resources
-    for (const resource of this.resources.values()) {
-      this.setupResourceHandler(resource);
-    }
-  }
-
-  /**
-   * Setup a resource handler for a specific resource
-   */
-  private setupResourceHandler(resource: ResourceDefinition): void {
-    this.server.resource(
-      resource.id,
-      resource.uri,
-      {
-        name: resource.name,
-        description: resource.description,
-        mimeType: resource.mimeType
-      },
-      async () => {
-        return {
-          contents: [{
-            uri: resource.uri,
-            mimeType: resource.mimeType,
-            text: resource.content
-          }]
-        };
-      }
-    );
-  }
-
-  /**
-   * Setup prompt handlers for dynamic prompts
-   */
-  private setupPromptHandlers(): void {
-    // Setup handlers for all existing prompts
-    for (const prompt of this.prompts.values()) {
-      this.setupPromptHandler(prompt);
-    }
-  }
-
-  /**
-   * Setup a prompt handler for a specific prompt
-   */
-  private setupPromptHandler(prompt: PromptDefinition): void {
-    this.server.prompt(
-      prompt.id,
-      prompt.description,
-      prompt.parameters || {},
-      async (variables) => {
-        let content = prompt.content;
-        
-        // Simple variable substitution
-        if (variables && typeof variables === 'object') {
-          for (const [key, value] of Object.entries(variables)) {
-            const placeholder = `{{${key}}}`;
-            content = content.replace(new RegExp(placeholder, 'g'), String(value));
-          }
-        }
-
-        return {
-          messages: [{
-            role: 'user',
-            content: {
-              type: 'text',
-              text: content
-            }
-          }]
-        };
-      }
-    );
-  }
-
-  /**
-   * Add a new prompt and setup its handler
-   */
-  private addPrompt(prompt: PromptDefinition): void {
-    this.prompts.set(prompt.id, prompt);
-    this.setupPromptHandler(prompt);
-  }
-
-  /**
-   * Add a new resource and setup its handler
-   */
-  private addResource(resource: ResourceDefinition): void {
-    this.resources.set(resource.id, resource);
-    this.setupResourceHandler(resource);
-  }
-
-  /**
-   * Update prompt handler after editing
-   */
-  private updatePromptHandler(prompt: PromptDefinition): void {
-    // Remove old handler
-    const promptHandlers = (this.server as any)._promptHandlers;
-    if (promptHandlers) {
-      promptHandlers.delete(prompt.id);
-    }
+    // This method is kept for any future DevOps-specific tools
+    // that are not generic enough to be in the managers
     
-    // Add updated handler
-    this.setupPromptHandler(prompt);
+    Logger.mcpInfo('DevOps: Custom tools setup completed (using managers for CRUD and core tools)');
   }
 
-  /**
-   * Update resource handler after editing
-   */
-  private updateResourceHandler(resource: ResourceDefinition): void {
-    // Remove old handlers
-    const resourceHandlers = (this.server as any)._resourceHandlers;
-    if (resourceHandlers) {
-      resourceHandlers.delete(resource.id);
-      resourceHandlers.delete(resource.uri);
-    }
-    
-    // Add updated handler
-    this.setupResourceHandler(resource);
-  }
+  // Note: Prompt/Resource handlers and storage are managed by ContentManager
 
   // ===== LIVE GAME STATE QUERY METHODS =====
 

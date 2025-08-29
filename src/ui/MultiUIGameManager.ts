@@ -80,16 +80,20 @@ class ConsoleGamificationUIWrapper extends GamificationUI {
   }
 
   async displayNotification(title: string, message: string, type?: 'info' | 'success' | 'warning' | 'error'): Promise<void> {
-    // Delegate to console UI
-    if (typeof (this.consoleUI as any).displayNotification === 'function') {
+    // Delegate to console UI with safety check
+    if (this.consoleUI && typeof (this.consoleUI as any).displayNotification === 'function') {
       await (this.consoleUI as any).displayNotification(title, message, type);
+    } else {
+      console.log(`📢 ${title}: ${message}`);
     }
   }
 
   async updatePhaseDisplay(phase: string): Promise<void> {
-    // Delegate to console UI
-    if (typeof (this.consoleUI as any).updatePhaseDisplay === 'function') {
+    // Delegate to console UI with safety check
+    if (this.consoleUI && typeof (this.consoleUI as any).updatePhaseDisplay === 'function') {
       await (this.consoleUI as any).updatePhaseDisplay(phase);
+    } else {
+      console.log(`📍 Phase: ${phase}`);
     }
   }
 }
@@ -123,7 +127,7 @@ class UIFactory {
         // Create a valid HTML5GameUIConfig
         const html5Config: HTML5GameUIConfig = {
           gameTitle: config.name,
-          port: config.config.port || 3030
+          port: config.config.port || 8080
         };
         return new HTML5GamificationUI(runtime, mcpAdapter, html5Config);
         

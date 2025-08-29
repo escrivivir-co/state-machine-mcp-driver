@@ -25,7 +25,7 @@
     "vscode:config": "npx tsx scripts/generate-vscode-config.ts",
     "vscode:config:check": "npx tsx scripts/generate-vscode-config.ts --check",
     "example": "npm run example:multi",
-    "example:multi": "cross-env ENABLE_MULTI_UI=true npm run app:quiet",
+    "example:multi": "cross-env OLLAMA_MODEL=gpt-oss:20b MCP_QUIET=false npx tsx examples/multi-ui-launcher.ts examples/configs/x-plus-1-multi-ui.json",
     "example_base": "npm run mcp:launcher",
     "example_app": "cross-env OLLAMA_MODEL=gpt-oss:20b MCP_USE_NATIVE_PROTOCOL=true npm run launcher:x-plus-1",
     "example_test": "npx tsx examples/test-postulation-improvements.ts",
