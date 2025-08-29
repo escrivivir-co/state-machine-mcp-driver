@@ -127,6 +127,116 @@ await mcpClient.callTool('xplus1-mcp-machine', 'answer_critical_question', {
 });
 ```
 
+### 📖 Console Reading (NEW!)
+
+**BIDIRECTIONAL CONTROL**: Now you can READ the console state before writing!
+
+The enhanced MCP system now includes console reading capabilities, solving the visibility problem:
+
+#### 🔍 Console Reading Tools
+- `get_console_output` - Read current console display text
+- `get_current_prompt` - Get prompt text and available options
+- `get_ui_status` - Get complete UI status and interaction state  
+- `get_interaction_state` - Get current phase and available commands
+
+#### 💡 Smart AI Usage Pattern
+```typescript
+// BEFORE: Blind control (could send wrong input)
+await mcpClient.callTool('send_user_input', { text: "1" }); // What options exist?
+
+// AFTER: Read-first, then write (intelligent control)
+const prompt = await mcpClient.callTool('get_current_prompt', {});
+console.log('Available options:', prompt.availableOptions);
+// Now I can see: [{ key: "1", description: "DionisioBot - Cosmic reflection" }, ...]
+
+if (prompt.availableOptions.find(opt => opt.key === "1")) {
+  await mcpClient.callTool('send_user_input', { text: "1" });
+  console.log('✅ Selected option 1 intelligently');
+}
+```
+
+#### 🔄 Complete Bidirectional Control Flow
+1. **Read** current console state (`get_ui_status`)
+2. **Analyze** available options (`get_current_prompt`)
+3. **Decide** based on actual state
+4. **Write** appropriate response (`send_user_input`)
+5. **Monitor** results (`get_console_output`)
+
+This enables **truly intelligent remote control** where AI assistants can see what's on screen before acting!
+
+#### ⚡ Technical Implementation
+
+The console reading feature solves the **visibility problem** in remote control by implementing:
+
+**Core Architecture:**
+- **`IConsoleReader`** interface in `src/ui/` for standardized console state access
+- **Real-time state tracking** in `ConsoleGamificationUI` with automatic updates
+- **Bidirectional MCP tools** that integrate reading and writing operations
+- **Event-driven updates** with streaming support for real-time monitoring
+
+**Key Components:**
+```typescript
+// New MCP Tools Available
+get_console_output()     // Read current display text
+get_current_prompt()     // See available options (1, 2, 3, etc.)  
+get_ui_status()          // Complete UI state snapshot
+get_interaction_state()  // Current phase and available commands
+```
+
+**Smart Usage Pattern:**
+```typescript
+// 1. Read before acting (eliminates blind control)
+const prompt = await callTool('get_current_prompt', {});
+
+// 2. Analyze available options intelligently
+const options = prompt.availableOptions;
+console.log('I can choose from:', options.map(o => `${o.key}: ${o.description}`));
+
+// 3. Make informed decisions
+const apolloOption = options.find(opt => opt.description.includes('ApoloBot'));
+if (apolloOption) {
+  await callTool('send_user_input', { text: apolloOption.key });
+  console.log(`✅ Selected ${apolloOption.description} intelligently`);
+}
+```
+
+**Real-time Streaming:**
+```typescript
+// Monitor console changes in real-time
+const consoleReader = await getConsoleUI();
+const stopStreaming = consoleReader.startStreaming((status) => {
+  console.log(`UI Phase changed to: ${status.interaction.phase}`);
+  console.log(`New prompt: ${status.prompt.promptText}`);
+});
+```
+
+#### 🚀 Advanced Capabilities
+
+**Phase-aware Intelligence:**
+- **Menu Phase**: Automatically detects numbered options (1, 2, 3...)
+- **Conversation Phase**: Reads available agent postulations
+- **Decision Phase**: Recognizes critical yes/no questions
+- **Context Awareness**: Understands current X value and game state
+
+**Error Prevention:**
+- **Option Validation**: Verify choices exist before sending
+- **State Synchronization**: Always current with actual UI state  
+- **Graceful Fallbacks**: Handle disconnected or unresponsive UI
+- **Type Safety**: Strongly typed interfaces prevent runtime errors
+
+**Development Benefits:**
+- **Modular Design**: `src/` provides base infrastructure, `examples/` show usage
+- **Easy Integration**: Drop-in interface for existing console applications
+- **Testing Friendly**: Mockable interfaces for unit testing
+- **Documentation**: Complete examples and usage patterns
+
+**Demo Available:**
+```bash
+# Try the complete bidirectional control demo
+npm run example
+# Then use VS Code Copilot to control the game intelligently!
+```
+
 This enables **complete game control from VS Code** without direct console interaction!
 
 ### Game Components
@@ -135,9 +245,11 @@ This enables **complete game control from VS Code** without direct console inter
 - Text-based interface using stdin/stdout
 - Real-time game state visualization  
 - Command system (`help`, `status`, `quit`)
+- **NEW**: Implements `IConsoleReader` for state reading
 
 #### XPlus1MCPMachine (MCP Server)
 - **Tools**: `advance_x`, `reset_x`, `get_x_status`, `evaluate_advancement`
+- **NEW**: Console reading tools for bidirectional control
 - **Resources**: Current state, advancement history, session analytics
 - **Prompts**: Agent-specific conversation templates
 
@@ -408,6 +520,7 @@ The command requires explicit confirmation before proceeding.
 - **🔄 State Machine Management**: JSON-defined automata with TypeScript support
 - **🌐 MCP Protocol Integration**: Tools, resources, and prompts via Model Context Protocol
 - **🎮 Remote Control System**: Full game control from VS Code Copilot Agent via MCP
+- **📖 Bidirectional Console Reading**: AI can READ console state before acting (NEW!)
 - **🤖 Multi-Agent Orchestration**: Coordinate multiple AI agents in conversations
 - **💬 Chat Provider Support**: Ollama integration with extensible provider system
 - **🎮 Gamification Framework**: Console UI for interactive experiences
@@ -415,6 +528,7 @@ The command requires explicit confirmation before proceeding.
 - **🏥 Health Monitoring**: Comprehensive system validation and error handling
 - **📊 Analytics & Logging**: Session tracking and performance monitoring
 - **📡 Real-time Event Streaming**: Live game state updates via MCP resources
+- **🧠 Intelligent Control**: Read-first-then-write pattern for smart AI interactions
 
 ## Example: X+1 Inductive Pattern Game
 

@@ -37,6 +37,27 @@ If you are an AI assistant with MCP (Model Context Protocol) capabilities, you c
 - **`get_available_postulations`** - See which agents want to speak
 - **`get_full_game_state`** - Complete game state snapshot
 
+#### 📖 Console Reading (NEW!)
+- **`get_console_output`** - Read current console display
+  ```json
+  {}  // Returns: { fullText: "...", lastLines: [...], isActive: true }
+  ```
+
+- **`get_current_prompt`** - Read prompt and available options
+  ```json
+  {}  // Returns: { promptText: "Choose agent (1-2):", availableOptions: [...] }
+  ```
+
+- **`get_ui_status`** - Get complete UI status and interaction state
+  ```json
+  {}  // Returns: { interaction: {...}, prompt: {...}, console: {...} }
+  ```
+
+- **`get_interaction_state`** - Get current phase and available commands
+  ```json
+  {}  // Returns: { phase: "menu", availableCommands: ["1", "2"], ... }
+  ```
+
 #### State Management
 - **`update_game_state`** - Sync game state from UI
 - **`add_conversation_message`** - Add message to conversation
@@ -78,6 +99,25 @@ If you are an AI assistant with MCP (Model Context Protocol) capabilities, you c
 6. New conversation round begins
 
 ### 💡 Remote Control Strategies
+
+#### 🧠 Intelligent Reading-First Approach (NEW!)
+```javascript
+// 1. ALWAYS read current state before acting
+const status = await callTool('xplus1-mcp-machine', 'get_ui_status', {});
+console.log(`Current phase: ${status.interaction.phase}`);
+
+// 2. Check available options
+const prompt = await callTool('xplus1-mcp-machine', 'get_current_prompt', {});
+console.log(`Available choices: ${prompt.availableOptions.map(o => o.description)}`);
+
+// 3. Make informed decision
+if (prompt.availableOptions.find(opt => opt.key === "1" && opt.description.includes("DionisioBot"))) {
+  await callTool('xplus1-mcp-machine', 'send_user_input', { text: "1" });
+  console.log("✅ Selected DionisioBot intelligently");
+} else {
+  console.log("❓ DionisioBot not available, checking other options...");
+}
+```
 
 #### As Observer
 ```javascript
@@ -125,7 +165,60 @@ const analysis = await getPrompt('xplus1-mcp-machine', 'conversation_analyzer', 
 });
 ```
 
-### 🎮 Example Remote Play Session
+### 🎮 Example Remote Play Session (With Intelligent Reading)
+
+```javascript
+// === INTELLIGENT CONSOLE READING APPROACH ===
+
+// 1. Start by reading current console state (NEVER ACT BLIND!)
+const consoleOutput = await callTool('xplus1-mcp-machine', 'get_console_output', {});
+console.log('What\'s on screen:', consoleOutput.lastLines);
+
+// 2. Check current prompt and available options
+const currentPrompt = await callTool('xplus1-mcp-machine', 'get_current_prompt', {});
+console.log('Current prompt:', currentPrompt.promptText);
+console.log('Available options:', currentPrompt.availableOptions);
+
+// 3. Understand interaction context
+const uiStatus = await callTool('xplus1-mcp-machine', 'get_ui_status', {});
+console.log('UI Phase:', uiStatus.interaction.phase);
+console.log('Is responsive:', uiStatus.interaction.isResponsive);
+
+// 4. Get game state for context
+const gameState = await callTool('xplus1-mcp-machine', 'get_full_game_state', {});
+console.log('Current X:', gameState.internalState.x);
+
+// 5. Make informed decision based on what we can see
+if (uiStatus.interaction.phase === 'menu') {
+  // We're in a menu, check available options
+  const option1 = currentPrompt.availableOptions.find(opt => opt.key === '1');
+  if (option1) {
+    console.log(`Option 1 available: ${option1.description}`);
+    await callTool('xplus1-mcp-machine', 'send_user_input', { text: '1' });
+  }
+} else if (uiStatus.interaction.phase === 'conversation') {
+  // We're in conversation, check available postulations
+  const postulations = await callTool('xplus1-mcp-machine', 'get_available_postulations', {});
+  if (postulations.availableAgents.includes('DionisioBot')) {
+    await callTool('xplus1-mcp-machine', 'select_agent', {
+      agentId: 'DionisioBot',
+      reason: 'Want cosmic perspective based on current X level'
+    });
+  }
+} else if (uiStatus.interaction.phase === 'decision') {
+  // Critical question time, make thoughtful decision
+  await callTool('xplus1-mcp-machine', 'answer_critical_question', {
+    answer: 'no',
+    reasoning: `Based on current X=${gameState.internalState.x}, continuing journey`
+  });
+}
+
+// 6. Verify results by reading console again
+const newOutput = await callTool('xplus1-mcp-machine', 'get_console_output', {});
+console.log('Action result:', newOutput.lastLines.slice(-3));
+```
+
+### 🎮 Legacy Example (Blind Control - NOT RECOMMENDED)
 
 ```javascript
 // 1. Start by checking game state

@@ -773,6 +773,104 @@ export class XPlus1MCPMachine extends BaseMCPServer {
         };
       }
     );
+
+    // === CONSOLE READING TOOLS ===
+    
+    // Get console output tool
+    this.server.tool(
+      'get_console_output',
+      'Get the current console output and display state',
+      {},
+      async () => {
+        // For now, return a placeholder implementation
+        // This would be connected to the actual ConsoleGamificationUI instance
+        logger.info('X+1 MCP: Console output requested');
+
+        return {
+          content: [{
+            type: 'text',
+            text: JSON.stringify({
+              success: true,
+              message: 'Console reading not yet connected to UI instance',
+              placeholder: true,
+              implementationNeeded: 'Connect to ConsoleGamificationUI.getCurrentOutput()',
+              timestamp: Date.now()
+            }, null, 2)
+          }]
+        };
+      }
+    );
+
+    // Get current prompt tool
+    this.server.tool(
+      'get_current_prompt',
+      'Get the current prompt text and available options',
+      {},
+      async () => {
+        logger.info('X+1 MCP: Current prompt requested');
+
+        return {
+          content: [{
+            type: 'text',
+            text: JSON.stringify({
+              success: true,
+              message: 'Prompt reading not yet connected to UI instance',
+              placeholder: true,
+              implementationNeeded: 'Connect to ConsoleGamificationUI.getCurrentPrompt()',
+              timestamp: Date.now()
+            }, null, 2)
+          }]
+        };
+      }
+    );
+
+    // Get UI status tool
+    this.server.tool(
+      'get_ui_status',
+      'Get the current UI status and interaction state',
+      {},
+      async () => {
+        logger.info('X+1 MCP: UI status requested');
+
+        return {
+          content: [{
+            type: 'text',
+            text: JSON.stringify({
+              success: true,
+              message: 'UI status reading not yet connected to UI instance',
+              placeholder: true,
+              implementationNeeded: 'Connect to ConsoleGamificationUI.getUIStatus()',
+              timestamp: Date.now()
+            }, null, 2)
+          }]
+        };
+      }
+    );
+
+    // Get interaction state tool
+    this.server.tool(
+      'get_interaction_state',
+      'Get the current interaction state and available commands',
+      {},
+      async () => {
+        logger.info('X+1 MCP: Interaction state requested');
+
+        return {
+          content: [{
+            type: 'text',
+            text: JSON.stringify({
+              success: true,
+              message: 'Interaction state reading not yet connected to UI instance',
+              placeholder: true,
+              implementationNeeded: 'Connect to ConsoleGamificationUI.getInteractionState()',
+              currentPhase: this.gameState.currentPhase,
+              availableAgents: this.gameState.availableAgents,
+              timestamp: Date.now()
+            }, null, 2)
+          }]
+        };
+      }
+    );
   }
 
   /**

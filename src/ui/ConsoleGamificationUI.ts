@@ -10,6 +10,16 @@ import { Agent, AgentRole, AgentStatus } from '../models/Agent';
 import { AgentPostulation, AgentPostulationManager, PostulationContext, AgentGreediness } from '../models/AgentPostulation';
 import { State } from '../models/State';
 import { logger, Logger } from '../utils/logger';
+import { 
+  IConsoleReader, 
+  ConsoleOutput, 
+  PromptState, 
+  UIInteractionState, 
+  UIStatus, 
+  ConsoleReadingCapabilities,
+  PromptOption,
+  ConsoleStateChangeEvent
+} from './IConsoleReader';
 
 /**
  * Configuration for console UI
@@ -87,7 +97,7 @@ export enum ConsoleUIEvent {
 /**
  * Reusable Console Gamification UI
  */
-export class ConsoleGamificationUI extends EventEmitter {
+export class ConsoleGamificationUI extends EventEmitter implements IConsoleReader {
   private runtime: Runtime;
   private config: ConsoleUIConfig;
   private rl: readline.Interface;
@@ -98,6 +108,18 @@ export class ConsoleGamificationUI extends EventEmitter {
   private pendingPostulations: AgentPostulation[] = [];
   private awaitingAgentSelection = false;
   private gameCommands: Map<string, (input: string) => Promise<void>> = new Map();
+
+  // === Console Reading State ===
+  private currentConsoleOutput: string[] = [];
+  private currentPromptText = '';
+  private currentPromptOptions: PromptOption[] = [];
+  private currentUIPhase: UIInteractionState['phase'] = 'startup';
+  private isWaitingForInput = false;
+  private inputType: PromptState['inputType'] = 'text';
+  private lastUserAction?: string;
+  private pendingActions: string[] = [];
+  private availableCommands: string[] = [];
+  private consoleChangeListeners: Set<(status: UIStatus) => void> = new Set();
 
   // Color codes for console output
   private colors = {
@@ -146,6 +168,7 @@ export class ConsoleGamificationUI extends EventEmitter {
   async start(): Promise<void> {
     try {
       this.isGameActive = true;
+      this.updateUIPhase('startup');
       
       // Display welcome
       this.displayWelcome();
@@ -160,6 +183,9 @@ export class ConsoleGamificationUI extends EventEmitter {
 
       // Start input loop
       this.startInputLoop();
+      
+      // Update to menu phase after startup
+      this.updateUIPhase('menu');
 
       Logger.mcpVerbose('Console UI started successfully');
 
@@ -329,20 +355,49 @@ export class ConsoleGamificationUI extends EventEmitter {
     }
 
     console.log('\n🎭 Agents postulating for next message:');
+    this.updateConsoleOutput('\n🎭 Agents postulating for next message:');
     
     postulations.forEach((postulation, index) => {
       const priorityStars = '⭐'.repeat(Math.min(5, Math.max(1, postulation.priority)));
       const greediness = this.formatGreediness(postulation.greediness);
       const agentName = this.colorize(postulation.agent.name, this.getAgentRoleColor(postulation.agent.role), true);
       
-      console.log(`  ${index + 1}. ${agentName} ${this.colorize(`(${priorityStars})`, 'yellow')} - ${postulation.reason}`);
+      const agentLine = `  ${index + 1}. ${agentName} ${this.colorize(`(${priorityStars})`, 'yellow')} - ${postulation.reason}`;
+      console.log(agentLine);
+      this.updateConsoleOutput(agentLine);
       
       if (this.config.debugMode) {
-        console.log(`     ${this.colorize(`[${greediness}, weight: ${postulation.weight.toFixed(1)}]`, 'dim')}`);
+        const debugLine = `     ${this.colorize(`[${greediness}, weight: ${postulation.weight.toFixed(1)}]`, 'dim')}`;
+        console.log(debugLine);
+        this.updateConsoleOutput(debugLine);
       }
     });
     
-    console.log(`\n${this.colorize('Choose agent (1-' + postulations.length + ') or type your own message:', 'cyan')}`);
+    const promptText = `Choose agent (1-${postulations.length}) or type your own message:`;
+    console.log(`\n${this.colorize(promptText, 'cyan')}`);
+    
+    // Update prompt state with agent options
+    const agentOptions: PromptOption[] = postulations.map((postulation, index) => ({
+      key: (index + 1).toString(),
+      description: `${postulation.agent.name} - ${postulation.reason}`,
+      enabled: true,
+      metadata: {
+        agentId: postulation.agent.id,
+        agentName: postulation.agent.name,
+        priority: postulation.priority,
+        greediness: postulation.greediness
+      }
+    }));
+    
+    // Add option for custom message
+    agentOptions.push({
+      key: 'text',
+      description: 'Type your own message',
+      enabled: true,
+      metadata: { type: 'custom_message' }
+    });
+    
+    this.updateCurrentPrompt(promptText, agentOptions, 'selection');
   }
 
   /**
@@ -689,6 +744,9 @@ export class ConsoleGamificationUI extends EventEmitter {
   }
 
   private async handleUserInput(input: string): Promise<void> {
+    // Record user action
+    this.recordUserAction(input);
+    
     if (!this.currentThread || this.currentThread.status !== 'active') {
       this.displayMessage('❌ No active conversation thread', 'system');
       return;
@@ -825,7 +883,11 @@ export class ConsoleGamificationUI extends EventEmitter {
         break;
     }
 
-    console.log(this.colorize(`${prefix}${content}`, color));
+    const formattedMessage = `${prefix}${content}`;
+    console.log(this.colorize(formattedMessage, color));
+    
+    // Update console state
+    this.updateConsoleOutput(formattedMessage);
   }
 
   private displayDebug(content: string): void {
@@ -879,6 +941,224 @@ export class ConsoleGamificationUI extends EventEmitter {
         return 'Passive';
       default:
         return greediness;
+    }
+  }
+
+  // === IConsoleReader Implementation ===
+
+  /**
+   * Get the current console output
+   */
+  async getCurrentOutput(): Promise<ConsoleOutput> {
+    return {
+      fullText: this.currentConsoleOutput.join('\n'),
+      lastLines: this.currentConsoleOutput.slice(-10), // Last 10 lines
+      timestamp: Date.now(),
+      isActive: this.isGameActive
+    };
+  }
+
+  /**
+   * Get the current prompt and available options
+   */
+  async getCurrentPrompt(): Promise<PromptState> {
+    return {
+      promptText: this.currentPromptText,
+      availableOptions: this.currentPromptOptions,
+      isWaitingForInput: this.isWaitingForInput,
+      inputType: this.inputType,
+      context: this.currentUIPhase
+    };
+  }
+
+  /**
+   * Get the current UI interaction state
+   */
+  async getInteractionState(): Promise<UIInteractionState> {
+    return {
+      phase: this.currentUIPhase,
+      lastUserAction: this.lastUserAction,
+      pendingActions: [...this.pendingActions],
+      availableCommands: [...this.availableCommands],
+      isResponsive: this.isGameActive && !this.awaitingAgentSelection,
+      interactionContext: {
+        currentThread: this.currentThread?.id,
+        messageCount: this.currentThread?.messageCount || 0,
+        maxMessages: this.config.maxMessagesPerThread,
+        pendingPostulations: this.pendingPostulations.length,
+        awaitingAgentSelection: this.awaitingAgentSelection
+      }
+    };
+  }
+
+  /**
+   * Get complete UI status
+   */
+  async getUIStatus(): Promise<UIStatus> {
+    const [console, prompt, interaction] = await Promise.all([
+      this.getCurrentOutput(),
+      this.getCurrentPrompt(),
+      this.getInteractionState()
+    ]);
+
+    return {
+      console,
+      prompt,
+      interaction,
+      timestamp: Date.now()
+    };
+  }
+
+  /**
+   * Get console reading capabilities
+   */
+  getCapabilities(): ConsoleReadingCapabilities {
+    return {
+      canReadOutput: true,
+      canReadPrompt: true,
+      canReadInteraction: true,
+      canStream: true,
+      metadata: {
+        maxOutputLines: 10,
+        supportsColors: this.config.enableColors,
+        supportsPostulations: this.config.enablePostulations,
+        debugMode: this.config.debugMode
+      }
+    };
+  }
+
+  /**
+   * Start streaming console state changes
+   */
+  startStreaming(callback: (status: UIStatus) => void): () => void {
+    this.consoleChangeListeners.add(callback);
+    
+    // Send initial status
+    this.getUIStatus().then(callback).catch(err => {
+      logger.error('ConsoleUI: Error sending initial status', { error: err });
+    });
+
+    // Return cleanup function
+    return () => {
+      this.consoleChangeListeners.delete(callback);
+    };
+  }
+
+  /**
+   * Check if console is ready for reading
+   */
+  isReady(): boolean {
+    return this.isGameActive;
+  }
+
+  // === Console State Management ===
+
+  /**
+   * Update console output and notify listeners
+   */
+  private updateConsoleOutput(newLine: string): void {
+    this.currentConsoleOutput.push(newLine);
+    
+    // Keep only last 100 lines to prevent memory issues
+    if (this.currentConsoleOutput.length > 100) {
+      this.currentConsoleOutput = this.currentConsoleOutput.slice(-100);
+    }
+
+    this.notifyStateChange('output_changed', { newLine });
+  }
+
+  /**
+   * Update current prompt and notify listeners
+   */
+  private updateCurrentPrompt(text: string, options: PromptOption[] = [], inputType: PromptState['inputType'] = 'text'): void {
+    this.currentPromptText = text;
+    this.currentPromptOptions = options;
+    this.inputType = inputType;
+    this.isWaitingForInput = true;
+
+    this.notifyStateChange('prompt_changed', { text, options, inputType });
+  }
+
+  /**
+   * Update UI phase and notify listeners
+   */
+  private updateUIPhase(phase: UIInteractionState['phase'], context?: any): void {
+    this.currentUIPhase = phase;
+    
+    // Update available commands based on phase
+    this.updateAvailableCommands(phase);
+
+    this.notifyStateChange('interaction_changed', { phase, context });
+  }
+
+  /**
+   * Update available commands based on current phase
+   */
+  private updateAvailableCommands(phase: UIInteractionState['phase']): void {
+    this.availableCommands = [];
+
+    switch (phase) {
+      case 'startup':
+        this.availableCommands = ['start', 'help', 'quit'];
+        break;
+      case 'menu':
+        this.availableCommands = ['1', '2', '3', 'help', 'quit'];
+        break;
+      case 'conversation':
+        this.availableCommands = ['message', 'help', 'quit'];
+        if (this.pendingPostulations.length > 0) {
+          this.availableCommands.push('select');
+        }
+        break;
+      case 'decision':
+        this.availableCommands = ['yes', 'no', 'help'];
+        break;
+      case 'waiting':
+        this.availableCommands = ['help', 'status'];
+        break;
+    }
+
+    if (this.config.debugMode) {
+      this.availableCommands.push('debug');
+    }
+  }
+
+  /**
+   * Record user action
+   */
+  private recordUserAction(action: string): void {
+    this.lastUserAction = action;
+    this.isWaitingForInput = false;
+
+    this.notifyStateChange('interaction_changed', { lastUserAction: action });
+  }
+
+  /**
+   * Notify state change listeners
+   */
+  private notifyStateChange(type: ConsoleStateChangeEvent['type'], data: any): void {
+    const event: ConsoleStateChangeEvent = {
+      type,
+      data,
+      timestamp: Date.now()
+    };
+
+    // Emit to EventEmitter listeners
+    this.emit('consoleStateChanged', event);
+
+    // Notify streaming listeners with full status
+    if (this.consoleChangeListeners.size > 0) {
+      this.getUIStatus().then(status => {
+        this.consoleChangeListeners.forEach(listener => {
+          try {
+            listener(status);
+          } catch (error) {
+            logger.error('ConsoleUI: Error in state change listener', { error });
+          }
+        });
+      }).catch(err => {
+        logger.error('ConsoleUI: Error getting UI status for listeners', { error: err });
+      });
     }
   }
 }
