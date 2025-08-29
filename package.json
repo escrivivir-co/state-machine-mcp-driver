@@ -7,7 +7,7 @@
   "scripts": {
     "build": "tsc",
     "start": "npm run example",
-    "dev": "ts-node src/index.ts",
+    "dev": "npm run mcp:devops",
     "test": "jest",
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
@@ -21,6 +21,7 @@
     "mcp:xplus1": "npx tsx src/mcp-servers/XPlus1MCPMachine.ts",
     "mcp:wiki": "npx tsx src/mcp-servers/WikiMCPBrowser.ts",
     "mcp:launcher": "npx tsx src/mcp-servers/MCPServiceLauncher.ts",
+    "mcp:devops": "npx tsx src/mcp-servers/DevOpsServer.ts",
     "vscode:config": "npx tsx scripts/generate-vscode-config.ts",
     "vscode:config:check": "npx tsx scripts/generate-vscode-config.ts --check",
     "example": "npm run example:multi",
