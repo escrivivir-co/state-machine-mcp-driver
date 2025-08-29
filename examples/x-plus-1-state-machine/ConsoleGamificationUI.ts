@@ -28,6 +28,11 @@ interface RemoteCommand {
 
 type GamePhase = 'start' | 'conversation' | 'decision' | 'advancement' | 'end';
 
+/**
+ * WARNING DON'T USE OR SET AS HIGH AS POSSIBLE
+ */
+const POLLING_INTERVAL_MS = 1000 * 60; // Polling interval for remote commands
+
 export class XPlus1GameConsole extends ConsoleGamificationUI {
   private runtimeInstance: Runtime;
   private mcpDriver: MCPDriverAdapter;
@@ -95,7 +100,7 @@ export class XPlus1GameConsole extends ConsoleGamificationUI {
       if (this.remoteControlEnabled) {
         await this.checkForRemoteCommands();
       }
-    }, 500); // Check every 500ms
+    }, POLLING_INTERVAL_MS); // Check every 
   }
 
   /**
@@ -113,18 +118,11 @@ export class XPlus1GameConsole extends ConsoleGamificationUI {
    */
   private async checkForRemoteCommands(): Promise<void> {
     try {
-      // Get command queue status from MCP server
-      const result = await this.mcpDriver.getResource('xplus1-mcp-machine', 'command-queue-status');
-      if (result?.contents?.[0]?.text) {
-        const queueStatus = JSON.parse(result.contents[0].text);
-        
-        if (queueStatus.queueSize > 0 && queueStatus.pendingCommands.length > 0) {
-          // Process the next command by calling a hypothetical tool
-          await this.processNextRemoteCommand();
-        }
-      }
+      // Try to get and process the next command directly
+      await this.processNextRemoteCommand();
     } catch (error) {
-      console.error('❌ Error checking remote commands:', error);
+      // Silently ignore errors to avoid spam - this runs every 500ms
+      // console.error('❌ Error checking remote commands:', error);
     }
   }
 
@@ -148,8 +146,18 @@ export class XPlus1GameConsole extends ConsoleGamificationUI {
    * Get next remote command (placeholder for actual implementation)
    */
   private async getNextRemoteCommand(): Promise<RemoteCommand | null> {
-    // This would call a new tool in XPlus1MCPMachine to get the next command
-    // For now, return null
+    try {
+      // Use the existing MCP tool to get next command
+      const result = await this.mcpDriver.executeTool('xplus1-mcp-machine', 'get_next_command', {});
+      if (result?.content?.[0]?.text) {
+        const response = JSON.parse(result.content[0].text);
+        if (response.success && response.command) {
+          return response.command;
+        }
+      }
+    } catch (error) {
+      console.error('❌ Error getting next remote command:', error);
+    }
     return null;
   }
 
@@ -471,6 +479,9 @@ export class XPlus1GameConsole extends ConsoleGamificationUI {
 
     // Start base console UI (welcome, input loop, threads)
     await super.start();
+
+    // Enable remote control for MCP command processing
+    this.enableRemoteControl();
 
     // Game intro
     // Note: base UI handles prompts and threads; we only print game context here
