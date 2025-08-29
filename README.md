@@ -416,6 +416,7 @@ This enables **complete game control from VS Code** without direct console inter
 - **Resources**: System management and deployment automation
 - **Prompts**: DevOps guidance and system startup procedures
 - **Automation**: Complete application lifecycle management
+- **NEW**: **Plugin System** for modular functionality and extensibility
 
 ##### 🚀 DevOps Automation Features
 The DevOpsServer provides intelligent system management capabilities:
@@ -425,6 +426,83 @@ The DevOpsServer provides intelligent system management capabilities:
 - **Health Monitoring**: Pre-startup environment validation
 - **Dependency Checks**: Automatic verification of Node.js, npm, and project structure
 - **Port Management**: Intelligent port conflict detection and resolution
+- **NEW**: **Plugin Architecture** for extensible functionality
+
+##### 🔌 DevOps Plugin System (NEW!)
+
+The DevOpsServer now features a **modular plugin architecture** that enables clean separation of concerns and extensible functionality:
+
+**Core Architecture:**
+- **`IDevOpsPlugin`** - Base interface for all plugins
+- **`DevOpsPluginManager`** - Centralized plugin lifecycle management
+- **`XPlus1ControlPlugin`** - UserSimulator control and X+1 game management
+
+**Available Plugins:**
+
+###### 🎮 **XPlus1 Control Plugin**
+Advanced control system for the UserSimulator and X+1 game state:
+
+**Tools Provided:**
+- `set_user_personality` - Change UserSimulator behavior (`cautious`, `balanced`, `risk_taker`, `passive`)
+- `simulate_user_decision` - Force consumption decisions or enable auto mode
+- `simulate_agent_selection` - Choose specific agents (DionisioBot, ApoloBot, JusticeBot)
+- `control_simulator_mode` - Enable/disable automatic UserSimulator
+- `get_simulator_status` - Real-time status and statistics
+- `analyze_game_context` - Intelligent game state analysis with recommendations
+
+**Resources Provided:**
+- `simulator-status` - Live UserSimulator configuration and statistics
+- `game-context-analysis` - Strategic analysis and recommendations
+- `simulator-history` - Activity history and decision patterns
+
+**Prompts Provided:**
+- `simulator-control` - Complete control guide with current context
+- `decision-strategy` - Strategic guidance for consumption decisions
+
+**Plugin Management Tools:**
+- `list_plugins` - View all registered plugins and their status
+- `execute_plugin_command` - Execute plugin-specific commands
+- `set_plugin_enabled` - Enable/disable individual plugins
+
+**Usage Examples:**
+```typescript
+// Change UserSimulator to cautious mode for high X values
+await mcpClient.callTool('devops-mcp-server', 'set_user_personality', {
+  personality: 'cautious',
+  reason: 'X=7, need conservative approach'
+});
+
+// Force a specific decision
+await mcpClient.callTool('devops-mcp-server', 'simulate_user_decision', {
+  forceDecision: 'no', // Advance X
+  context: { currentX: 7, messageCount: 8 }
+});
+
+// Select ApoloBot for wisdom
+await mcpClient.callTool('devops-mcp-server', 'simulate_agent_selection', {
+  agentId: 'apolo-bot',
+  reasoning: 'Need historical wisdom for high X situation'
+});
+
+// Get comprehensive status
+await mcpClient.callTool('devops-mcp-server', 'get_simulator_status', {
+  includeHistory: true
+});
+```
+
+**Strategic Capabilities:**
+- **Personality-based Control**: Switch between conservative, balanced, and aggressive strategies
+- **Context-aware Decisions**: Analyze game state for intelligent choices
+- **Agent Orchestration**: Strategic selection of conversation participants
+- **Real-time Monitoring**: Track all actions and performance metrics
+- **Intelligent Recommendations**: Auto-generated strategic advice
+
+**Benefits:**
+- **🧠 Intelligent Control**: Replace manual UserSimulator interaction with AI-driven decisions
+- **📊 Data-driven Strategy**: Access to comprehensive game analytics
+- **🎯 Precise Targeting**: Control specific aspects without affecting others
+- **🔄 Bidirectional Integration**: Read game state, make decisions, monitor results
+- **📈 Performance Tracking**: Detailed statistics and activity history
 
 **Usage from AI Agents**:
 ```typescript

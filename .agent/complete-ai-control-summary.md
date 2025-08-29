@@ -2,7 +2,7 @@
 
 ## 🚀 **FULL SYSTEM CAPABILITIES**
 
-The State Machine MCP Driver now provides **complete bidirectional control** for AI agents across four dimensions:
+The State Machine MCP Driver now provides **complete bidirectional control** for AI agents across four dimensions, with **NEW Plugin System** for advanced UserSimulator control:
 
 ### **1. 🎮 Game Control (XPlus1MCPMachine)**
 - **Bidirectional console reading and writing**
@@ -16,17 +16,59 @@ The State Machine MCP Driver now provides **complete bidirectional control** for
 - **Context-aware article navigation**
 - **Multi-language support with cache optimization**
 
-### **3. 🛠️ System Management (DevOpsServer)**
+### **3. 🛠️ System Management (DevOpsServer + NEW Plugin System)**
 - **Complete application lifecycle automation**
 - **Intelligent startup with dependency validation**
 - **Health monitoring and error recovery**
 - **Web console integration for real-time monitoring**
+- **🆕 Modular Plugin Architecture for extensible functionality**
+- **🆕 XPlus1 Control Plugin for advanced UserSimulator management**
 
 ### **4. 🔧 Infrastructure Control (MCPServiceLauncher)**
 - **Multi-server orchestration and coordination**
 - **Port management and conflict resolution**
 - **Service health monitoring and automatic restart**
 - **Centralized MCP server management**
+
+---
+
+## 🔌 **NEW: DevOps Plugin System**
+
+### **Revolutionary UserSimulator Control**
+The new plugin system provides **AI-powered UserSimulator control** with unprecedented capabilities:
+
+```typescript
+// Advanced personality control
+await callTool('devops-mcp-server', 'set_user_personality', {
+  personality: 'cautious',  // cautious | balanced | risk_taker | passive
+  reason: 'X=7, need conservative approach'
+});
+
+// Strategic decision forcing
+await callTool('devops-mcp-server', 'simulate_user_decision', {
+  forceDecision: 'no',     // Force advancement despite risk
+  context: { currentX: 7, strategic: true }
+});
+
+// Intelligent agent orchestration
+await callTool('devops-mcp-server', 'simulate_agent_selection', {
+  agentId: 'apolo-bot',    // Choose wisest agent for high X
+  reasoning: 'Need historical wisdom for dangerous situation'
+});
+
+// Real-time strategic analysis
+await callTool('devops-mcp-server', 'analyze_game_context', {
+  includeRecommendations: true,
+  includeRiskAssessment: true
+});
+```
+
+### **Plugin System Benefits**
+- **🧠 AI-Driven Control**: Replace random UserSimulator with intelligent decisions
+- **📊 Strategic Analytics**: Access comprehensive game analysis and recommendations
+- **🎯 Precision Targeting**: Control specific aspects without affecting others
+- **🔄 Bidirectional Integration**: Read state, make decisions, monitor results
+- **🧩 Modular Design**: Clean separation of concerns via plugin architecture
 
 ---
 

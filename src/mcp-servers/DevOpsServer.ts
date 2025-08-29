@@ -2,12 +2,16 @@
  * DevOps MCP Server
  * Provides DevOps automation tools, resources, and prompts management
  * Includes CRUD operations for prompts and resources
+ * NEW: Plugin system for modular functionality
  */
 
-import { BaseMCPServer, MCPServerConfig } from './BaseMCPServer';
-import { MCPDriverAdapter, MCPDriverAdapterConfig } from '../drivers/MCPDriverAdapter';
 import { z } from 'zod';
-import { Logger } from '../utils/logger';
+import { BaseMCPServer, MCPServerConfig } from './BaseMCPServer.js';
+import { MCPDriverAdapter } from '../drivers/MCPDriverAdapter.js';
+import { Logger } from '../utils/logger.js';
+import { DevOpsPluginManager } from './plugins/DevOpsPluginManager.js';
+import { XPlus1ControlPlugin } from './plugins/XPlus1ControlPlugin.js';
+import { PluginContext } from './plugins/IDevOpsPlugin.js';
 
 /**
  * Resource definition interface
@@ -41,17 +45,19 @@ interface PromptDefinition {
 /**
  * DevOps MCP Server
  * Provides DevOps automation and management capabilities
+ * NEW: Plugin system for modular functionality
  */
 export class DevOpsServer extends BaseMCPServer {
   private resources: Map<string, ResourceDefinition> = new Map();
   private prompts: Map<string, PromptDefinition> = new Map();
   private mcpAdapter?: MCPDriverAdapter;
+  private pluginManager?: DevOpsPluginManager;
 
   constructor() {
     const config: MCPServerConfig = {
       name: 'devops-mcp-server',
       version: '1.0.0',
-      description: 'DevOps automation and management server with CRUD capabilities',
+      description: 'DevOps automation and management server with CRUD capabilities and plugin system',
       port: 3003,
       capabilities: {
         tools: true,
@@ -63,6 +69,8 @@ export class DevOpsServer extends BaseMCPServer {
     super(config);
     // Initialize MCP adapter for connecting to other servers
     this.initializeMCPAdapter();
+    // Initialize plugin system
+    this.initializePluginSystem();
     // Initialize default content will be called in setupServerSpecifics
   }
 
@@ -123,6 +131,62 @@ export class DevOpsServer extends BaseMCPServer {
       } catch (error) {
         Logger.mcpVerbose(`DevOps: Could not connect to ${server.name}`, { error });
       }
+    }
+  }
+
+  /**
+   * Initialize Plugin System
+   * Sets up the plugin manager and loads default plugins
+   */
+  private initializePluginSystem(): void {
+    try {
+      // Create plugin context
+      const pluginContext: Omit<PluginContext, 'config'> = {
+        server: this.server,
+        mcpAdapter: this.mcpAdapter,
+        log: (level, message, data) => {
+          switch (level) {
+            case 'info': Logger.mcpInfo(message, data); break;
+            case 'warn': Logger.mcpWarn(message, data); break;
+            case 'error': Logger.mcpError(message, data); break;
+            case 'debug': Logger.mcpVerbose(message, data); break;
+          }
+        }
+      };
+
+      // Initialize plugin manager
+      this.pluginManager = new DevOpsPluginManager(pluginContext);
+
+      // Register default plugins
+      this.registerDefaultPlugins();
+
+      Logger.mcpInfo('DevOps: Plugin system initialized');
+    } catch (error) {
+      Logger.mcpError('DevOps: Failed to initialize plugin system', { error });
+      this.pluginManager = undefined;
+    }
+  }
+
+  /**
+   * Register default plugins
+   */
+  private async registerDefaultPlugins(): Promise<void> {
+    if (!this.pluginManager) return;
+
+    try {
+      // Register XPlus1 Control Plugin
+      const xplus1Plugin = new XPlus1ControlPlugin();
+      await this.pluginManager.registerPlugin(xplus1Plugin, {
+        forceEnable: true, // Enable by default
+        customSettings: {
+          priority: 'high',
+          autoLoad: true
+        }
+      });
+
+      Logger.mcpInfo('DevOps: Default plugins registered');
+    } catch (error) {
+      Logger.mcpError('DevOps: Failed to register default plugins', { error });
     }
   }
 
@@ -253,6 +317,22 @@ Por favor, abre el navegador simple de VS Code para acceder a la consola web del
   protected setupServerSpecifics(): void {
     this.initializeDefaultContent();
     this.setupTools();
+    // Initialize plugins after core tools are setup
+    this.initializePlugins();
+  }
+
+  /**
+   * Initialize all registered plugins
+   */
+  private async initializePlugins(): Promise<void> {
+    if (this.pluginManager) {
+      try {
+        await this.pluginManager.initializeAllPlugins();
+        Logger.mcpInfo('DevOps: All plugins initialized');
+      } catch (error) {
+        Logger.mcpError('DevOps: Failed to initialize plugins', { error });
+      }
+    }
   }
 
   /**
@@ -929,6 +1009,136 @@ Por favor, abre el navegador simple de VS Code para acceder a la consola web del
             }
           }]
         };
+      }
+    );
+
+    // ===== PLUGIN MANAGEMENT TOOLS =====
+
+    // List plugins
+    this.server.tool(
+      'list_plugins',
+      'List all registered plugins and their status',
+      {},
+      async () => {
+        if (!this.pluginManager) {
+          return {
+            content: [{
+              type: 'text',
+              text: JSON.stringify({
+                error: 'Plugin system not initialized',
+                plugins: []
+              }, null, 2)
+            }]
+          };
+        }
+
+        const plugins = this.pluginManager.getRegisteredPlugins();
+        const status = await this.pluginManager.getAllPluginStatus();
+
+        return {
+          content: [{
+            type: 'text',
+            text: JSON.stringify({
+              total: plugins.length,
+              plugins: plugins.map(plugin => ({
+                ...plugin,
+                status: status[plugin.id]
+              }))
+            }, null, 2)
+          }]
+        };
+      }
+    );
+
+    // Execute plugin command
+    this.server.tool(
+      'execute_plugin_command',
+      'Execute a command on a specific plugin',
+      {
+        pluginId: z.string().describe('Plugin ID to execute command on'),
+        command: z.string().describe('Command to execute'),
+        params: z.record(z.any()).optional().describe('Command parameters')
+      },
+      async ({ pluginId, command, params }: { pluginId: string; command: string; params?: Record<string, any> }) => {
+        if (!this.pluginManager) {
+          return {
+            content: [{
+              type: 'text',
+              text: JSON.stringify({
+                success: false,
+                error: 'Plugin system not initialized'
+              }, null, 2)
+            }]
+          };
+        }
+
+        try {
+          const result = await this.pluginManager.executePluginCommand(pluginId, command, params || {});
+          return {
+            content: [{
+              type: 'text',
+              text: JSON.stringify(result, null, 2)
+            }]
+          };
+        } catch (error) {
+          return {
+            content: [{
+              type: 'text',
+              text: JSON.stringify({
+                success: false,
+                error: error instanceof Error ? error.message : String(error)
+              }, null, 2)
+            }]
+          };
+        }
+      }
+    );
+
+    // Enable/disable plugin
+    this.server.tool(
+      'set_plugin_enabled',
+      'Enable or disable a specific plugin',
+      {
+        pluginId: z.string().describe('Plugin ID to enable/disable'),
+        enabled: z.boolean().describe('Enable (true) or disable (false) the plugin')
+      },
+      async ({ pluginId, enabled }: { pluginId: string; enabled: boolean }) => {
+        if (!this.pluginManager) {
+          return {
+            content: [{
+              type: 'text',
+              text: JSON.stringify({
+                success: false,
+                error: 'Plugin system not initialized'
+              }, null, 2)
+            }]
+          };
+        }
+
+        try {
+          await this.pluginManager.setPluginEnabled(pluginId, enabled);
+          return {
+            content: [{
+              type: 'text',
+              text: JSON.stringify({
+                success: true,
+                message: `Plugin ${pluginId} ${enabled ? 'enabled' : 'disabled'}`,
+                pluginId,
+                enabled
+              }, null, 2)
+            }]
+          };
+        } catch (error) {
+          return {
+            content: [{
+              type: 'text',
+              text: JSON.stringify({
+                success: false,
+                error: error instanceof Error ? error.message : String(error)
+              }, null, 2)
+            }]
+          };
+        }
       }
     );
   }

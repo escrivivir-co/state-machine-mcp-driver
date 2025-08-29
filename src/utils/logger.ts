@@ -234,6 +234,15 @@ export class Logger {
   }
 
   /**
+   * Log MCP warnings - always shown unless quiet mode
+   */
+  static mcpWarn(message: string, context?: Record<string, any>): void {
+    if (!defaultConfig.quietMode) {
+      logger.warn(`]: ${message}`, context);
+    }
+  }
+
+  /**
    * Log MCP errors - always shown
    */
   static mcpError(message: string, context?: Record<string, any>): void {
