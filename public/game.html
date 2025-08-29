@@ -1,0 +1,628 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>X+1 Game - Web Interface</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: #333;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .header {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            padding: 1rem 2rem;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .header h1 {
+            color: white;
+            font-size: 2rem;
+            font-weight: 300;
+        }
+
+        .game-info {
+            color: rgba(255, 255, 255, 0.8);
+            font-size: 0.9rem;
+            margin-top: 0.5rem;
+        }
+
+        .main-container {
+            flex: 1;
+            display: grid;
+            grid-template-columns: 1fr 350px;
+            gap: 2rem;
+            padding: 2rem;
+            max-width: 1400px;
+            margin: 0 auto;
+            width: 100%;
+        }
+
+        .game-area {
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 15px;
+            padding: 2rem;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+        }
+
+        .sidebar {
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+        }
+
+        .status-panel, .agents-panel, .controls-panel {
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 15px;
+            padding: 1.5rem;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+        }
+
+        .panel-title {
+            font-size: 1.2rem;
+            font-weight: 600;
+            margin-bottom: 1rem;
+            color: #5a67d8;
+        }
+
+        .x-counter {
+            text-align: center;
+            margin-bottom: 2rem;
+        }
+
+        .x-value {
+            font-size: 4rem;
+            font-weight: bold;
+            color: #5a67d8;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.1);
+        }
+
+        .x-label {
+            color: #666;
+            font-size: 1.1rem;
+            margin-top: 0.5rem;
+        }
+
+        .messages-container {
+            height: 400px;
+            overflow-y: auto;
+            border: 2px solid #e2e8f0;
+            border-radius: 10px;
+            padding: 1rem;
+            background: #f8fafc;
+            margin-bottom: 1rem;
+        }
+
+        .message {
+            margin-bottom: 1rem;
+            padding: 0.8rem;
+            border-radius: 8px;
+            border-left: 4px solid #5a67d8;
+            background: white;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+
+        .message-sender {
+            font-weight: bold;
+            color: #5a67d8;
+            margin-bottom: 0.3rem;
+        }
+
+        .message-content {
+            color: #333;
+            line-height: 1.4;
+        }
+
+        .message-time {
+            font-size: 0.8rem;
+            color: #666;
+            margin-top: 0.3rem;
+        }
+
+        .input-area {
+            display: flex;
+            gap: 0.5rem;
+        }
+
+        .message-input {
+            flex: 1;
+            padding: 0.8rem;
+            border: 2px solid #e2e8f0;
+            border-radius: 8px;
+            font-size: 1rem;
+            outline: none;
+            transition: border-color 0.3s;
+        }
+
+        .message-input:focus {
+            border-color: #5a67d8;
+        }
+
+        .send-button, .action-button {
+            background: #5a67d8;
+            color: white;
+            border: none;
+            padding: 0.8rem 1.5rem;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 1rem;
+            transition: background-color 0.3s;
+        }
+
+        .send-button:hover, .action-button:hover {
+            background: #4c51bf;
+        }
+
+        .agent-list {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+
+        .agent-item {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.5rem;
+            background: #f8fafc;
+            border-radius: 8px;
+        }
+
+        .agent-status {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: #48bb78;
+        }
+
+        .agent-name {
+            font-weight: 500;
+            color: #333;
+        }
+
+        .controls-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 0.5rem;
+        }
+
+        .status-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0.5rem 0;
+            border-bottom: 1px solid #e2e8f0;
+        }
+
+        .status-item:last-child {
+            border-bottom: none;
+        }
+
+        .status-label {
+            color: #666;
+            font-weight: 500;
+        }
+
+        .status-value {
+            color: #333;
+            font-weight: bold;
+        }
+
+        .connection-status {
+            position: fixed;
+            top: 1rem;
+            right: 1rem;
+            padding: 0.5rem 1rem;
+            border-radius: 20px;
+            color: white;
+            font-size: 0.9rem;
+            font-weight: bold;
+        }
+
+        .connected {
+            background: #48bb78;
+        }
+
+        .disconnected {
+            background: #f56565;
+        }
+
+        @media (max-width: 768px) {
+            .main-container {
+                grid-template-columns: 1fr;
+                padding: 1rem;
+            }
+            
+            .header {
+                padding: 1rem;
+            }
+            
+            .header h1 {
+                font-size: 1.5rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="connection-status disconnected" id="connectionStatus">
+        Connecting...
+    </div>
+
+    <header class="header">
+        <h1 id="gameTitle">X+1 Game - Web Interface</h1>
+        <div class="game-info">
+            <span id="currentState">Loading...</span> • 
+            <span id="threadInfo">No active thread</span>
+        </div>
+    </header>
+
+    <div class="main-container">
+        <div class="game-area">
+            <div class="x-counter">
+                <div class="x-value" id="xValue">0</div>
+                <div class="x-label">Current X Value</div>
+            </div>
+
+            <div class="messages-container" id="messagesContainer">
+                <!-- Messages will be populated here -->
+            </div>
+
+            <div class="input-area">
+                <input 
+                    type="text" 
+                    id="messageInput" 
+                    class="message-input" 
+                    placeholder="Type your message or decision..."
+                    maxlength="500"
+                >
+                <button id="sendButton" class="send-button">Send</button>
+            </div>
+        </div>
+
+        <div class="sidebar">
+            <div class="status-panel">
+                <h3 class="panel-title">Game Status</h3>
+                <div class="status-item">
+                    <span class="status-label">State:</span>
+                    <span class="status-value" id="gameState">start</span>
+                </div>
+                <div class="status-item">
+                    <span class="status-label">Messages:</span>
+                    <span class="status-value" id="messageCount">0</span>
+                </div>
+                <div class="status-item">
+                    <span class="status-label">Thread:</span>
+                    <span class="status-value" id="currentThread">None</span>
+                </div>
+                <div class="status-item">
+                    <span class="status-label">UI Mode:</span>
+                    <span class="status-value">Multi-UI</span>
+                </div>
+            </div>
+
+            <div class="agents-panel">
+                <h3 class="panel-title">Active Agents</h3>
+                <div class="agent-list" id="agentsList">
+                    <!-- Agents will be populated here -->
+                </div>
+            </div>
+
+            <div class="controls-panel">
+                <h3 class="panel-title">Actions</h3>
+                <div class="controls-grid">
+                    <button class="action-button" onclick="advanceX()">Advance (+1)</button>
+                    <button class="action-button" onclick="resetX()">Reset (0)</button>
+                    <button class="action-button" onclick="getStatus()">Refresh</button>
+                    <button class="action-button" onclick="clearMessages()">Clear</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Global state
+        let eventSource = null;
+        let gameState = {
+            x: 0,
+            currentState: 'start',
+            messages: [],
+            agents: [],
+            currentThread: null,
+            messageCount: 0
+        };
+
+        // Initialize the game interface
+        function initializeGame() {
+            console.log('Initializing X+1 Game Web Interface...');
+            
+            // Setup event listeners
+            setupEventListeners();
+            
+            // Connect to SSE
+            connectToEventStream();
+            
+            // Load initial state
+            loadInitialState();
+        }
+
+        // Setup event listeners
+        function setupEventListeners() {
+            const messageInput = document.getElementById('messageInput');
+            const sendButton = document.getElementById('sendButton');
+
+            // Send message on Enter key
+            messageInput.addEventListener('keypress', function(event) {
+                if (event.key === 'Enter') {
+                    sendMessage();
+                }
+            });
+
+            // Send message on button click
+            sendButton.addEventListener('click', sendMessage);
+
+            // Auto-resize and focus
+            messageInput.focus();
+        }
+
+        // Connect to Server-Sent Events
+        function connectToEventStream() {
+            if (eventSource) {
+                eventSource.close();
+            }
+
+            eventSource = new EventSource('/events');
+            
+            eventSource.onopen = function() {
+                console.log('Connected to event stream');
+                updateConnectionStatus(true);
+            };
+
+            eventSource.onmessage = function(event) {
+                try {
+                    const data = JSON.parse(event.data);
+                    handleServerEvent(data);
+                } catch (error) {
+                    console.error('Error parsing server event:', error);
+                }
+            };
+
+            eventSource.onerror = function(error) {
+                console.error('EventSource error:', error);
+                updateConnectionStatus(false);
+                
+                // Attempt to reconnect after 3 seconds
+                setTimeout(() => {
+                    console.log('Attempting to reconnect...');
+                    connectToEventStream();
+                }, 3000);
+            };
+        }
+
+        // Handle server events
+        function handleServerEvent(data) {
+            console.log('Received server event:', data);
+
+            switch (data.type) {
+                case 'gameState':
+                    updateGameState(data.payload);
+                    break;
+                case 'message':
+                    addMessage(data.payload);
+                    break;
+                case 'agents':
+                    updateAgents(data.payload);
+                    break;
+                case 'xUpdate':
+                    updateXValue(data.payload.x);
+                    break;
+                default:
+                    console.log('Unknown event type:', data.type);
+            }
+        }
+
+        // Update connection status
+        function updateConnectionStatus(connected) {
+            const statusEl = document.getElementById('connectionStatus');
+            if (connected) {
+                statusEl.textContent = 'Connected';
+                statusEl.className = 'connection-status connected';
+            } else {
+                statusEl.textContent = 'Disconnected';
+                statusEl.className = 'connection-status disconnected';
+            }
+        }
+
+        // Load initial state
+        async function loadInitialState() {
+            try {
+                const response = await fetch('/api/state');
+                const state = await response.json();
+                updateGameState(state);
+            } catch (error) {
+                console.error('Error loading initial state:', error);
+            }
+        }
+
+        // Update game state
+        function updateGameState(state) {
+            gameState = { ...gameState, ...state };
+            
+            // Update UI elements
+            document.getElementById('xValue').textContent = gameState.x || 0;
+            document.getElementById('gameState').textContent = gameState.currentState || 'start';
+            document.getElementById('messageCount').textContent = gameState.messageCount || 0;
+            document.getElementById('currentThread').textContent = gameState.currentThread || 'None';
+            
+            if (gameState.messages) {
+                renderMessages(gameState.messages);
+            }
+            
+            if (gameState.agents) {
+                renderAgents(gameState.agents);
+            }
+        }
+
+        // Render messages
+        function renderMessages(messages) {
+            const container = document.getElementById('messagesContainer');
+            container.innerHTML = '';
+            
+            messages.forEach(message => {
+                const messageEl = createMessageElement(message);
+                container.appendChild(messageEl);
+            });
+            
+            // Scroll to bottom
+            container.scrollTop = container.scrollHeight;
+        }
+
+        // Create message element
+        function createMessageElement(message) {
+            const messageEl = document.createElement('div');
+            messageEl.className = 'message';
+            
+            const senderEl = document.createElement('div');
+            senderEl.className = 'message-sender';
+            senderEl.textContent = message.sender || 'Unknown';
+            
+            const contentEl = document.createElement('div');
+            contentEl.className = 'message-content';
+            contentEl.textContent = message.message || message.content || '';
+            
+            const timeEl = document.createElement('div');
+            timeEl.className = 'message-time';
+            timeEl.textContent = new Date(message.timestamp || Date.now()).toLocaleTimeString();
+            
+            messageEl.appendChild(senderEl);
+            messageEl.appendChild(contentEl);
+            messageEl.appendChild(timeEl);
+            
+            return messageEl;
+        }
+
+        // Render agents
+        function renderAgents(agents) {
+            const container = document.getElementById('agentsList');
+            container.innerHTML = '';
+            
+            agents.forEach(agent => {
+                const agentEl = document.createElement('div');
+                agentEl.className = 'agent-item';
+                
+                const statusEl = document.createElement('div');
+                statusEl.className = 'agent-status';
+                
+                const nameEl = document.createElement('div');
+                nameEl.className = 'agent-name';
+                nameEl.textContent = agent.name || agent;
+                
+                agentEl.appendChild(statusEl);
+                agentEl.appendChild(nameEl);
+                container.appendChild(agentEl);
+            });
+        }
+
+        // Add new message
+        function addMessage(message) {
+            gameState.messages = gameState.messages || [];
+            gameState.messages.push(message);
+            gameState.messageCount = gameState.messages.length;
+            
+            // Update UI
+            const container = document.getElementById('messagesContainer');
+            const messageEl = createMessageElement(message);
+            container.appendChild(messageEl);
+            container.scrollTop = container.scrollHeight;
+            
+            // Update message count
+            document.getElementById('messageCount').textContent = gameState.messageCount;
+        }
+
+        // Update X value
+        function updateXValue(x) {
+            gameState.x = x;
+            document.getElementById('xValue').textContent = x;
+        }
+
+        // Send message
+        async function sendMessage() {
+            const input = document.getElementById('messageInput');
+            const message = input.value.trim();
+            
+            if (!message) return;
+            
+            try {
+                const response = await fetch('/api/message', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        message: message,
+                        sender: 'User'
+                    })
+                });
+                
+                if (response.ok) {
+                    input.value = '';
+                    input.focus();
+                } else {
+                    console.error('Failed to send message');
+                }
+            } catch (error) {
+                console.error('Error sending message:', error);
+            }
+        }
+
+        // Action functions
+        async function advanceX() {
+            try {
+                await fetch('/api/advance', { method: 'POST' });
+            } catch (error) {
+                console.error('Error advancing X:', error);
+            }
+        }
+
+        async function resetX() {
+            try {
+                await fetch('/api/reset', { method: 'POST' });
+            } catch (error) {
+                console.error('Error resetting X:', error);
+            }
+        }
+
+        async function getStatus() {
+            loadInitialState();
+        }
+
+        function clearMessages() {
+            gameState.messages = [];
+            gameState.messageCount = 0;
+            document.getElementById('messagesContainer').innerHTML = '';
+            document.getElementById('messageCount').textContent = '0';
+        }
+
+        // Initialize when page loads
+        document.addEventListener('DOMContentLoaded', initializeGame);
+
+        // Cleanup on page unload
+        window.addEventListener('beforeunload', function() {
+            if (eventSource) {
+                eventSource.close();
+            }
+        });
+    </script>
+</body>
+</html>

@@ -14,6 +14,7 @@ import * as path from 'path';
 import axios from 'axios';
 import { logger } from '../src/utils/logger';
 import { MCPDriverAdapter } from '../src/drivers/MCPDriverAdapter';
+import { MultiUIGameConfig, getMultiUIConfig, validateMultiUIConfig } from '../src/config/MultiUIGameConfig';
 
 interface LaunchConfig {
   ollamaUrl: string;
@@ -65,25 +66,24 @@ export class ApplicationLauncher {
   /**
    * Main launch sequence
    */
-  async launch(target: 'x-plus-1' | 'custom', customScript?: string): Promise<void> {
+  async launch(target: 'x-plus-1' | 'x-plus-1-multi' | 'dev-multi' | 'console-only' | 'custom', customScript?: string): Promise<void> {
     try {
       console.log('🚀 State Machine MCP Driver - Application Launcher');
       console.log('===================================================');
       
-      // Phase 1: Environment checks
-      await this.checkEnvironment();
+      // Check if target is a multi-UI configuration
+      const multiUIConfig = getMultiUIConfig(target);
+      if (multiUIConfig) {
+        await this.launchMultiUI(multiUIConfig);
+        return;
+      }
       
-      // Phase 2: Start MCP Service Launcher
-      await this.startMCPServiceLauncher();
-      
-      // Phase 3: Launch MCP servers via service launcher
-  await this.launchMCPServers();
-      
-      // Phase 4: Health checks
-      await this.performHealthChecks();
-      
-      // Phase 5: Launch target application
-      await this.launchApplication(target, customScript);
+      // Legacy single-UI launch
+      if (target === 'x-plus-1' || target === 'custom') {
+        await this.launchSingleUI(target, customScript);
+      } else {
+        throw new Error(`Unknown target: ${target}`);
+      }
       
     } catch (error) {
       logger.error('Launch sequence failed', error as Error);
@@ -91,6 +91,55 @@ export class ApplicationLauncher {
       await this.shutdown();
       process.exit(1);
     }
+  }
+
+  /**
+   * Launch Multi-UI application
+   */
+  private async launchMultiUI(config: MultiUIGameConfig): Promise<void> {
+    console.log(`\n🎮 Launching Multi-UI Game: ${config.game.name}`);
+    console.log(`📱 UI Instances: ${config.ui.filter(ui => ui.enabled).length}`);
+    
+    // Validate configuration
+    const errors = validateMultiUIConfig(config);
+    if (errors.length > 0) {
+      throw new Error(`Invalid Multi-UI configuration:\n${errors.join('\n')}`);
+    }
+    
+    // Phase 1: Environment checks
+    await this.checkEnvironment();
+    
+    // Phase 2: Start MCP Service Launcher
+    await this.startMCPServiceLauncher();
+    
+    // Phase 3: Launch MCP servers
+    await this.launchMCPServers();
+    
+    // Phase 4: Health checks
+    await this.performHealthChecks();
+    
+    // Phase 5: Launch Multi-UI Manager
+    await this.startMultiUIManager(config);
+  }
+
+  /**
+   * Launch single UI application (legacy)
+   */
+  private async launchSingleUI(target: 'x-plus-1' | 'custom', customScript?: string): Promise<void> {
+    // Phase 1: Environment checks
+    await this.checkEnvironment();
+    
+    // Phase 2: Start MCP Service Launcher
+    await this.startMCPServiceLauncher();
+    
+    // Phase 3: Launch MCP servers via service launcher
+await this.launchMCPServers();
+    
+    // Phase 4: Health checks
+    await this.performHealthChecks();
+    
+    // Phase 5: Launch target application
+    await this.launchApplication(target, customScript);
   }
 
   /**
@@ -678,6 +727,97 @@ export class ApplicationLauncher {
    */
   private sleep(ms: number): Promise<void> {
     return new Promise(resolve => setTimeout(resolve, ms));
+  }
+
+  /**
+   * Start Multi-UI Manager for managing multiple GamificationUI instances
+   */
+  /**
+   * Start Multi-UI Manager directly (integrated approach)
+   */
+  private async startMultiUIManager(config: MultiUIGameConfig): Promise<void> {
+    console.log('\n🎮 Phase 5: Starting Multi-UI Manager');
+    
+    try {
+      // Import required components directly
+      const { Runtime } = await import('../src/runtime/Runtime');
+      const { MCPDriverAdapter } = await import('../src/drivers/MCPDriverAdapter');
+      const { InterfaceOrchestrator } = await import('../src/orchestration/InterfaceOrchestrator');
+      const { MultiUIGameManager } = await import('../src/ui/MultiUIGameManager');
+      const { createXPlus1RuntimeConfig } = await import('../examples/x-plus-1-state-machine/game-config');
+      
+      console.log('🔧 Initializing components...');
+      
+      // 1. Initialize MCP Driver Adapter (reuse existing connections)
+      console.log('🔄 Initializing MCP Driver...');
+      const mcpAdapter = new MCPDriverAdapter({
+        useNativeProtocol: process.env.MCP_USE_NATIVE_PROTOCOL === 'true'
+      });
+      
+      // Configure MCP servers (they're already running)
+      for (const serverId of config.mcp.servers) {
+        const serverConfig = {
+          id: serverId,
+          name: serverId === 'xplus1-mcp-machine' ? 'X+1 MCP Machine' : 'Wiki MCP Browser',
+          url: serverId === 'xplus1-mcp-machine' ? 'http://localhost:3001' : 'http://localhost:3002'
+        };
+        await mcpAdapter.addServer(serverConfig);
+      }
+      
+      // Wait for MCP connections to be established
+      console.log('⏳ Waiting for MCP connections...');
+      await new Promise(resolve => setTimeout(resolve, 2000)); // Give servers time to connect
+      console.log('✅ MCP Driver initialized');
+      
+      // 2. Initialize Runtime
+      console.log('� Initializing Runtime...');
+      let runtimeConfig;
+      
+      switch (config.game.id) {
+        case 'x-plus-1-multi':
+          const gameConfig = await createXPlus1RuntimeConfig();
+          runtimeConfig = {
+            mcpServerId: 'xplus1-mcp-machine',
+            graphId: gameConfig.graphId,
+            userId: gameConfig.userId,
+            agentConfigs: gameConfig.agentConfigs
+          };
+          break;
+        default:
+          throw new Error(`Unknown game ID: ${config.game.id}`);
+      }
+      
+      const runtime = new Runtime(mcpAdapter, runtimeConfig);
+      await runtime.initialize();
+      console.log('✅ Runtime initialized');
+      
+      // 3. Initialize Interface Orchestrator
+      console.log('🔄 Initializing Interface Orchestrator...');
+      const orchestrator = new InterfaceOrchestrator(runtime, mcpAdapter, {
+        syncInterval: config.orchestration?.syncInterval || 100,
+        enableChatProvider: false,
+        enableUI: true,
+        enableAgentControl: true
+      });
+      console.log('✅ Interface Orchestrator initialized');
+      
+      // 4. Initialize Multi-UI Manager
+      console.log('🔄 Initializing Multi-UI Manager...');
+      const multiUIManager = new MultiUIGameManager(runtime, mcpAdapter, orchestrator, config);
+      console.log('✅ Multi-UI Manager initialized');
+      
+      // 5. Start the game
+      console.log('🎮 Starting Multi-UI Game...');
+      await multiUIManager.start();
+      console.log('✅ Multi-UI Game started');
+      
+      // Keep the process running
+      console.log('🔄 Multi-UI Game running... Press Ctrl+C to stop');
+      
+    } catch (error) {
+      logger.error('Failed to start Multi-UI Manager', error as Error);
+      throw new Error(`Multi-UI Manager startup failed: ${error}`);
+    }
   }
 }
 

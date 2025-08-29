@@ -1,0 +1,33 @@
+{
+  "game": {
+    "id": "x-plus-1-multi",
+    "name": "X+1 Web-Only Demo",
+    "description": "X+1 game running only in web interface"
+  },
+  "mcp": {
+    "useNativeProtocol": false,
+    "servers": [
+      "xplus1-mcp-machine"
+    ]
+  },
+  "orchestration": {
+    "syncInterval": 100
+  },
+  "ui": [
+    {
+      "id": "web-only",
+      "name": "Web Game Interface",
+      "type": "html5",
+      "enabled": true,
+      "config": {
+        "isPrimary": true,
+        "autoStart": true,
+        "port": 3030,
+        "title": "X+1 Game - Web Only",
+        "theme": "light",
+        "enableDevTools": true,
+        "showStats": true
+      }
+    }
+  ]
+}

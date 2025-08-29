@@ -1,12 +1,12 @@
 {
   "name": "state-machine-mcp-driver",
-  "version": "1.0.0",
+  "version": "0.0.1",
   "description": "Node.js service to handle state machines via MCP protocol",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "scripts": {
     "build": "tsc",
-    "start": "node dist/index.js",
+    "start": "npm run example",
     "dev": "ts-node src/index.ts",
     "test": "jest",
     "test:watch": "jest --watch",
@@ -23,10 +23,14 @@
     "mcp:launcher": "npx tsx src/mcp-servers/MCPServiceLauncher.ts",
     "vscode:config": "npx tsx scripts/generate-vscode-config.ts",
     "vscode:config:check": "npx tsx scripts/generate-vscode-config.ts --check",
-    "example": "npm run app:quiet",
+    "example": "npm run example:multi",
+    "example:multi": "cross-env ENABLE_MULTI_UI=true npm run app:quiet",
     "example_base": "npm run mcp:launcher",
     "example_app": "cross-env OLLAMA_MODEL=gpt-oss:20b MCP_USE_NATIVE_PROTOCOL=true npm run launcher:x-plus-1",
     "example_test": "npx tsx examples/test-postulation-improvements.ts",
+    "multi:demo": "cross-env OLLAMA_MODEL=gpt-oss:20b MCP_USE_NATIVE_PROTOCOL=false MCP_QUIET=false npx tsx examples/multi-ui-launcher.ts examples/configs/x-plus-1-multi-ui.json",
+    "multi:web-only": "cross-env OLLAMA_MODEL=gpt-oss:20b MCP_USE_NATIVE_PROTOCOL=false MCP_QUIET=false npx tsx examples/multi-ui-launcher.ts examples/configs/x-plus-1-web-only.json",
+    "multi:console": "cross-env OLLAMA_MODEL=gpt-oss:20b MCP_USE_NATIVE_PROTOCOL=true MCP_QUIET=true npm run launcher:x-plus-1",
     "app:quiet": "cross-env OLLAMA_MODEL=gpt-oss:20b MCP_USE_NATIVE_PROTOCOL=true MCP_QUIET=true npm run launcher:x-plus-1",
     "app:verbose": "cross-env OLLAMA_MODEL=gpt-oss:20b MCP_USE_NATIVE_PROTOCOL=true MCP_VERBOSE=true LOG_LEVEL=debug npm run launcher:x-plus-1",
     "app:normal": "cross-env OLLAMA_MODEL=gpt-oss:20b MCP_USE_NATIVE_PROTOCOL=true MCP_QUIET=false MCP_VERBOSE=false npm run launcher:x-plus-1"
@@ -48,6 +52,7 @@
     "@modelcontextprotocol/sdk": "^1.17.4",
     "axios": "^1.6.0",
     "express": "^4.18.2",
+    "rxjs": "^7.8.2",
     "uuid": "^9.0.1",
     "winston": "^3.11.0"
   },

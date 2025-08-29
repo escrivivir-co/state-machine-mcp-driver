@@ -1,0 +1,60 @@
+{
+  "game": {
+    "id": "x-plus-1-multi",
+    "name": "X+1 Game (Multi-UI)",
+    "version": "1.0.0",
+    "description": "The X+1 incremental decision game with multiple UI interfaces"
+  },
+  "ui": [
+    {
+      "id": "console-primary",
+      "type": "console",
+      "name": "Console Interface",
+      "enabled": true,
+      "config": {
+        "gameTitle": "X+1 Game - Console",
+        "welcomeMessage": "Welcome to X+1 Game on Console! Type your decisions and watch the magic happen.",
+        "debugMode": false,
+        "maxMessagesPerThread": 50,
+        "enablePostulations": true,
+        "isPrimary": true,
+        "priority": 10
+      }
+    },
+    {
+      "id": "web-interface",
+      "type": "html5",
+      "name": "Web Interface",
+      "enabled": true,
+      "config": {
+        "gameTitle": "X+1 Game - Web UI",
+        "welcomeMessage": "Welcome to X+1 Game in your browser! Click, tap, and interact.",
+        "debugMode": false,
+        "maxMessagesPerThread": 50,
+        "enablePostulations": true,
+        "port": 8080,
+        "isPrimary": false,
+        "priority": 5
+      }
+    }
+  ],
+  "shared": {
+    "gameTitle": "X+1 Incremental Decision Game",
+    "welcomeMessage": "Experience the X+1 game across multiple interfaces!",
+    "debugMode": false,
+    "maxMessagesPerThread": 50,
+    "enablePostulations": true
+  },
+  "orchestration": {
+    "syncInterval": 100,
+    "enableEventBroadcasting": true,
+    "primaryUIId": "console-primary"
+  },
+  "mcp": {
+    "servers": [
+      "xplus1-mcp-machine",
+      "wiki-mcp-browser"
+    ],
+    "useNativeProtocol": true
+  }
+}

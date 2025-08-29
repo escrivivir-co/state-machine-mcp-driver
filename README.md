@@ -1,8 +1,12 @@
 # State Machine MCP Driver (vibe coding alert)
 
+![](./docs/driver-ui.png)
+
 https://deepwiki.com/escrivivir-co/state-machine-mcp-driver
 
 ![](./docs/wiki-deepwiki.png)
+
+
 
 **State Machine MCP Driver** is a Node.js service to handle state machines via MCP protocol with integrated chat providers and multi-agent orchestration.
 
@@ -19,7 +23,7 @@ https://deepwiki.com/escrivivir-co/state-machine-mcp-driver
 
 ### Run X+1 Game with Application Launcher
 ```bash
-# One command to start everything with automatic cleanup!
+# Multi-UI Mode: Console + Web Interface (NEW!)
 npm run example
 ```
 
@@ -28,9 +32,39 @@ This will automatically:
 - ✅ Check Ollama server and models
 - ⚡ Start MCP servers (X+1 Machine, Wiki Browser) 
 - 🏥 Perform health checks
-- 🎮 Launch the X+1 inductive pattern game
+- 🎮 Launch X+1 game in **Multi-UI mode** (Console + Web)
+- 🌐 Web interface available at **http://localhost:3030**
 
-### Alternative: Manual Launcher
+## 🌐 Multi-UI Support (NEW!)
+
+Experience the X+1 game across multiple interfaces simultaneously!
+
+### Available Multi-UI Modes
+```bash
+# Multi-UI: Console + Web Interface
+npm run multi:demo
+
+# Web-Only Mode: Pure browser experience  
+npm run multi:web-only
+
+# Console-Only Mode: Traditional terminal interface
+npm run multi:console
+```
+
+### Multi-UI Features
+- **🎮 Simultaneous interfaces**: Play via console AND web browser
+- **⚡ Real-time sync**: Game state synchronized across all UIs
+- **🌐 Web dashboard**: Modern HTML5 interface with Server-Sent Events
+- **📱 Responsive design**: Mobile-friendly web interface
+- **🎨 Customizable themes**: Dark/light modes, configurable ports
+- **🔄 Live coordination**: RxJS reactive streams for seamless UX
+
+### Web Interface URLs
+- **Game Interface**: http://localhost:3030
+- **Admin Dashboard**: http://localhost:3030/admin (if enabled)
+- **Health Status**: http://localhost:3030/health
+
+### Alternative: Single-UI Modes
 ```bash
 # Run without cleanup
 npm run launcher:x-plus-1
