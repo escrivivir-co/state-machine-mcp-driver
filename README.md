@@ -1,12 +1,86 @@
 # State Machine MCP Driver (vibe coding alert)
 
+**Estado actual:** **NO APTO PARA PRODUCCIÓN** ❌
+
+El proyecto muestra **potencial** pero está lejos de cumplir estándares enterprise. La arquitectura base existe pero carece de las características fundamentales de un sistema robusto y mantenible.
+
+### Puntuación: **4/10**
+
+**Recomendación:** Continuar desarrollo con **foco prioritario en**:
+
+1.  Seguridad
+2.  Testing
+3.  Manejo de errores
+4.  Refactoring de componentes críticos
+
+Sin estos elementos resueltos, el sistema representa un **riesgo inaceptable** para cualquier entorno que no sea desarrollo local.
+
 ![](./docs/driver-ui.png)
 
 https://deepwiki.com/escrivivir-co/state-machine-mcp-driver
 
 ![](./docs/wiki-deepwiki.png)
 
+## 🎬 Live System Demo
 
+Here's what you'll see when you run `npm start` - a complete orchestrated startup sequence:
+
+```bash
+🚀 State Machine MCP Driver - Application Launcher
+===================================================
+
+🔍 Phase 1: Environment Checks
+--------------------------------
+📡 Checking Ollama server...
+✅ Ollama server running (version: 0.11.8)
+🤖 Checking model: gpt-oss:20b...
+✅ Model gpt-oss:20b available
+📁 Checking project structure...
+✅ src/mcp-servers/XPlus1MCPMachine.ts
+✅ src/mcp-servers/WikiMCPBrowser.ts
+✅ examples/x-plus-1-state-machine/index.ts
+✅ src/runtime/Runtime.ts
+
+⚡ Phase 2: Starting MCP Service Launcher
+------------------------------------------
+🔄 Starting MCP Service Launcher on port 3000...
+[MCP Service Launcher] 🚀 Starting MCP Service Launcher on port 3000    
+[MCP Service Launcher] ✅ MCP Service Launcher ready
+[MCP Service Launcher] 📡 Waiting for commands...
+✅ MCP Service Launcher started (PID: 4100)
+
+🎯 Phase 3: Launching MCP Servers via Service Launcher
+--------------------------------------------------------
+🚀 Launching all MCP servers...
+✅ All MCP servers launched successfully via service launcher
+
+🏥 Phase 4: Health Checks
+---------------------------
+🔍 Performing health checks via service launcher...
+✅ X+1 MCP Machine: Healthy
+✅ Wiki MCP Browser: Healthy
+✅ DevOps MCP Server: Healthy
+🎉 All MCP servers are healthy!
+
+🔧 Generating VS Code MCP Configuration...
+✅ VS Code MCP configuration generated successfully!
+
+==============================
+  X+1 Inductive Pattern Game
+==============================
+
+🎮 Welcome to the X+1 Inductive Pattern Game!
+📍 Current State: start | 🎯 Max Messages: 10 | 🤖 Active Agents: 4
+📊 Current Status: X = 0 | Messages remaining: 10
+
+🎭 Agents postulating for next message:
+  1. JusticeBot (⭐⭐) - ready to start with the fundamental question   
+  2. DionisioBot (⭐⭐) - wants to tempt with cosmic doom-scrolling
+  3. UserSimulator (⭐) - available for automated responses
+
+Choose agent (1-3) or type your own message:
+> 
+```
 
 **State Machine MCP Driver** is a Node.js service to handle state machines via MCP protocol with integrated chat providers and multi-agent orchestration.
 

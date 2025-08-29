@@ -1055,3 +1055,6 @@ export class XPlus1GameConsole extends ConsoleGamificationUI {
     console.log('Thanks for playing! 👋');
   }
 }
+
+// Export for Multi-UI system plugin loading
+export default XPlus1GameConsole;

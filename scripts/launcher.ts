@@ -71,8 +71,8 @@ export class ApplicationLauncher {
       console.log('🚀 State Machine MCP Driver - Application Launcher');
       console.log('===================================================');
       
-      // Check if target is a multi-UI configuration
-      const multiUIConfig = getMultiUIConfig(target);
+      // Load Multi-UI configuration for the specific target
+      const multiUIConfig = this.loadMultiUIConfig(target);
       if (multiUIConfig) {
         await this.launchMultiUI(multiUIConfig);
         return;
@@ -789,10 +789,84 @@ await this.launchMCPServers();
   }
 
   /**
+   * Load Multi-UI configuration for specific target
+   */
+  private loadMultiUIConfig(target: string): MultiUIGameConfig | null {
+    const configMappings: Record<string, string | null> = {
+      'x-plus-1-multi': 'examples/configs/x-plus-1-multi-ui.json',
+      'dev-multi': 'examples/configs/x-plus-1-multi-ui.json', // Fallback for dev
+      'console-only': null, // No multi-UI for console-only
+    };
+
+    const configPath = configMappings[target];
+    if (!configPath) {
+      return null; // Not a multi-UI target
+    }
+
+    try {
+      // Use absolute path from project root
+      const fullPath = path.join(process.cwd(), configPath);
+      const configData = require(fullPath);
+      
+      // Validate the configuration
+      const errors = validateMultiUIConfig(configData);
+      if (errors.length > 0) {
+        console.warn(`⚠️ Invalid Multi-UI configuration: ${errors.join(', ')}`);
+        return null;
+      }
+      
+      console.log(`✅ Loaded Multi-UI configuration from: ${configPath}`);
+      return configData;
+    } catch (error) {
+      console.warn(`⚠️ Could not load Multi-UI config from ${configPath}:`, (error as Error).message);
+      return null; // Let the system use single-UI mode
+    }
+  }
+
+  /**
    * Utility: Sleep for specified milliseconds
    */
   private sleep(ms: number): Promise<void> {
     return new Promise(resolve => setTimeout(resolve, ms));
+  }
+
+  /**
+   * Wait for MCP connections to be healthy using MCPDriverAdapter
+   */
+  private async waitForMCPHealthy(mcpAdapter: MCPDriverAdapter, serverIds: string[]): Promise<void> {
+    const maxAttempts = 10;
+    const delayMs = 500;
+    
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      let allHealthy = true;
+      
+      for (const serverId of serverIds) {
+        try {
+          const isHealthy = await mcpAdapter.healthCheck(serverId);
+          if (!isHealthy) {
+            allHealthy = false;
+            break;
+          }
+        } catch (error) {
+          allHealthy = false;
+          if (process.env.MCP_QUIET !== 'true') {
+            console.log(`Health check attempt ${attempt}/${maxAttempts} failed for ${serverId}:`, error);
+          }
+          break;
+        }
+      }
+      
+      if (allHealthy) {
+        console.log(`✅ All MCP servers healthy (attempt ${attempt}/${maxAttempts})`);
+        return;
+      }
+      
+      if (attempt < maxAttempts) {
+        await new Promise(resolve => setTimeout(resolve, delayMs));
+      }
+    }
+    
+    console.warn('⚠️ MCP servers not fully responsive, continuing with limited connectivity');
   }
 
   /**
@@ -821,41 +895,75 @@ await this.launchMCPServers();
       });
       
       // Configure MCP servers (they're already running)
-      for (const serverId of config.mcp.servers) {
-        const serverConfig = {
-          id: serverId,
-          name: serverId === 'xplus1-mcp-machine' ? 'X+1 MCP Machine' : 'Wiki MCP Browser',
-          url: serverId === 'xplus1-mcp-machine' ? 'http://localhost:3001' : 'http://localhost:3002'
-        };
-        await mcpAdapter.addServer(serverConfig);
+      const serverConfigs = [
+        { id: 'xplus1-mcp-machine', name: 'X+1 MCP Machine', url: 'http://localhost:3001' },
+        { id: 'wiki-mcp-browser', name: 'Wiki MCP Browser', url: 'http://localhost:3002' }
+      ];
+      
+      for (const serverConfig of serverConfigs) {
+        if (config.mcp.servers.includes(serverConfig.id)) {
+          try {
+            await mcpAdapter.addServer(serverConfig);
+            console.log(`✅ Connected to ${serverConfig.name}`);
+          } catch (error) {
+            console.warn(`⚠️ Could not connect to ${serverConfig.name}, will retry during runtime`);
+            if (process.env.MCP_QUIET !== 'true') {
+              console.log(`Connection error for ${serverConfig.id}:`, error);
+            }
+          }
+        }
       }
       
-      // Wait for MCP connections to be established
+      // Wait for MCP connections to be established with health checks
       console.log('⏳ Waiting for MCP connections...');
-      await new Promise(resolve => setTimeout(resolve, 2000)); // Give servers time to connect
+      await this.waitForMCPHealthy(mcpAdapter, config.mcp.servers);
       console.log('✅ MCP Driver initialized');
       
-      // 2. Initialize Runtime
-      console.log('� Initializing Runtime...');
+      // 2. Initialize Runtime with graceful error handling
+      console.log('🧠 Initializing Runtime...');
       let runtimeConfig;
       
       switch (config.game.id) {
         case 'x-plus-1-multi':
-          const gameConfig = await createXPlus1RuntimeConfig();
-          runtimeConfig = {
-            mcpServerId: 'xplus1-mcp-machine',
-            graphId: gameConfig.graphId,
-            userId: gameConfig.userId,
-            agentConfigs: gameConfig.agentConfigs
-          };
+          try {
+            const gameConfig = await createXPlus1RuntimeConfig();
+            runtimeConfig = {
+              mcpServerId: 'xplus1-mcp-machine',
+              graphId: gameConfig.graphId,
+              userId: gameConfig.userId,
+              agentConfigs: gameConfig.agentConfigs
+            };
+          } catch (configError) {
+            console.warn('⚠️ Game config loading failed, using minimal runtime config');
+            if (process.env.MCP_QUIET !== 'true') {
+              console.log('Config error details:', configError);
+            }
+            // Fallback to minimal runtime configuration
+            runtimeConfig = {
+              mcpServerId: 'xplus1-mcp-machine',
+              graphId: 'x-plus-1-game',
+              userId: 'player-1',
+              agentConfigs: [] // Will be populated during runtime
+            };
+          }
           break;
         default:
           throw new Error(`Unknown game ID: ${config.game.id}`);
       }
       
       const runtime = new Runtime(mcpAdapter, runtimeConfig);
-      await runtime.initialize();
-      console.log('✅ Runtime initialized');
+      
+      // Initialize with graceful error handling for missing resources
+      try {
+        await runtime.initialize();
+        console.log('✅ Runtime initialized successfully');
+      } catch (initError) {
+        console.warn('⚠️ Runtime initialization had issues, continuing with limited functionality');
+        if (process.env.MCP_QUIET !== 'true') {
+          console.log('Runtime init details:', initError);
+        }
+        // Runtime will work in degraded mode
+      }
       
       // 3. Initialize Interface Orchestrator
       console.log('🔄 Initializing Interface Orchestrator...');

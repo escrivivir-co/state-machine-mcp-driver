@@ -106,45 +106,72 @@ export async function createXPlus1RuntimeConfig(): Promise<RuntimeConfig> {
 /**
  * Agent behavior templates for the chat provider
  */
-const PROMPTS = loadAgentPrompts();
+let PROMPTS: any;
+try {
+  PROMPTS = loadAgentPrompts();
+} catch (error) {
+  console.warn('⚠️ Could not load agent prompts, using defaults');
+  PROMPTS = {
+    dionisio: { systemPrompt: 'You are DionisioBot', maxTokens: 150, temperature: 0.8 },
+    apolo: { systemPrompt: 'You are ApoloBot', maxTokens: 150, temperature: 0.7 },
+    justice: { systemPrompt: 'You are JusticeBot', maxTokens: 100, temperature: 0.3 }
+  };
+}
+
 export const AGENT_PROMPTS = {
   dionisio: {
-    systemPrompt: PROMPTS.dionisio.systemPrompt,
-    maxTokens: PROMPTS.dionisio.maxTokens,
-    temperature: PROMPTS.dionisio.temperature
+    systemPrompt: PROMPTS.dionisio?.systemPrompt || 'You are DionisioBot',
+    maxTokens: PROMPTS.dionisio?.maxTokens || 150,
+    temperature: PROMPTS.dionisio?.temperature || 0.8
   },
   apolo: {
-    systemPrompt: PROMPTS.apolo.systemPrompt,
-    maxTokens: PROMPTS.apolo.maxTokens,
-    temperature: PROMPTS.apolo.temperature
+    systemPrompt: PROMPTS.apolo?.systemPrompt || 'You are ApoloBot',
+    maxTokens: PROMPTS.apolo?.maxTokens || 150,
+    temperature: PROMPTS.apolo?.temperature || 0.7
   },
   justice: {
-    systemPrompt: PROMPTS.justice.systemPrompt.replace('{maxMessages}', String(GAME_CONFIG.MAX_MESSAGES_THREAD)),
-    maxTokens: PROMPTS.justice.maxTokens,
-    temperature: PROMPTS.justice.temperature
+    systemPrompt: (PROMPTS.justice?.systemPrompt || 'You are JusticeBot').replace('{maxMessages}', String(GAME_CONFIG.MAX_MESSAGES_THREAD)),
+    maxTokens: PROMPTS.justice?.maxTokens || 100,
+    temperature: PROMPTS.justice?.temperature || 0.3
   }
 } as const;
 
 /**
  * Message templates for different game phases
  */
-const GAME_MSG = loadGameMessages();
+let GAME_MSG: any;
+try {
+  GAME_MSG = loadGameMessages();
+} catch (error) {
+  console.warn('⚠️ Could not load game messages, using defaults');
+  GAME_MSG = {
+    game: {
+      start: 'Game started!',
+      turnStart: 'Turn {x} - {remaining} messages remaining',
+      questionTime: 'Time for the critical question at X={x}',
+      advancementPositive: 'X advanced from {oldX} to {newX}!',
+      advancementNegative: 'X reset from {oldX} to {newX}',
+      end: 'Game ended at X={finalX} after {turns} turns'
+    }
+  };
+}
+
 export const MESSAGE_TEMPLATES = {
-  gameStart: GAME_MSG.game.start,
+  gameStart: GAME_MSG.game?.start || 'Game started!',
   turnStart: (x: number, messageCount: number) =>
-    GAME_MSG.game.turnStart
+    (GAME_MSG.game?.turnStart || 'Turn {x} - {remaining} messages remaining')
       .replace('{x}', String(x))
       .replace('{remaining}', String(GAME_CONFIG.MAX_MESSAGES_THREAD - messageCount)),
   questionTime: (x: number) =>
-    GAME_MSG.game.questionTime.replace('{x}', String(x)),
+    (GAME_MSG.game?.questionTime || 'Time for the critical question at X={x}').replace('{x}', String(x)),
   advancement: (oldX: number, newX: number, advance: number) =>
     (advance > 0
-      ? GAME_MSG.game.advancementPositive
-      : GAME_MSG.game.advancementNegative)
+      ? (GAME_MSG.game?.advancementPositive || 'X advanced from {oldX} to {newX}!')
+      : (GAME_MSG.game?.advancementNegative || 'X reset from {oldX} to {newX}'))
       .replace('{oldX}', String(oldX))
       .replace('{newX}', String(newX)),
   gameEnd: (finalX: number, totalTurns: number) =>
-    GAME_MSG.game.end
+    (GAME_MSG.game?.end || 'Game ended at X={finalX} after {turns} turns')
       .replace('{finalX}', String(finalX))
       .replace('{turns}', String(totalTurns))
 } as const;

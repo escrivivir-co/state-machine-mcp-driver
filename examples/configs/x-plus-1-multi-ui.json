@@ -18,13 +18,22 @@
     {
       "id": "console-primary",
       "name": "Console Interface",
-      "type": "console",
+      "type": "custom",
       "enabled": true,
       "config": {
+        "customClass": "./examples/x-plus-1-state-machine/ConsoleGamificationUI",
         "isPrimary": true,
         "autoStart": true,
         "showStats": true,
-        "colorScheme": "default"
+        "colorScheme": "default",
+        "maxMessagesPerThread": 50,
+        "gameTitle": "X+1 State Machine Game",
+        "welcomeMessage": "Welcome to X+1 Game",
+        "debugMode": false,
+        "userPrompt": "> ",
+        "enableColors": true,
+        "enablePostulations": true,
+        "autoSelectSingleAgent": false
       }
     },
     {

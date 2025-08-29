@@ -130,11 +130,35 @@ class UIFactory {
       case 'custom':
         if (config.config.customClass) {
           try {
-            const CustomUIClass = require(config.config.customClass);
+            Logger.info(`Loading custom UI: ${config.config.customClass}`);
+            const customModule = require(config.config.customClass);
+            // Support both default export and named export
+            const CustomUIClass = customModule.default || customModule[Object.keys(customModule)[0]] || customModule;
+            
+            if (typeof CustomUIClass !== 'function') {
+              const availableExports = Object.keys(customModule).join(', ');
+              Logger.error(`Custom class ${config.config.customClass} is not a constructor function. Available exports: ${availableExports}`, new Error('Invalid custom class'));
+              throw new Error(`Custom class ${config.config.customClass} is not a constructor function`);
+            }
+            
+            Logger.info(`Successfully loaded custom UI class: ${CustomUIClass.name || 'Unknown'}`);
             return new CustomUIClass(runtime, mcpAdapter, config.config);
           } catch (error) {
             Logger.error(`Failed to load custom UI class: ${config.config.customClass}`, error as Error);
-            throw error;
+            Logger.info(`Falling back to generic console UI for ${config.name}`);
+            
+            // Fallback to generic console UI
+            const consoleConfig: ConsoleUIConfig = {
+              maxMessagesPerThread: config.config.maxMessagesPerThread || 50,
+              gameTitle: config.name,
+              welcomeMessage: `Welcome to ${config.name}`,
+              debugMode: false,
+              userPrompt: '> ',
+              enableColors: true,
+              enablePostulations: true,
+              autoSelectSingleAgent: false
+            };
+            return new ConsoleGamificationUIWrapper(runtime, mcpAdapter, consoleConfig);
           }
         }
         throw new Error('Custom UI type requires customClass configuration');

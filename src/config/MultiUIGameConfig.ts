@@ -271,9 +271,22 @@ export function getMultiUIConfig(configName: string): MultiUIGameConfig | null {
       // Check for environment variable or configuration file
       const useMultiUI = process.env.ENABLE_MULTI_UI === 'true' || 
                         process.env.UI_MODE === 'multi';
-      return useMultiUI ? X_PLUS_1_MULTI_UI : null;
+      if (useMultiUI) {
+        // Try to load from JSON config file first
+        try {
+          const configPath = './examples/configs/x-plus-1-multi-ui.json';
+          const configFile = require(configPath);
+          return configFile;
+        } catch (error) {
+          console.warn('⚠️ Could not load JSON config, using hardcoded fallback');
+          return X_PLUS_1_MULTI_UI;
+        }
+      }
+      return null;
     case 'x-plus-1-multi':
-      return X_PLUS_1_MULTI_UI;
+      // Deprecated: Configuration should be passed from launcher
+      console.warn('⚠️ getMultiUIConfig() is deprecated. Configuration should be passed from launcher.');
+      return X_PLUS_1_MULTI_UI; // Hardcoded fallback only
     case 'dev-multi':
       return DEV_MULTI_UI;
     case 'console-only':
