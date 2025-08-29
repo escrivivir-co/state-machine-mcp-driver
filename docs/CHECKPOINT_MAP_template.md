@@ -17,7 +17,7 @@ Estado rápido:
 Puntos críticos:
 - [ ] C1.1 — Dependencias npm instaladas
 - [ ] C1.2 — Compilación TypeScript sin errores
-- [ ] C1.3 — Script launcher ejecuta sin crash inmediato
+- [ ] C1.3 — Script launcher ejecuta sin crash inmediato (npm run app:normal/quiet/verbose)
 - [ ] C1.4 — Proceso principal inicia sin excepciones
 
 ---
@@ -111,3 +111,6 @@ Puntos críticos:
 
 Notas rápidas:
 - Mantener este archivo como tracker conciso (solo checkboxes). Actualizar conforme avanzamos.
+- Comando de arranque: npm run app:normal | app:quiet | app:verbose
+- Comando de limpieza: npm run cleannode
+- Limpieza de procesos: npm run cleannode
