@@ -78,6 +78,7 @@ npm install
 # Start individual components
 npm run mcp:xplus1        # X+1 MCP server on port 3001
 npm run mcp:wiki          # Wiki MCP server on port 3002  
+npm run mcp:devops        # DevOps MCP server on port 3003
 npm run example:x-plus-1  # Run game only (assumes servers running)
 ```
 
@@ -88,7 +89,7 @@ npm run example:x-plus-1  # Run game only (assumes servers running)
 ### **Agent Control Protocol**
 The system includes comprehensive `.agent` documentation for AI assistants to:
 
-1. **🚀 Launch Application**: Automatic startup with 3 consoles (2 MCP servers + game)
+1. **🚀 Launch Application**: Automatic startup with 4 MCP servers (X+1 Machine, Wiki Browser, DevOps Server + Service Launcher)
 2. **📖 Read Console State**: Real-time monitoring via MCP tools:
    - `get_console_output` - Current console content
    - `get_ui_status` - Complete game state  
@@ -101,17 +102,25 @@ The system includes comprehensive `.agent` documentation for AI assistants to:
    - **Mode Control**: Switch between manual/automatic modes
    - **Remote Commands**: Send any command via MCP tools
 
-4. **🧠 Intelligent Gameplay**: Implement advanced strategies:
+4. **🛠️ System Management**: Complete DevOps control via DevOpsServer:
+   - **Application Startup**: Intelligent `npm start` with dependency validation
+   - **Health Monitoring**: Real-time system status and troubleshooting
+   - **Web Console Access**: Direct browser launch for monitoring dashboards
+   - **Environment Management**: Automated configuration and port management
+
+5. **🧠 Intelligent Gameplay**: Implement advanced strategies:
    - Conservative (build safe streaks)
    - Aggressive (push for high values)
    - Adaptive (context-aware decisions)
 
 **Documentation**: See `.agent/` folder for complete takeover guides:
+- `complete-ai-control-summary.md` - Complete system control overview (NEW!)
 - `agent-control-system.md` - Quick start protocol
 - `agent-takeover-guide.md` - Detailed process walkthrough  
 - `testing-cycle-checklist.md` - Comprehensive verification tests
+- `devops-server-control-guide.md` - System management and automation (NEW!)
 
-**🎯 Result**: AI assistants can now operate as intelligent game controllers, making strategic decisions and learning from outcomes!
+**🎯 Result**: AI assistants can now operate as intelligent game controllers AND system administrators, managing the complete application lifecycle while making strategic gameplay decisions!
 
 ---
 
@@ -121,8 +130,9 @@ The system includes comprehensive `.agent` documentation for AI assistants to:
 ```
 Application Launcher
 ├── Environment Checks (Ollama, models, files)
-├── MCP Server Management (X+1, Wiki browsers)
+├── MCP Server Management (X+1, Wiki, DevOps browsers)
 ├── Health Monitoring (HTTP checks, model validation)
+├── DevOps Automation (System startup, web console, monitoring)
 └── Application Orchestration (Runtime + Chat Provider)
 ```
 
@@ -327,6 +337,42 @@ This enables **complete game control from VS Code** without direct console inter
 - **Prompts**: Content discovery and navigation guidance
 - **Cache System**: Persistent disk cache for Wikipedia API responses
 
+#### DevOpsServer (MCP Server)
+- **Tools**: `start_system`, `open_web_console`
+- **Resources**: System management and deployment automation
+- **Prompts**: DevOps guidance and system startup procedures
+- **Automation**: Complete application lifecycle management
+
+##### 🚀 DevOps Automation Features
+The DevOpsServer provides intelligent system management capabilities:
+
+- **System Startup**: Automated `npm start` with guided troubleshooting
+- **Web Console Access**: Direct browser launch to localhost:8080
+- **Health Monitoring**: Pre-startup environment validation
+- **Dependency Checks**: Automatic verification of Node.js, npm, and project structure
+- **Port Management**: Intelligent port conflict detection and resolution
+
+**Usage from AI Agents**:
+```typescript
+// Start the entire application system
+await mcpClient.callTool('devops-mcp-server', 'start_system', {
+  verbose: true,
+  environment: 'development'
+});
+
+// Open web console for monitoring
+await mcpClient.callTool('devops-mcp-server', 'open_web_console', {
+  host: 'localhost',
+  port: 8080
+});
+```
+
+**DevOps Commands Available**:
+- `start_system` - Launch application with full dependency checks
+- `open_web_console` - Open monitoring dashboard in browser
+- Health validation and troubleshooting guidance
+- Automated environment configuration
+
 ##### 📁 Cache Configuration
 The WikiMCPBrowser implements a sophisticated caching system to optimize Wikipedia API calls:
 
@@ -516,6 +562,7 @@ MCP_WIKI_URL=http://localhost:3002
 | `npm run launcher:kill-all-node` | **⚠️ Kill all Node.js processes** |
 | `npm run mcp:xplus1` | X+1 MCP server only |
 | `npm run mcp:wiki` | Wiki MCP server only |
+| `npm run mcp:devops` | DevOps MCP server only |
 | `npm run example:x-plus-1` | X+1 game only (no setup) |
 | `npm run launcher` | Custom application launcher |
 

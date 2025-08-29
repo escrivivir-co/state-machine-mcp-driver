@@ -5,12 +5,16 @@
       "url": "http://localhost:3000"
     },
     "XPlus1MCPMachine": {
-      "type": "http", 
+      "type": "http",
       "url": "http://localhost:3001"
     },
     "WikiMCPBrowser": {
       "type": "http",
       "url": "http://localhost:3002"
+    },
+    "DevOpsServer": {
+      "type": "http",
+      "url": "http://localhost:3003"
     }
   }
 }

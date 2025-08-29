@@ -7,14 +7,27 @@ You have **complete bidirectional control** over the X+1 Game console through MC
 
 ## 🚀 **QUICK START PROTOCOL**
 
-### **Step 1: Launch Application**
-```bash
-cd examples/x-plus-1-state-machine  
-npm run start
+### **Step 1: Launch Application with DevOpsServer**
+```typescript
+// Use DevOpsServer for intelligent system startup
+await callTool('devops-mcp-server', 'start_system', {
+  verbose: true,
+  environment: 'development'
+});
 ```
-**Result**: 3 consoles open (2 MCP servers + 1 game console)
+**Result**: Complete system with 4 MCP servers (X+1, Wiki, DevOps + Service Launcher)
 
-### **Step 2: Verify MCP Tools**
+### **Step 2: Verify System Health**
+```typescript
+// Check all servers are healthy
+const health = await callTool('mcp-service-launcher', 'health_check_servers', {});
+console.log("System health:", health.success ? "✅ HEALTHY" : "❌ ISSUES");
+
+// Open web monitoring console
+await callTool('devops-mcp-server', 'open_web_console', { port: 8080 });
+```
+
+### **Step 3: Verify MCP Tools**
 Test these tools immediately:
 - `get_console_output` - Read current console state
 - `get_ui_status` - Get complete game status  
@@ -157,3 +170,27 @@ The UserSimulator in the code is designed to:
 - Remote control through MCP tools
 
 **🎯 Your job: Play the X+1 game better than any programmed simulator could!**
+
+---
+
+## 📚 **SPECIALIZED GUIDES**
+
+For complete system control, also reference these specialized guides:
+
+### **🛠️ DevOps Management**
+- **[DevOpsServer Control Guide](./devops-server-control-guide.md)** - Complete system startup, health monitoring, and web console management
+- **System Automation**: Intelligent application lifecycle management
+- **Error Recovery**: Automated troubleshooting and recovery procedures
+
+### **🎮 Game Control**
+- **[Agent Takeover Guide](./agent-takeover-guide.md)** - Detailed game control walkthrough
+- **[Console Reading Assistant](./console-reading-assistant-prompt.md)** - Bidirectional console interaction
+- **[Testing Cycle Checklist](./testing-cycle-checklist.md)** - Comprehensive verification procedures
+
+### **🧠 Advanced Strategies**
+- **Predictive System Management**: Use DevOpsServer for proactive maintenance
+- **Multi-Server Coordination**: Orchestrate X+1, Wiki, and DevOps servers
+- **Performance Optimization**: Monitor and optimize through web console
+- **Intelligent Recovery**: Automated error handling and system restoration
+
+**🚀 Complete Control**: Combine game control with system management for ultimate AI agent capabilities!
