@@ -5,7 +5,7 @@
 
 import { BaseMCPServer, MCPServerConfig } from './BaseMCPServer';
 import { z } from 'zod';
-import { logger } from '../utils/logger';
+import { Logger } from '../utils/logger';
 
 /**
  * X+1 State data structure
@@ -135,7 +135,7 @@ export class XPlus1MCPMachine extends BaseMCPServer {
       try {
         listener(event);
       } catch (error) {
-        logger.error('X+1 MCP: Error in event listener', { error });
+        Logger.mcpError('Error in event listener', { error, event: event.type });
       }
     });
   }
@@ -213,7 +213,8 @@ export class XPlus1MCPMachine extends BaseMCPServer {
           reason
         });
 
-        logger.info(`X+1 MCP: Advanced X from ${previousX} to ${this.state.x}`, { reason, metadata });
+        Logger.mcpOperation('advance_x', this.config.name, true, undefined, undefined);
+        Logger.mcpVerbose(`X advanced: ${previousX} → ${this.state.x}`, { reason, metadata });
 
         return {
           content: [
@@ -254,7 +255,8 @@ export class XPlus1MCPMachine extends BaseMCPServer {
           reason
         });
 
-        logger.info(`X+1 MCP: Reset X from ${previousX} to 0`, { reason, resetCount: this.state.resetCount });
+        Logger.mcpOperation('reset_x', this.config.name, true, undefined, undefined);
+        Logger.mcpVerbose(`X reset: ${previousX} → 0`, { reason, resetCount: this.state.resetCount });
 
         return {
           content: [
@@ -353,7 +355,7 @@ export class XPlus1MCPMachine extends BaseMCPServer {
       },
       async ({ state }) => {
         // For now, just acknowledge the save (could implement persistence later)
-        logger.info('X+1 MCP: State save requested', { state });
+        Logger.mcpVerbose('State save requested', { stateSize: JSON.stringify(state).length });
         
         return {
           content: [
@@ -380,7 +382,7 @@ export class XPlus1MCPMachine extends BaseMCPServer {
       },
       async ({ graphId, userId }) => {
         // For now, return null (no existing state found)
-        logger.info('X+1 MCP: State load requested', { graphId, userId });
+        Logger.mcpVerbose('State load requested', { graphId, userId });
         
         return {
           content: [
@@ -421,7 +423,7 @@ export class XPlus1MCPMachine extends BaseMCPServer {
         this.commandQueue.push(command);
         this.gameState.lastAction = `user_input: ${text}`;
         
-        logger.info('X+1 MCP: User input queued', { text, commandId: command.id });
+        Logger.mcpVerbose('Remote command queued', { type: 'user_input', text: text.substring(0, 50), commandId: command.id });
 
         return {
           content: [{
@@ -458,7 +460,7 @@ export class XPlus1MCPMachine extends BaseMCPServer {
         this.commandQueue.push(command);
         this.gameState.lastAction = `select_agent: ${agentId}`;
         
-        logger.info('X+1 MCP: Agent selection queued', { agentId, reason, commandId: command.id });
+        Logger.mcpVerbose('Remote command queued', { type: 'select_agent', agentId, reason, commandId: command.id });
 
         return {
           content: [{
@@ -496,7 +498,7 @@ export class XPlus1MCPMachine extends BaseMCPServer {
         this.commandQueue.push(command);
         this.gameState.lastAction = `answer_question: ${answer}`;
         
-        logger.info('X+1 MCP: Critical answer queued', { answer, reasoning, commandId: command.id });
+        Logger.mcpVerbose('Remote command queued', { type: 'answer_question', answer, reasoning, commandId: command.id });
 
         return {
           content: [{
@@ -521,7 +523,7 @@ export class XPlus1MCPMachine extends BaseMCPServer {
       'Get the current conversation thread',
       {},
       async () => {
-        logger.info('X+1 MCP: Conversation requested');
+        Logger.mcpVerbose('Conversation data requested', { threadLength: this.gameState.conversationThread.length });
 
         return {
           content: [{
@@ -543,7 +545,7 @@ export class XPlus1MCPMachine extends BaseMCPServer {
       'Get the list of available agent postulations',
       {},
       async () => {
-        logger.info('X+1 MCP: Available postulations requested');
+        Logger.mcpVerbose('Available postulations requested', { agentCount: this.gameState.availableAgents.length });
 
         return {
           content: [{
@@ -587,7 +589,7 @@ export class XPlus1MCPMachine extends BaseMCPServer {
 
         this.gameState.lastAction = `toggle_simulator: ${this.gameState.simulatorMode ? 'on' : 'off'}`;
         
-        logger.info('X+1 MCP: Simulator mode toggled', { 
+        Logger.mcpVerbose('Simulator mode toggled', { 
           mode: this.gameState.simulatorMode ? 'on' : 'off', 
           commandId: command.id 
         });
@@ -617,9 +619,10 @@ export class XPlus1MCPMachine extends BaseMCPServer {
       async () => {
         const command = this.commandQueue.shift();
         
-        logger.info('X+1 MCP: Next command requested', { 
+        Logger.mcpVerbose('Command queue accessed', { 
           commandFound: !!command, 
-          queueSize: this.commandQueue.length 
+          queueSize: this.commandQueue.length,
+          commandType: command?.type 
         });
 
         return {
@@ -668,11 +671,12 @@ export class XPlus1MCPMachine extends BaseMCPServer {
           timestamp: Date.now()
         });
 
-        logger.info('X+1 MCP: Game state updated', { 
+        Logger.mcpVerbose('Game state synchronized', { 
           phase, 
           messageCount, 
-          availableAgents: availableAgents?.length || 0,
-          lastAction 
+          agentCount: availableAgents?.length || 0,
+          lastAction,
+          currentX: this.state.x
         });
 
         return {
@@ -726,7 +730,7 @@ export class XPlus1MCPMachine extends BaseMCPServer {
           timestamp: Date.now()
         });
 
-        logger.info('X+1 MCP: Conversation message added', { sender, messageLength: message.length });
+        Logger.mcpVerbose('Conversation message added', { sender, messageLength: message.length, threadSize: this.gameState.conversationThread.length });
 
         return {
           content: [{
@@ -751,7 +755,7 @@ export class XPlus1MCPMachine extends BaseMCPServer {
         // Ensure state is synchronized
         this.gameState.currentX = this.state.x;
 
-        logger.info('X+1 MCP: Full game state requested');
+        Logger.mcpVerbose('Full game state requested', { currentX: this.state.x, phase: this.gameState.currentPhase });
 
         return {
           content: [{
@@ -784,7 +788,7 @@ export class XPlus1MCPMachine extends BaseMCPServer {
       async () => {
         // For now, return a placeholder implementation
         // This would be connected to the actual ConsoleGamificationUI instance
-        logger.info('X+1 MCP: Console output requested');
+        Logger.mcpVerbose('Console output placeholder accessed');
 
         return {
           content: [{
@@ -807,7 +811,7 @@ export class XPlus1MCPMachine extends BaseMCPServer {
       'Get the current prompt text and available options',
       {},
       async () => {
-        logger.info('X+1 MCP: Current prompt requested');
+        Logger.mcpVerbose('Current prompt placeholder accessed');
 
         return {
           content: [{
@@ -830,7 +834,7 @@ export class XPlus1MCPMachine extends BaseMCPServer {
       'Get the current UI status and interaction state',
       {},
       async () => {
-        logger.info('X+1 MCP: UI status requested');
+        Logger.mcpVerbose('UI status placeholder accessed');
 
         return {
           content: [{
@@ -853,7 +857,7 @@ export class XPlus1MCPMachine extends BaseMCPServer {
       'Get the current interaction state and available commands',
       {},
       async () => {
-        logger.info('X+1 MCP: Interaction state requested');
+        Logger.mcpVerbose('Interaction state placeholder accessed');
 
         return {
           content: [{
@@ -877,7 +881,7 @@ export class XPlus1MCPMachine extends BaseMCPServer {
    * Setup X+1 resources
    */
   private setupResources(): void {
-    logger.info('X+1 MCP: Setting up resources...');
+    Logger.mcpInfo('Setting up X+1 resources...');
     
     // Generic stategraph scheme resource (for native clients): stategraph:<graphId>
     this.server.resource(
@@ -979,7 +983,7 @@ Reset Count: ${this.state.resetCount}
     );
 
     // StateGraph resource
-    logger.info('X+1 MCP: Registering StateGraph resource with ID: stategraphs/x-plus-1-game');
+    Logger.mcpVerbose('Registering StateGraph resource', { id: 'stategraphs/x-plus-1-game' });
     this.server.resource(
       'stategraphs/x-plus-1-game',
       'xplus1://stategraphs/x-plus-1-game',
@@ -1328,7 +1332,7 @@ Reset Count: ${this.state.resetCount}
       }
     );
 
-    logger.info('X+1 MCP: Resources setup completed');
+    Logger.mcpInfo('X+1 resources setup completed');
   }
 
   /**
