@@ -1,0 +1,203 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Debug npm start",
+      "type": "node",
+      "request": "launch",
+      "runtimeExecutable": "node",
+      "runtimeArgs": ["--require", "tsx/cjs", "examples/multi-ui-launcher.ts", "examples/configs/x-plus-1-multi-ui.json"],
+      "cwd": "${workspaceFolder}",
+      "env": {
+        "OLLAMA_MODEL": "gpt-oss:20b",
+        "MCP_QUIET": "false",
+        "NODE_ENV": "development"
+      },
+      "console": "integratedTerminal",
+      "skipFiles": ["<node_internals>/**"],
+      "sourceMaps": true,
+      "resolveSourceMapLocations": [
+        "${workspaceFolder}/**",
+        "!**/node_modules/**"
+      ],
+      "preLaunchTask": "build",
+      "restart": true,
+      "stopOnEntry": false,
+      "autoAttachChildProcesses": true,
+      "outputCapture": "std"
+    },
+    {
+      "name": "Debug npm start (npx)",
+      "type": "node",
+      "request": "launch",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["tsx", "examples/multi-ui-launcher.ts", "examples/configs/x-plus-1-multi-ui.json"],
+      "cwd": "${workspaceFolder}",
+      "env": {
+        "OLLAMA_MODEL": "gpt-oss:20b",
+        "MCP_QUIET": "false",
+        "NODE_ENV": "development"
+      },
+      "console": "integratedTerminal",
+      "skipFiles": ["<node_internals>/**"],
+      "sourceMaps": true,
+      "resolveSourceMapLocations": [
+        "${workspaceFolder}/**",
+        "!**/node_modules/**"
+      ],
+      "preLaunchTask": "build",
+      "restart": true,
+      "stopOnEntry": false,
+      "autoAttachChildProcesses": true,
+      "outputCapture": "std"
+    },
+    {
+      "name": "Debug npm start (nvm path)",
+      "type": "node",
+      "request": "launch",
+      "runtimeExecutable": "C:\\Users\\secre\\.nvm\\versions\\node\\v20.16.0\\bin\\node.exe",
+      "runtimeArgs": ["--require", "tsx/cjs", "examples/multi-ui-launcher.ts", "examples/configs/x-plus-1-multi-ui.json"],
+      "cwd": "${workspaceFolder}",
+      "env": {
+        "OLLAMA_MODEL": "gpt-oss:20b",
+        "MCP_QUIET": "false",
+        "NODE_ENV": "development"
+      },
+      "console": "integratedTerminal",
+      "skipFiles": ["<node_internals>/**"],
+      "sourceMaps": true,
+      "resolveSourceMapLocations": [
+        "${workspaceFolder}/**",
+        "!**/node_modules/**"
+      ],
+      "preLaunchTask": "build",
+      "restart": true,
+      "stopOnEntry": false,
+      "autoAttachChildProcesses": true,
+      "outputCapture": "std"
+    },
+    {
+      "name": "Debug npm start (nvm-windows)",
+      "type": "node",
+      "request": "launch",
+      "program": "${workspaceFolder}/examples/multi-ui-launcher.ts",
+      "args": [
+        "examples/configs/x-plus-1-multi-ui.json"
+      ],
+      "cwd": "${workspaceFolder}",
+      "env": {
+        "OLLAMA_MODEL": "gpt-oss:20b",
+        "MCP_QUIET": "false",
+        "NODE_ENV": "development"
+      },
+      "console": "integratedTerminal",
+      "skipFiles": ["<node_internals>/**"],
+      "sourceMaps": true,
+      "resolveSourceMapLocations": [
+        "${workspaceFolder}/**",
+        "!**/node_modules/**"
+      ],
+      "preLaunchTask": "build",
+      "restart": true,
+      "stopOnEntry": false,
+      "runtimeExecutable": "${env:NVM_HOME}\\${env:NVM_SYMLINK}\\node.exe",
+      "runtimeArgs": ["--loader", "tsx/esm"]
+    },
+    {
+      "name": "Debug npm start (shell)",
+      "type": "node",
+      "request": "launch",
+      "runtimeExecutable": "cmd",
+      "runtimeArgs": ["/c", "npm start"],
+      "cwd": "${workspaceFolder}",
+      "env": {
+        "OLLAMA_MODEL": "gpt-oss:20b",
+        "MCP_QUIET": "false",
+        "NODE_ENV": "development"
+      },
+      "console": "integratedTerminal",
+      "skipFiles": ["<node_internals>/**"],
+      "sourceMaps": true,
+      "resolveSourceMapLocations": [
+        "${workspaceFolder}/**",
+        "!**/node_modules/**"
+      ],
+      "preLaunchTask": "build",
+      "restart": true,
+      "stopOnEntry": false,
+      "autoAttachChildProcesses": true
+    },
+    {
+      "name": "Debug MCP DevOps Server",
+      "type": "node",
+      "request": "launch",
+      "program": "${workspaceFolder}/node_modules/.bin/tsx",
+      "args": [
+        "src/mcp-servers/DevOpsServer.ts"
+      ],
+      "cwd": "${workspaceFolder}",
+      "env": {
+        "NODE_ENV": "development"
+      },
+      "console": "integratedTerminal",
+      "skipFiles": ["<node_internals>/**"],
+      "sourceMaps": true,
+      "resolveSourceMapLocations": [
+        "${workspaceFolder}/**",
+        "!**/node_modules/**"
+      ],
+      "preLaunchTask": "build",
+      "restart": true,
+      "stopOnEntry": false
+    },
+    {
+      "name": "Debug XPlus1 MCP Machine",
+      "type": "node",
+      "request": "launch",
+      "program": "${workspaceFolder}/node_modules/.bin/tsx",
+      "args": [
+        "src/mcp-servers/XPlus1MCPMachine.ts"
+      ],
+      "cwd": "${workspaceFolder}",
+      "env": {
+        "NODE_ENV": "development"
+      },
+      "console": "integratedTerminal",
+      "skipFiles": ["<node_internals>/**"],
+      "sourceMaps": true,
+      "resolveSourceMapLocations": [
+        "${workspaceFolder}/**",
+        "!**/node_modules/**"
+      ],
+      "preLaunchTask": "build",
+      "restart": true,
+      "stopOnEntry": false
+    },
+    {
+      "name": "Debug Launcher Script",
+      "type": "node",
+      "request": "launch",
+      "program": "${workspaceFolder}/node_modules/.bin/tsx",
+      "args": [
+        "scripts/launcher.ts",
+        "x-plus-1"
+      ],
+      "cwd": "${workspaceFolder}",
+      "env": {
+        "OLLAMA_MODEL": "gpt-oss:20b",
+        "MCP_USE_NATIVE_PROTOCOL": "true",
+        "NODE_ENV": "development"
+      },
+      "console": "integratedTerminal",
+      "skipFiles": ["<node_internals>/**"],
+      "sourceMaps": true,
+      "resolveSourceMapLocations": [
+        "${workspaceFolder}/**",
+        "!**/node_modules/**"
+      ],
+      "preLaunchTask": "build",
+      "restart": true,
+      "stopOnEntry": false
+    }
+  ]
+}

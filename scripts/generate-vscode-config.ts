@@ -31,10 +31,7 @@ async function generateVSCodeConfig(options: GenerateConfigOptions = {}) {
   try {
     // Initialize MCP Driver
     console.log('📡 Connecting to MCP Service Launcher...');
-    const mcpDriver = new MCPDriverAdapter({
-      useNativeProtocol: process.env.MCP_USE_NATIVE_PROTOCOL === 'true',
-      enableFallback: true
-    });
+    const mcpDriver = new MCPDriverAdapter();
     
     // Add service launcher server
     await mcpDriver.addServer({

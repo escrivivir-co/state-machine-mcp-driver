@@ -320,7 +320,7 @@ export class HTML5GamificationUI extends GamificationUI {
     });
 
     // Server-Sent Events endpoint
-    this.app.get('/api/events', (req, res) => {
+    this.app.get('/events', (req, res) => {
       this.handleSSEConnection(req, res);
     });
 

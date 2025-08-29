@@ -20,7 +20,7 @@
       "type": "custom",
       "enabled": true,
       "config": {
-        "customClass": "./examples/x-plus-1-state-machine/ConsoleGamificationUI",
+        "customClass": "../examples/x-plus-1-state-machine/ConsoleGamificationUI",
         "isPrimary": true,
         "autoStart": true,
         "showStats": true,

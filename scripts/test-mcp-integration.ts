@@ -14,10 +14,7 @@ async function testMCPIntegration() {
   try {
     // Test 1: Create adapter with feature flag
     console.log('\n1️⃣ Creating MCPDriverAdapter...');
-    const mcpDriver = new MCPDriverAdapter({
-      useNativeProtocol: process.env.MCP_USE_NATIVE_PROTOCOL === 'true',
-      enableFallback: true
-    });
+    const mcpDriver = new MCPDriverAdapter();
 
     console.log(`   Protocol: ${mcpDriver.getCurrentProtocol()}`);
     console.log(`   Feature flag MCP_USE_NATIVE_PROTOCOL: ${process.env.MCP_USE_NATIVE_PROTOCOL || 'not set'}`);
@@ -50,23 +47,11 @@ async function testMCPIntegration() {
       console.log(`   🏥 Health check failed (expected): ${error.message}`);
     }
 
-    // Test 5: Test protocol switching
-    console.log('\n5️⃣ Testing protocol switching...');
-    const originalProtocol = mcpDriver.getCurrentProtocol();
-    console.log(`   Current protocol: ${originalProtocol}`);
+    // Test 5: Test native protocol
+    console.log('\n5️⃣ Testing native protocol...');
+    const currentProtocol = mcpDriver.getCurrentProtocol();
+    console.log(`   Current protocol: ${currentProtocol}`);
     
-    if (originalProtocol === 'native') {
-      mcpDriver.switchToLegacy();
-      console.log(`   Switched to: ${mcpDriver.getCurrentProtocol()}`);
-      mcpDriver.switchToNative();
-      console.log(`   Switched back to: ${mcpDriver.getCurrentProtocol()}`);
-    } else {
-      mcpDriver.switchToNative();
-      console.log(`   Switched to: ${mcpDriver.getCurrentProtocol()}`);
-      mcpDriver.switchToLegacy();
-      console.log(`   Switched back to: ${mcpDriver.getCurrentProtocol()}`);
-    }
-
     // Test 6: MCPClientLike interface
     console.log('\n6️⃣ Testing MCPClientLike interface...');
     const nativeDriver = mcpDriver.getNativeDriver();

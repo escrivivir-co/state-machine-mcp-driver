@@ -360,10 +360,7 @@ export class XPlus1GameConsole extends ConsoleGamificationUI {
    */
   static async create(): Promise<XPlus1GameConsole> {
     // MCP driver and servers with native protocol support
-    const mcpDriver = new MCPDriverAdapter({
-      useNativeProtocol: process.env.MCP_USE_NATIVE_PROTOCOL === 'true',
-      enableFallback: true
-    });
+    const mcpDriver = new MCPDriverAdapter();
 
     // Configure MCP servers
     await mcpDriver.addServer({
@@ -480,6 +477,12 @@ export class XPlus1GameConsole extends ConsoleGamificationUI {
     // Start base console UI (welcome, input loop, threads)
     await super.start();
 
+    // CREATE INITIAL THREAD - Ensure we have an active conversation thread
+    if (!this.getCurrentThread()) {
+      console.log('📢 Creating initial conversation thread...');
+      await this.startNewThread();
+    }
+
     // Enable remote control for MCP command processing
     this.enableRemoteControl();
 
@@ -490,8 +493,14 @@ export class XPlus1GameConsole extends ConsoleGamificationUI {
     console.log(MESSAGE_TEMPLATES.turnStart(this.gameState.x, this.gameState.messageCount));
     console.log('\nType "help" for commands, or start conversing with the agents...');
 
-    // Trigger first postulation request
-    await this.requestNextAgent();
+    // DIRECT APPROACH: Force postulations display immediately
+    console.log('\n🎭 Agents ready to participate:');
+    
+    // Add small delay to ensure agents are fully loaded
+    setTimeout(async () => {
+      console.log('DEBUG: About to call forceDisplayPostulations...');
+      await this.forceDisplayPostulations();
+    }, 500);
   }
 
   /**
@@ -500,6 +509,12 @@ export class XPlus1GameConsole extends ConsoleGamificationUI {
   private async requestNextAgent(): Promise<void> {
     if (!this.gameState.isActive || this.gameState.currentPhase === 'decision') {
       return;
+    }
+
+    // Ensure we have an active thread before requesting agents
+    if (!this.getCurrentThread() || this.getCurrentThread()?.status !== 'active') {
+      console.log('📢 Creating conversation thread...');
+      await this.startNewThread();
     }
 
     const context = this.postulationSystem.generateContext(
@@ -519,6 +534,12 @@ export class XPlus1GameConsole extends ConsoleGamificationUI {
    */
   private async handleAgentSelected(postulation: AgentPostulation, autoSelected: boolean): Promise<void> {
     const agent = postulation.agent;
+    
+    // Ensure we have an active thread
+    if (!this.getCurrentThread() || this.getCurrentThread()?.status !== 'active') {
+      console.log('🎬 Creating new conversation thread for agent message...');
+      await this.startNewThread();
+    }
     
     // Generate agent message (in real implementation, this would trigger chat provider)
     const agentMessage = await this.generateAgentMessage(agent.id, postulation);
@@ -844,24 +865,11 @@ export class XPlus1GameConsole extends ConsoleGamificationUI {
     this.gameState.currentPhase = 'conversation';
     console.log('\n🎭 Starting new conversation turn...');
     console.log(`📝 Messages available: ${GAME_CONFIG.MAX_MESSAGES_THREAD}`);
+    
+    // Trigger first agent postulation request 
+    console.log('🚀 Requesting agent postulations...');
+    super.requestAgentSelection(); // ← FIX: Use the correct method from parent class
   }
-  // Advanced flow omitted in example subclass
-
-  // Advanced flow omitted in example subclass
-
-  // Advanced flow omitted in example subclass
-
-  // Advanced flow omitted in example subclass
-
-  // Advanced flow omitted in example subclass
-
-  // Advanced flow omitted in example subclass
-
-  // Advanced flow omitted in example subclass
-
-  // Advanced flow omitted in example subclass
-
-  // Advanced flow omitted in example subclass
 
   private async handleDecisionPhase(input: string): Promise<void> {
     if (this.gameState.currentPhase !== 'decision') {
@@ -1044,6 +1052,64 @@ export class XPlus1GameConsole extends ConsoleGamificationUI {
     } catch (e) {
       console.log('Failed to update simulator flag in state:', e);
     }
+  }
+
+  /**
+   * Force display of agent postulations directly from MCP server state
+   */
+  private async forceDisplayPostulations(): Promise<void> {
+    console.log('DEBUG: forceDisplayPostulations called');
+    try {
+      // Get available agents from runtime
+      const allAgents = this.runtimeInstance.getAgents();
+      console.log('DEBUG: All agents:', allAgents.map(a => `${a.name}(${a.status})`));
+      
+      const agents = allAgents.filter(agent => agent.status === 'active');
+      console.log('DEBUG: Active agents:', agents.map(a => a.name));
+      
+      if (agents.length > 0) {
+        // Display agent options
+        console.log('\n🎭 Available agents:');
+        agents.forEach((agent, index) => {
+          console.log(`  ${index + 1}. ${agent.name} (${agent.role})`);
+        });
+        
+        console.log(`\nChoose agent (1-${agents.length}) or type your own message:`);
+        
+        // Create simple postulations for display
+        const postulations = agents.map(agent => ({
+          agent,
+          reason: `I'm ready to help with the X+1 game!`,
+          priority: 1,
+          greediness: AgentGreediness.NEUTRAL,
+          weight: 1.0
+        }));
+        
+        console.log('DEBUG: About to call displayAgentPostulations...');
+        // Use the base class method to display postulations properly
+        this.displayAgentPostulations(postulations);
+        
+      } else {
+        console.log('🤐 No active agents available at this time');
+        console.log('Type anything to continue...');
+      }
+    } catch (error) {
+      console.error('❌ Failed to get agents:', error);
+      console.log('Type anything to continue...');
+    }
+  }
+
+  /**
+   * Get display name for agent
+   */
+  private getAgentDisplayName(agentId: string): string {
+    const displayNames: Record<string, string> = {
+      'dionisio-bot': 'DionisioBot (Narrator)',
+      'apolo-bot': 'ApoloBot (Guide)', 
+      'justice-bot': 'JusticeBot (System)',
+      'user-simulator': 'UserSimulator (Player)'
+    };
+    return displayNames[agentId] || agentId;
   }
 
   // Shutdown uses base stop()

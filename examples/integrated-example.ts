@@ -20,10 +20,7 @@ async function main() {
     // 1. Initialize core components
     console.log('📦 Initializing core components...');
     
-    const mcpAdapter = new MCPDriverAdapter({ 
-      useNativeProtocol: true,
-      enableFallback: true
-    });
+    const mcpAdapter = new MCPDriverAdapter();
     
     // Add MCP servers (these would normally be running)
     await mcpAdapter.addServer({

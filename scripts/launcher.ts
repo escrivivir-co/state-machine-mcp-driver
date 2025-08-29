@@ -309,10 +309,7 @@ await this.launchMCPServers();
     console.log(`✅ MCP Service Launcher started (PID: ${launcherProcess.pid})`);
 
     // Initialize MCP Driver to communicate with the launcher
-    this.mcpDriver = new MCPDriverAdapter({
-      useNativeProtocol: true,
-      enableFallback: true
-    });
+    this.mcpDriver = new MCPDriverAdapter();
     await this.mcpDriver.addServer({
       id: 'mcp-service-launcher',
       name: 'MCP Service Launcher',
@@ -890,9 +887,7 @@ await this.launchMCPServers();
       
       // 1. Initialize MCP Driver Adapter (reuse existing connections)
       console.log('🔄 Initializing MCP Driver...');
-      const mcpAdapter = new MCPDriverAdapter({
-        useNativeProtocol: process.env.MCP_USE_NATIVE_PROTOCOL === 'true'
-      });
+      const mcpAdapter = new MCPDriverAdapter();
       
       // Configure MCP servers (they're already running)
       const serverConfigs = [

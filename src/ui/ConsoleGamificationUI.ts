@@ -43,6 +43,8 @@ export interface ConsoleUIConfig {
   enablePostulations?: boolean;
   /** Auto-select agents when only one postulates */
   autoSelectSingleAgent?: boolean;
+  /** Auto-start the first conversation turn */
+  autoStart?: boolean;
 }
 
 /**
@@ -184,8 +186,15 @@ export class ConsoleGamificationUI extends EventEmitter implements IConsoleReade
         await this.runtime.initialize();
       }
 
-      // Start first conversation thread
-      await this.startNewThread();
+      // Start first conversation turn if autoStart is enabled
+      if (this.config.autoStart !== false) {
+        // Add a small delay to ensure everything is initialized
+        setTimeout(async () => {
+            if (this.config.enablePostulations) {
+                await this.requestAgentSelection();
+            }
+        }, 100);
+      }
 
       // Start input loop
       this.startInputLoop();
@@ -702,7 +711,7 @@ export class ConsoleGamificationUI extends EventEmitter implements IConsoleReade
     console.log('\n' + this.colorize('Type "exit" to quit the game\n', 'dim'));
   }
 
-  private async startNewThread(): Promise<void> {
+  protected async startNewThread(): Promise<void> {
     this.currentThread = {
       id: `thread-${Date.now()}`,
       messages: [],

@@ -78,8 +78,6 @@ export interface MultiUIGameConfig {
   mcp: {
     /** MCP servers to launch */
     servers: string[];
-    /** Use native MCP protocol */
-    useNativeProtocol?: boolean;
   };
 }
 
@@ -147,8 +145,7 @@ export const X_PLUS_1_MULTI_UI: MultiUIGameConfig = {
   },
   
   mcp: {
-    servers: ['xplus1-mcp-machine', 'wiki-mcp-browser'],
-    useNativeProtocol: true
+    servers: ['xplus1-mcp-machine', 'wiki-mcp-browser']
   }
 };
 
@@ -216,8 +213,7 @@ export const DEV_MULTI_UI: MultiUIGameConfig = {
   },
   
   mcp: {
-    servers: ['xplus1-mcp-machine', 'wiki-mcp-browser'],
-    useNativeProtocol: true
+    servers: ['xplus1-mcp-machine', 'wiki-mcp-browser']
   }
 };
 
@@ -256,8 +252,7 @@ export const CONSOLE_ONLY: MultiUIGameConfig = {
   },
   
   mcp: {
-    servers: ['xplus1-mcp-machine'],
-    useNativeProtocol: true
+    servers: ['xplus1-mcp-machine']
   }
 };
 

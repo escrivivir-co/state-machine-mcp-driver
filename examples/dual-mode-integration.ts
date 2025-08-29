@@ -28,8 +28,6 @@ interface DualModeConfig {
   gameTitle: string;
   /** Debug mode */
   debugMode: boolean;
-  /** Use native MCP protocol */
-  useNativeProtocol: boolean;
 }
 
 /**
@@ -50,10 +48,7 @@ class DualModeGameManager {
     this.config = config;
     
     // Initialize MCP adapter
-    this.mcpAdapter = new MCPDriverAdapter({
-      useNativeProtocol: config.useNativeProtocol,
-      enableFallback: true
-    });
+    this.mcpAdapter = new MCPDriverAdapter();
 
     Logger.info('DualModeGameManager: Initialized with dual interface support');
   }
@@ -346,17 +341,10 @@ class DualModeGameManager {
   }
 
   /**
-   * Switch MCP protocol (for testing)
+   * Get current MCP protocol
    */
-  public switchMCPProtocol(): void {
-    const current = this.mcpAdapter.getCurrentProtocol();
-    if (current === 'native') {
-      this.mcpAdapter.switchToLegacy();
-    } else {
-      this.mcpAdapter.switchToNative();
-    }
-    
-    this.broadcastMessage(`MCP Protocol switched to: ${this.mcpAdapter.getCurrentProtocol()}`);
+  public getCurrentMCPProtocol(): string {
+    return this.mcpAdapter.getCurrentProtocol();
   }
 }
 
@@ -368,8 +356,7 @@ async function main() {
     enableWeb: process.env.ENABLE_WEB !== 'false',
     webPort: parseInt(process.env.WEB_PORT || '3000'),
     gameTitle: 'X+1 Dual Mode Game',
-    debugMode: process.env.DEBUG_MODE === 'true',
-    useNativeProtocol: process.env.MCP_USE_NATIVE_PROTOCOL === 'true'
+    debugMode: process.env.DEBUG_MODE === 'true'
   };
 
   const gameManager = new DualModeGameManager(config);
