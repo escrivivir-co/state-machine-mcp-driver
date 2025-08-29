@@ -56,7 +56,11 @@
       "type": "node",
       "request": "launch",
       "runtimeExecutable": "C:\\Users\\secre\\.nvm\\versions\\node\\v20.16.0\\bin\\node.exe",
-      "runtimeArgs": ["--require", "tsx/cjs", "examples/multi-ui-launcher.ts", "examples/configs/x-plus-1-multi-ui.json"],
+      "runtimeArgs": ["--require", "tsx/cjs"],
+      "program": "${workspaceFolder}/examples/multi-ui-launcher.ts",
+      "args": [
+        "examples/configs/x-plus-1-multi-ui.json"
+      ],
       "cwd": "${workspaceFolder}",
       "env": {
         "OLLAMA_MODEL": "gpt-oss:20b",
@@ -70,7 +74,30 @@
         "${workspaceFolder}/**",
         "!**/node_modules/**"
       ],
-      "preLaunchTask": "build",
+      "restart": true,
+      "stopOnEntry": false,
+      "autoAttachChildProcesses": true,
+      "outputCapture": "std"
+    },
+    {
+      "name": "Debug npm start (tsx direct)",
+      "type": "node",
+      "request": "launch",
+      "runtimeExecutable": "C:\\Users\\secre\\.nvm\\versions\\node\\v20.16.0\\bin\\npx.cmd",
+      "runtimeArgs": ["tsx", "examples/multi-ui-launcher.ts", "examples/configs/x-plus-1-multi-ui.json"],
+      "cwd": "${workspaceFolder}",
+      "env": {
+        "OLLAMA_MODEL": "gpt-oss:20b",
+        "MCP_QUIET": "false",
+        "NODE_ENV": "development"
+      },
+      "console": "integratedTerminal",
+      "skipFiles": ["<node_internals>/**"],
+      "sourceMaps": true,
+      "resolveSourceMapLocations": [
+        "${workspaceFolder}/**",
+        "!**/node_modules/**"
+      ],
       "restart": true,
       "stopOnEntry": false,
       "autoAttachChildProcesses": true,
