@@ -8,11 +8,11 @@ El State Machine MCP Driver está diseñado como un sistema modular basado en co
 
 ### Principios Arquitectónicos
 
-- **Comunicación Basada en Eventos**: Uso de RxJS para comunicación asíncrona y reactiva
-- **Separación de Responsabilidades**: Cada componente tiene una responsabilidad específica y bien definida
-- **Modularidad**: Componentes intercambiables y testeable de forma independiente
-- **Type Safety**: Implementación completa en TypeScript con tipado estricto
-- **Escalabilidad**: Arquitectura que permite agregar nuevos componentes fácilmente
+-   **Comunicación Basada en Eventos**: Uso de RxJS para comunicación asíncrona y reactiva
+-   **Separación de Responsabilidades**: Cada componente tiene una responsabilidad específica y bien definida
+-   **Modularidad**: Componentes intercambiables y testeable de forma independiente
+-   **Type Safety**: Implementación completa en TypeScript con tipado estricto
+-   **Escalabilidad**: Arquitectura que permite agregar nuevos componentes fácilmente
 
 ---
 
@@ -48,55 +48,169 @@ El State Machine MCP Driver está diseñado como un sistema modular basado en co
 └─────────────────┘ └─────────────────┘ └─────────────────┘
 ```
 
+### 2. Channel Agent Factory - Sistema de Creación de Agentes
+
+**Ubicación**: `src/orchestration/channel/channel-agent-factory.ts`
+
+**Responsabilidad**: Factory pattern para la creación dinámica de agentes de canal basado en nombres de clase como strings, proporcionando type safety y gestión centralizada de instancias.
+
+#### Arquitectura del Channel Agent Factory
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                 CHANNEL AGENT FACTORY                       │
+├─────────────────────────────────────────────────────────────┤
+│                                                             │
+│  createChannelAgent(className: string) → ChannelAgent      │
+│                                                             │
+│  ┌─────────────────────────────────────────────────────┐    │
+│  │              AGENT REGISTRY                         │    │
+│  │                                                     │    │
+│  │  "AppChannelAgent"  → AppChannelAgent.constructor  │    │
+│  │  "SysChannelAgent"  → SysChannelAgent.constructor  │    │
+│  │  "UIChannelAgent"   → UIChannelAgent.constructor   │    │
+│  │                                                     │    │
+│  └─────────────────────────────────────────────────────┘    │
+│                                                             │
+│  Factory Methods:                                           │
+│  • create<T>(className) → T (with type inference)          │
+│  • createMultiple(classNames[]) → ChannelAgent[]           │
+│  • getAvailableAgents() → string[]                         │
+│  • isAvailable(className) → boolean                        │
+└─────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+              ┌─────────────────────────────────┐
+              │        CREATED AGENTS           │
+              │                                 │
+              │  ┌─────────────────────────┐    │
+              │  │    UIChannelAgent       │    │
+              │  │  - id: "ui-controller"  │    │
+              │  │  - handles user input   │    │
+              │  └─────────────────────────┘    │
+              │                                 │
+              │  ┌─────────────────────────┐    │
+              │  │   AppChannelAgent       │    │
+              │  │  - id: "state-manager"  │    │
+              │  │  - manages app state    │    │
+              │  └─────────────────────────┘    │
+              │                                 │
+              │  ┌─────────────────────────┐    │
+              │  │   SysChannelAgent       │    │
+              │  │  - id: "system-monitor" │    │
+              │  │  - monitors health      │    │
+              │  └─────────────────────────┘    │
+              └─────────────────────────────────┘
+```
+
 #### Interfaces Principales
 
 ```typescript
 // Canal de Aplicación - Lógica de negocio
 interface AppChannel {
-  messages$: Observable<AppMessage>;
-  sendStateTransition(source: string, from: string, to: string, metadata?: any): void;
-  sendActionRequest(source: string, actionType: string, params: any): void;
-  sendActionResult(source: string, actionType: string, result: any, success: boolean): void;
-  sendAgentCommand(source: string, agentId: string, command: any): void;
+    messages$: Observable<AppMessage>;
+    sendStateTransition(
+        source: string,
+        from: string,
+        to: string,
+        metadata?: any
+    ): void;
+    sendActionRequest(source: string, actionType: string, params: any): void;
+    sendActionResult(
+        source: string,
+        actionType: string,
+        result: any,
+        success: boolean
+    ): void;
+    sendAgentCommand(source: string, agentId: string, command: any): void;
 }
 
 // Canal de Sistema - Salud y configuración
 interface SysChannel {
-  messages$: Observable<SysMessage>;
-  sendHealthCheck(source: string, serviceId: string, status: 'online' | 'offline'): void;
-  sendError(source: string, error: Error, context?: string): void;
-  sendWarning(source: string, message: string): void;
-  sendInfo(source: string, message: string, metadata?: any): void;
-  sendConfigChange(source: string, key: string, value: any): void;
+    messages$: Observable<SysMessage>;
+    sendHealthCheck(
+        source: string,
+        serviceId: string,
+        status: "online" | "offline"
+    ): void;
+    sendError(source: string, error: Error, context?: string): void;
+    sendWarning(source: string, message: string): void;
+    sendInfo(source: string, message: string, metadata?: any): void;
+    sendConfigChange(source: string, key: string, value: any): void;
 }
 
 // Canal de UI - Interacciones de usuario
 interface UIChannel {
-  messages$: Observable<UIMessage>;
-  sendUserInput(source: string, input: string, command?: string): void;
-  sendDisplayUpdate(source: string, component: string, type: string, data: any): void;
-  sendNotification(source: string, title: string, message: string, level: string): void;
-  sendPhaseChange(source: string, phase: string, state?: any): void;
+    messages$: Observable<UIMessage>;
+    sendUserInput(source: string, input: string, command?: string): void;
+    sendDisplayUpdate(
+        source: string,
+        component: string,
+        type: string,
+        data: any
+    ): void;
+    sendNotification(
+        source: string,
+        title: string,
+        message: string,
+        level: string
+    ): void;
+    sendPhaseChange(source: string, phase: string, state?: any): void;
+}
+```
+
+#### Interfaces del Channel Agent Factory
+
+```typescript
+// Tipos principales para el factory
+type ChannelAgentName =
+    | "AppChannelAgent"
+    | "SysChannelAgent"
+    | "UIChannelAgent";
+
+type ChannelAgentClassMap = {
+    AppChannelAgent: AppChannelAgent;
+    SysChannelAgent: SysChannelAgent;
+    UIChannelAgent: UIChannelAgent;
+};
+
+// Interface base para todos los channel agents
+interface ChannelAgent {
+    id: string;
+    name: string;
+    initialize(orchestrator: IOrchestratorChannels): Promise<void>;
+    shutdown(): Promise<void>;
+}
+
+// Factory class interface
+class ChannelAgentFactory {
+    static create<K extends ChannelAgentName>(
+        className: K
+    ): ChannelAgentClassMap[K];
+    static createChannelAgent(className: ChannelAgentName): ChannelAgent;
+    static createMultiple(classNames: ChannelAgentName[]): ChannelAgent[];
+    static getAvailableAgents(): ChannelAgentName[];
+    static isAvailable(className: string): boolean;
 }
 ```
 
 #### Capacidades Clave
 
-- **🔄 Cross-Channel Routing**: Mensajes pueden enrutarse automáticamente entre canales
-- **📈 Replay Buffer**: Configuración de buffer para nuevos suscriptores
-- **📊 Estadísticas en Tiempo Real**: Monitoreo de mensajes, errores y rendimiento
-- **🧩 Registro Dinámico**: Componentes pueden registrarse/desregistrarse en runtime
-- **⚡ Alto Rendimiento**: Manejo eficiente de múltiples mensajes concurrentes
-- **🔒 Type Safety**: Tipado completo de todos los mensajes y operaciones
+-   **🔄 Cross-Channel Routing**: Mensajes pueden enrutarse automáticamente entre canales
+-   **📈 Replay Buffer**: Configuración de buffer para nuevos suscriptores
+-   **📊 Estadísticas en Tiempo Real**: Monitoreo de mensajes, errores y rendimiento
+-   **🧩 Registro Dinámico**: Componentes pueden registrarse/desregistrarse en runtime
+-   **⚡ Alto Rendimiento**: Manejo eficiente de múltiples mensajes concurrentes
+-   **🔒 Type Safety**: Tipado completo de todos los mensajes y operaciones
 
 #### Patrones de Uso
 
 ```typescript
 // Inicialización del Orchestrator
 const orchestrator = new Orchestrator({
-  enableLogging: true,
-  enableReplay: true,
-  enableCrossChannelRouting: true
+    enableLogging: true,
+    enableReplay: true,
+    enableCrossChannelRouting: true,
 });
 
 await orchestrator.start();
@@ -105,19 +219,66 @@ await orchestrator.start();
 await orchestrator.registerComponent(myAgent);
 
 // Uso de canales
-orchestrator.app.sendStateTransition('agent-1', 'idle', 'processing');
-orchestrator.sys.sendInfo('system', 'Component initialized successfully');
-orchestrator.ui.sendNotification('ui', 'Status', 'System ready', 'success');
+orchestrator.app.sendStateTransition("agent-1", "idle", "processing");
+orchestrator.sys.sendInfo("system", "Component initialized successfully");
+orchestrator.ui.sendNotification("ui", "Status", "System ready", "success");
 ```
+
+#### Patrones de Uso del Channel Agent Factory
+
+```typescript
+// Creación simple con type inference
+const uiAgent = ChannelAgentFactory.create("UIChannelAgent");
+const appAgent = ChannelAgentFactory.create("AppChannelAgent");
+const sysAgent = ChannelAgentFactory.create("SysChannelAgent");
+
+// Uso de la función conveniente
+import { createChannelAgent } from "./channel-agent-factory";
+const agent = createChannelAgent("UIChannelAgent");
+
+// Creación múltiple de agentes
+const agents = ChannelAgentFactory.createMultiple([
+    "AppChannelAgent",
+    "SysChannelAgent",
+    "UIChannelAgent",
+]);
+
+// Verificación de disponibilidad
+if (ChannelAgentFactory.isAvailable("UIChannelAgent")) {
+    const agent = ChannelAgentFactory.create("UIChannelAgent");
+    await agent.initialize(orchestrator);
+}
+
+// Listado de agentes disponibles
+const availableAgents = ChannelAgentFactory.getAvailableAgents();
+console.log("Available agents:", availableAgents);
+
+// Manejo de errores
+try {
+    const agent = ChannelAgentFactory.create("NonExistentAgent" as any);
+} catch (error) {
+    console.error("Agent creation failed:", error.message);
+    // Output: "Channel agent class 'NonExistentAgent' not found in registry"
+}
+```
+
+#### Capacidades del Channel Agent Factory
+
+-   **🎯 Type Safety**: Inferencia de tipos completa para cada clase de agente
+-   **🔍 Dynamic Discovery**: Verificación de disponibilidad de agentes en runtime
+-   **📦 Batch Creation**: Creación de múltiples agentes en una sola operación
+-   **🚨 Error Handling**: Mensajes de error detallados con clases disponibles
+-   **🏗️ Factory Pattern**: Implementación estándar del patrón Factory
+-   **🔧 Extensible**: Fácil adición de nuevos tipos de agentes al registro
 
 #### Validación y Testing
 
-- **✅ 31/31 Tests Pasando (100% Coverage)**
-- **✅ Validación de Secuencias Completas**: READY → INIT → CLOSE
-- **✅ Test de Rendimiento**: 150+ mensajes en <2 segundos
-- **✅ Cross-Channel Communication**: Verificado funcionamiento
-- **✅ Agent Lifecycle Management**: Completo
-- **✅ Error Handling & Recovery**: Robusto
+-   **✅ 31/31 Tests Pasando (100% Coverage)**
+-   **✅ Validación de Secuencias Completas**: READY → INIT → CLOSE
+-   **✅ Test de Rendimiento**: 150+ mensajes en <2 segundos
+-   **✅ Cross-Channel Communication**: Verificado funcionamiento
+-   **✅ Agent Lifecycle Management**: Completo
+-   **✅ Error Handling & Recovery**: Robusto
 
 ---
 
@@ -127,24 +288,24 @@ Los siguientes componentes serán documentados a medida que se implementen:
 
 ### Próximos Componentes Planificados
 
-- **State Machine Engine**: Motor de máquinas de estado
-- **MCP Client Driver**: Interfaz con servidores MCP
-- **Plugin System**: Sistema de plugins extensible
-- **Configuration Manager**: Gestión de configuración dinámica
-- **Logging System**: Sistema de logging avanzado
-- **Health Monitor**: Monitor de salud del sistema
-- **UI Framework**: Framework de interfaz de usuario
-- **Data Persistence**: Capa de persistencia de datos
+-   **State Machine Engine**: Motor de máquinas de estado
+-   **MCP Client Driver**: Interfaz con servidores MCP
+-   **Plugin System**: Sistema de plugins extensible
+-   **Configuration Manager**: Gestión de configuración dinámica
+-   **Logging System**: Sistema de logging avanzado
+-   **Health Monitor**: Monitor de salud del sistema
+-   **UI Framework**: Framework de interfaz de usuario
+-   **Data Persistence**: Capa de persistencia de datos
 
 ---
 
 ## 📚 Referencias
 
-- **Código Fuente**: `src/orchestration/`
-- **Tests**: `src/orchestration/__tests__/`
-- **Documentación Técnica**: `src/orchestration/README.md`
-- **Ejemplos de Uso**: `examples/orchestrator-example.ts`
+-   **Código Fuente**: `src/orchestration/`
+-   **Tests**: `src/orchestration/__tests__/`
+-   **Documentación Técnica**: `src/orchestration/README.md`
+-   **Ejemplos de Uso**: `examples/orchestrator-example.ts`
 
 ---
 
-*Este documento será actualizado continuamente a medida que se agreguen nuevos componentes al sistema.*
+_Este documento será actualizado continuamente a medida que se agreguen nuevos componentes al sistema._

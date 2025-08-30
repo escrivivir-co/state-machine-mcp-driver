@@ -24,7 +24,7 @@ import {
     findToolByName,
 } from "./promptUtils";
 import { MCPClientDriver } from "../drivers/MCPClientDriver";
-import { InterfaceOrchestrator } from "../orchestration/InterfaceOrchestrator";
+import { ChannelConsumer } from "@/orchestration/channel/deprecated-channel-consumer";
 
 /**  DEPRECATED IN FAVOR OF src\drivers
  *
@@ -147,7 +147,7 @@ export class OllamaChatProvider extends EventEmitter {
     };
     private mcpDriver?: MCPDriverAdapter;
     private mcpClient?: MCPClientDriver;
-    private orchestrator?: InterfaceOrchestrator;
+    private orchestrator?: ChannelConsumer;
 
     constructor(
         config?: Partial<ChatProviderConfig>,
@@ -177,7 +177,7 @@ export class OllamaChatProvider extends EventEmitter {
      */
     connectMCP(
         mcpClient: MCPClientDriver,
-        orchestrator?: InterfaceOrchestrator
+        orchestrator?: ChannelConsumer
     ): void {
         this.mcpClient = mcpClient;
         this.orchestrator = orchestrator;

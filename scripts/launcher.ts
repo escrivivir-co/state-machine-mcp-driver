@@ -19,6 +19,7 @@ import {
     getMultiUIConfig,
     validateMultiUIConfig,
 } from "../src/ui/MultiUIGameConfig";
+import { ChannelConsumer } from "@/orchestration/channel/deprecated-channel-consumer";
 
 interface LaunchConfig {
     ollamaUrl: string;
@@ -1043,9 +1044,6 @@ export class ApplicationLauncher {
             const { MCPDriverAdapter } = await import(
                 "../src/drivers/MCPDriverAdapter"
             );
-            const { InterfaceOrchestrator } = await import(
-                "../src/orchestration/InterfaceOrchestrator"
-            );
             const { MultiUIGameManager } = await import(
                 "../src/ui/MultiUIGameManager"
             );
@@ -1149,7 +1147,7 @@ export class ApplicationLauncher {
 
             // 3. Initialize Interface Orchestrator
             console.log("🔄 Initializing Interface Orchestrator...");
-            const orchestrator = new InterfaceOrchestrator(
+            const orchestrator = new ChannelConsumer(
                 runtime,
                 mcpAdapter,
                 {

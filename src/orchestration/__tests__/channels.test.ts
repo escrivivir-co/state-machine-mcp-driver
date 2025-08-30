@@ -2,8 +2,12 @@
  * Unit tests for individual RxJS channels
  */
 
-import { AppChannelImpl, SysChannelImpl, UIChannelImpl } from "../channels";
+
 import { take, toArray } from "rxjs/operators";
+import { AppChannelImpl } from "../channel/app-channel";
+import { SysChannelImpl } from "../channel/sys-channel";
+import { UIChannelImpl } from "../channel/ui-channel";
+
 
 describe("RxJS Channels Unit Tests", () => {
     describe("AppChannelImpl", () => {

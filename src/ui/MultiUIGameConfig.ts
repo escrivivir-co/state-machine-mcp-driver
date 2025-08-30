@@ -3,6 +3,7 @@
  * Configuration for launching multiple GamificationUI instances simultaneously
  */
 
+import { OrchestratorConfig } from "@/orchestration";
 import { BaseGamificationUIConfig } from "./GamificationUI";
 
 /**
@@ -65,14 +66,7 @@ export interface MultiUIGameConfig {
     };
 
     /** Orchestration settings */
-    orchestration: {
-        /** Sync interval between UIs (ms) */
-        syncInterval?: number;
-        /** Enable cross-UI event broadcasting */
-        enableEventBroadcasting?: boolean;
-        /** Primary UI ID (receives input priority) */
-        primaryUIId?: string;
-    };
+    orchestration: OrchestratorConfig;
 
     /** MCP configuration */
     mcp: {

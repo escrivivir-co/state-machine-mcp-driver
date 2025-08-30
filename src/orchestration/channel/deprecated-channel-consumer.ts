@@ -1,10 +1,10 @@
+import { OllamaChatProvider } from "@/chat-provider";
+import { MCPDriverAdapter, MCPClientDriver } from "@/drivers";
+import { Runtime } from "@/runtime";
+import { ConsoleGamificationUI } from "@/ui";
+import { Logger } from "@/utils/logger";
 import { EventEmitter } from "events";
-import { Runtime } from "../runtime/Runtime";
-import { MCPDriverAdapter } from "../drivers/MCPDriverAdapter";
-import { MCPClientDriver } from "../drivers/MCPClientDriver";
-import { OllamaChatProvider } from "../chat-provider/OllamaChatProvider";
-import { ConsoleGamificationUI } from "../ui/ConsoleGamificationUI";
-import { Logger } from "../utils/logger";
+
 
 export interface OrchestratorConfig {
     enableChatProvider?: boolean;
@@ -24,7 +24,7 @@ export interface InterfaceEvent {
  * Central orchestrator for all interaction interfaces
  * Coordinates between chat-provider, UI, and agent control
  */
-export class InterfaceOrchestrator extends EventEmitter {
+export class ChannelConsumer extends EventEmitter {
     private runtime: Runtime;
     private mcpAdapter: MCPDriverAdapter;
     private chatProvider?: OllamaChatProvider;

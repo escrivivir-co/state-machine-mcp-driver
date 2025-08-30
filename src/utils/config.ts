@@ -3,13 +3,14 @@
  * Centralized application configuration management
  */
 
+import { MultiUIGameConfig } from "@/ui/MultiUIGameConfig";
 import { MCPServerConfig } from "../drivers";
 import { LogLevel } from "./logger";
 
 /**
  * Application configuration interface
  */
-export interface AppConfig {
+export interface AppConfig extends MultiUIGameConfig {
     /** Server port */
     port: number;
     /** Node environment */
@@ -124,65 +125,84 @@ const defaultMCPServers: MCPServerConfig[] = parseEnvJson(
  * Main application configuration
  */
 export const config: AppConfig = {
-    port: parseEnvNumber(process.env.PORT, 3000),
-    nodeEnv: (process.env.NODE_ENV as AppConfig["nodeEnv"]) || "development",
+	port: parseEnvNumber(process.env.PORT, 3000),
+	nodeEnv: (process.env.NODE_ENV as AppConfig["nodeEnv"]) || "development",
 
-    mcpServers: defaultMCPServers,
+	mcpServers: defaultMCPServers,
 
-    logging: {
-        level: (process.env.LOG_LEVEL as LogLevel) || LogLevel.INFO,
-        format:
-            (process.env.LOG_FORMAT as "json" | "simple" | "combined") ||
-            "simple",
-        enableFile: parseEnvBoolean(
-            process.env.LOG_ENABLE_FILE,
-            process.env.NODE_ENV === "production"
-        ),
-        logDir: process.env.LOG_DIR || "logs",
-    },
+	logging: {
+		level: (process.env.LOG_LEVEL as LogLevel) || LogLevel.INFO,
+		format: (process.env.LOG_FORMAT as "json" | "simple" | "combined") ||
+			"simple",
+		enableFile: parseEnvBoolean(
+			process.env.LOG_ENABLE_FILE,
+			process.env.NODE_ENV === "production"
+		),
+		logDir: process.env.LOG_DIR || "logs",
+	},
 
-    session: {
-        timeout: parseEnvNumber(process.env.SESSION_TIMEOUT, 3600000), // 1 hour
-        cleanup: parseEnvBoolean(process.env.SESSION_CLEANUP, true),
-        cleanupInterval: parseEnvNumber(
-            process.env.SESSION_CLEANUP_INTERVAL,
-            300000
-        ), // 5 minutes
-    },
+	session: {
+		timeout: parseEnvNumber(process.env.SESSION_TIMEOUT, 3600000), // 1 hour
+		cleanup: parseEnvBoolean(process.env.SESSION_CLEANUP, true),
+		cleanupInterval: parseEnvNumber(
+			process.env.SESSION_CLEANUP_INTERVAL,
+			300000
+		), // 5 minutes
+	},
 
-    security: {
-        enableAuth: parseEnvBoolean(process.env.ENABLE_AUTH, false),
-        apiKeys: parseEnvJson(process.env.API_KEYS, []),
-        cors: {
-            origin: parseEnvJson(process.env.CORS_ORIGIN, "*"),
-            credentials: parseEnvBoolean(process.env.CORS_CREDENTIALS, true),
-        },
-    },
+	security: {
+		enableAuth: parseEnvBoolean(process.env.ENABLE_AUTH, false),
+		apiKeys: parseEnvJson(process.env.API_KEYS, []),
+		cors: {
+			origin: parseEnvJson(process.env.CORS_ORIGIN, "*"),
+			credentials: parseEnvBoolean(process.env.CORS_CREDENTIALS, true),
+		},
+	},
 
-    performance: {
-        maxConcurrentRequests: parseEnvNumber(
-            process.env.MAX_CONCURRENT_REQUESTS,
-            100
-        ),
-        requestTimeout: parseEnvNumber(process.env.REQUEST_TIMEOUT, 30000),
-        enableCaching: parseEnvBoolean(process.env.ENABLE_CACHING, false),
-        cacheTtl: parseEnvNumber(process.env.CACHE_TTL, 300000), // 5 minutes
-    },
+	performance: {
+		maxConcurrentRequests: parseEnvNumber(
+			process.env.MAX_CONCURRENT_REQUESTS,
+			100
+		),
+		requestTimeout: parseEnvNumber(process.env.REQUEST_TIMEOUT, 30000),
+		enableCaching: parseEnvBoolean(process.env.ENABLE_CACHING, false),
+		cacheTtl: parseEnvNumber(process.env.CACHE_TTL, 300000), // 5 minutes
+	},
 
-    development: {
-        hotReload: parseEnvBoolean(
-            process.env.HOT_RELOAD,
-            process.env.NODE_ENV === "development"
-        ),
-        debug: parseEnvBoolean(
-            process.env.DEBUG,
-            process.env.NODE_ENV === "development"
-        ),
-        mockServers: parseEnvBoolean(
-            process.env.MOCK_SERVERS,
-            process.env.NODE_ENV === "development"
-        ),
-    },
+	development: {
+		hotReload: parseEnvBoolean(
+			process.env.HOT_RELOAD,
+			process.env.NODE_ENV === "development"
+		),
+		debug: parseEnvBoolean(
+			process.env.DEBUG,
+			process.env.NODE_ENV === "development"
+		),
+		mockServers: parseEnvBoolean(
+			process.env.MOCK_SERVERS,
+			process.env.NODE_ENV === "development"
+		),
+	},
+	game: {
+		id: "",
+		name: "",
+		version: "",
+		description: undefined
+	},
+	ui: [],
+	shared: {
+		gameTitle: "",
+		welcomeMessage: undefined,
+		debugMode: undefined,
+		maxMessagesPerThread: undefined,
+		enablePostulations: undefined
+	},
+	orchestration: {
+		
+	},
+	mcp: {
+		servers: []
+	}
 };
 
 /**

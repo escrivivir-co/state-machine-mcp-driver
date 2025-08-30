@@ -1,10 +1,10 @@
 import { EventEmitter } from 'events';
 import { MCPClientDriver } from '../drivers/MCPClientDriver';
 import { Runtime } from '../runtime/Runtime';
-import { InterfaceOrchestrator } from '../orchestration/InterfaceOrchestrator';
 import { Logger } from '../utils/logger';
 import { readFileSync } from 'fs';
 import { join } from 'path';
+import { ChannelConsumer } from '@/orchestration/channel/deprecated-channel-consumer';
 
 export interface AgentCommand {
   action: string;
@@ -19,7 +19,7 @@ export interface AgentCommand {
 export class AgentControlService extends EventEmitter {
   private mcpClient: MCPClientDriver;
   private runtime: Runtime;
-  private orchestrator: InterfaceOrchestrator;
+  private orchestrator: ChannelConsumer;
   private prompts: Map<string, string> = new Map();
   private commandQueue: AgentCommand[] = [];
   private isProcessing = false;
@@ -27,7 +27,7 @@ export class AgentControlService extends EventEmitter {
   constructor(
     mcpClient: MCPClientDriver,
     runtime: Runtime,
-    orchestrator: InterfaceOrchestrator
+    orchestrator: ChannelConsumer
   ) {
     super();
     this.mcpClient = mcpClient;

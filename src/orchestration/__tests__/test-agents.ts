@@ -3,13 +3,13 @@
  */
 
 import { Subject, takeUntil } from "rxjs";
-import { IOrchestratorChannels, OrchestratorComponent } from "../types";
+import { IOrchestratorChannels, ChannelAgent } from "../types";
 import { Logger } from "../../utils/logger";
 
 /**
  * System Agent - Manages system lifecycle events
  */
-export class SysAgent implements OrchestratorComponent {
+export class SysAgent implements ChannelAgent {
     public readonly id = "sys-agent";
     public readonly name = "System Agent";
 
@@ -150,7 +150,7 @@ export class SysAgent implements OrchestratorComponent {
 /**
  * Application Agent - Manages app lifecycle and state
  */
-export class AppAgent implements OrchestratorComponent {
+export class AppAgent implements ChannelAgent {
     public readonly id = "app-agent";
     public readonly name = "Application Agent";
 
@@ -271,7 +271,7 @@ export class AppAgent implements OrchestratorComponent {
 /**
  * UI Agent - Manages UI interactions and state
  */
-export class UIAgent implements OrchestratorComponent {
+export class UIAgent implements ChannelAgent {
     public readonly id = "ui-agent";
     public readonly name = "UI Agent";
 
@@ -414,7 +414,7 @@ export class UIAgent implements OrchestratorComponent {
 /**
  * Log Agent - Monitors and logs all channel activity
  */
-export class LogAgent implements OrchestratorComponent {
+export class LogAgent implements ChannelAgent {
     public readonly id = "log-agent";
     public readonly name = "Log Agent";
 

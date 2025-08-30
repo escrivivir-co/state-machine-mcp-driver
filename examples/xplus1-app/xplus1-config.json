@@ -1,0 +1,62 @@
+{
+	"game": {
+		"id": "x-plus-1-multi",
+		"name": "X+1 Multi-UI Demo",
+		"description": "X+1 game running with both console and web interfaces"
+	},
+	"mcp": {
+		"servers": [
+			"xplus1-mcp-machine",
+			"wiki-mcp-browser"
+		]
+	},
+	"orchestration": {
+		"enableReplay": true,
+		"replayBufferSize": 200,
+		"enableLogging": true,
+		"enableCrossChannelRouting": true,
+		"messageTimeout": 10000,
+		"autoRegisterComponentsKeys": [
+			"AppChannelAgent",
+			"UIChannelAgent",
+			"SysChannelAgent"
+		]
+	},
+	"ui": [
+		{
+			"id": "console-primary",
+			"name": "Console Interface",
+			"type": "custom",
+			"enabled": true,
+			"config": {
+				"customClass": "../examples/x-plus-1-state-machine/ConsoleGamificationUI",
+				"isPrimary": true,
+				"autoStart": true,
+				"showStats": true,
+				"colorScheme": "default",
+				"maxMessagesPerThread": 50,
+				"gameTitle": "X+1 State Machine Game",
+				"welcomeMessage": "Welcome to X+1 Game",
+				"debugMode": false,
+				"userPrompt": "> ",
+				"enableColors": true,
+				"enablePostulations": true,
+				"autoSelectSingleAgent": false
+			}
+		},
+		{
+			"id": "web-interface",
+			"name": "Web Game Interface",
+			"type": "html5",
+			"enabled": true,
+			"config": {
+				"isPrimary": false,
+				"autoStart": true,
+				"port": 8080,
+				"title": "X+1 Game - Web Interface",
+				"theme": "dark",
+				"enableDevTools": true
+			}
+		}
+	]
+}

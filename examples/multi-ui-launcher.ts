@@ -9,7 +9,6 @@ import {
     MCPDriverAdapter,
     MCPDriverAdapterConfig,
 } from "../src/drivers/MCPDriverAdapter";
-import { InterfaceOrchestrator } from "../src/orchestration/InterfaceOrchestrator";
 import { MultiUIGameManager } from "../src/ui/MultiUIGameManager";
 import { MultiUIGameConfig } from "../src/ui/MultiUIGameConfig";
 import { Logger } from "../src/utils/logger";
@@ -17,6 +16,7 @@ import { MCPServerConfig } from "../src/drivers/IMCPDriver";
 
 // Import game-specific configurations
 import { createXPlus1RuntimeConfig } from "./x-plus-1-state-machine/game-config";
+import { ChannelConsumer } from "@/orchestration/channel/deprecated-channel-consumer";
 
 /**
  * Retry configuration
@@ -187,7 +187,7 @@ async function main(): Promise<void> {
     let config: MultiUIGameConfig;
     let runtime: Runtime | undefined;
     let mcpAdapter: MCPDriverAdapter | undefined;
-    let orchestrator: InterfaceOrchestrator | undefined;
+    let orchestrator: ChannelConsumer | undefined;
     let multiUIManager: MultiUIGameManager | undefined;
 
     try {
@@ -287,7 +287,7 @@ async function main(): Promise<void> {
 
         // 3. Initialize Interface Orchestrator
         console.log("🔄 Initializing Interface Orchestrator...");
-        orchestrator = new InterfaceOrchestrator(runtime, mcpAdapter, {
+        orchestrator = new ChannelConsumer(runtime, mcpAdapter, {
             syncInterval: config.orchestration?.syncInterval || 100,
             enableChatProvider: false, // Disable for now
             enableUI: true,

@@ -5,7 +5,6 @@
 
 import { Runtime } from "../src/runtime/Runtime";
 import { MCPDriverAdapter } from "../src/drivers/MCPDriverAdapter";
-import { InterfaceOrchestrator } from "../src/orchestration/InterfaceOrchestrator";
 import { ConsoleGamificationUI } from "../src/ui/ConsoleGamificationUI";
 import { HTML5GamificationUI } from "../src/ui/HTML5GamificationUI";
 import { OllamaChatProvider } from "../src/chat-provider/OllamaChatProvider";
@@ -13,6 +12,7 @@ import { Logger } from "../src/utils/logger";
 
 // Import X+1 specific components
 import { createXPlus1RuntimeConfig } from "./x-plus-1-state-machine/game-config";
+import { ChannelConsumer } from "@/orchestration/channel/deprecated-channel-consumer";
 
 /**
  * Dual Mode Game Configuration
@@ -37,7 +37,7 @@ interface DualModeConfig {
 class DualModeGameManager {
     private runtime!: Runtime; // Will be initialized in start()
     private mcpAdapter: MCPDriverAdapter;
-    private orchestrator!: InterfaceOrchestrator; // Will be initialized in start()
+    private orchestrator!: ChannelConsumer; // Will be initialized in start()
     private chatProvider?: OllamaChatProvider;
     private consoleUI?: ConsoleGamificationUI;
     private webUI?: HTML5GamificationUI;
@@ -70,7 +70,7 @@ class DualModeGameManager {
             );
 
             // 3. Initialize orchestrator
-            this.orchestrator = new InterfaceOrchestrator(
+            this.orchestrator = new ChannelConsumer(
                 this.runtime,
                 this.mcpAdapter,
                 {
