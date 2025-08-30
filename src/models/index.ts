@@ -9,19 +9,14 @@ export {
   StateNode,
   Route,
   TransitionType,
-  StateType,
-  StateGraphValidator,
-  StateGraphFactory
+  StateType
 } from './StateGraph';
 
 // State related exports
 export {
   State,
   StateConfig,
-  StateTransition,
-  UserData,
-  GameData,
-  StateManager
+  StateTransition
 } from './State';
 
 // Agent related exports
@@ -45,3 +40,10 @@ export {
   AgentPostulationConfig,
   PostulationContext
 } from './AgentPostulation';
+
+
+export {
+	UserData,
+	GameData
+} from './StateData';
+

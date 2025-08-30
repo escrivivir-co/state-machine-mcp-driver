@@ -54,7 +54,6 @@
     "servers": [
       "xplus1-mcp-machine",
       "wiki-mcp-browser"
-    ],
-    "useNativeProtocol": true
+    ]
   }
 }

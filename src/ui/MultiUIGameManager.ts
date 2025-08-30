@@ -14,7 +14,7 @@ import { GamificationUI, GamificationUIEvent, GameMessage, GameThread, BaseGamif
 import { ConsoleGamificationUI, ConsoleUIConfig } from '../ui/ConsoleGamificationUI';
 import { HTML5GamificationUI, HTML5GameUIConfig } from '../ui/HTML5GamificationUI';
 import { Logger } from '../utils/logger';
-import { MultiUIGameConfig, UIInstanceConfig, UIType } from '../config/MultiUIGameConfig';
+import { MultiUIGameConfig, UIInstanceConfig, UIType } from './MultiUIGameConfig';
 
 /**
  * Temporary wrapper to make ConsoleGamificationUI compatible with GamificationUI

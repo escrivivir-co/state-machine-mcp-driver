@@ -5,7 +5,6 @@
     "description": "X+1 game running only in web interface"
   },
   "mcp": {
-    "useNativeProtocol": false,
     "servers": [
       "xplus1-mcp-machine"
     ]

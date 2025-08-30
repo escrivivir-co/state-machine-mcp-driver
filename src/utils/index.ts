@@ -12,8 +12,6 @@ export { logger, Logger, LogLevel, LoggerConfig } from './logger';
 // Validator exports
 export {
   Validators,
-  StateGraphValidator,
-  StateValidator,
   ValidationResult,
   ValidationOptions
 } from './validators';
