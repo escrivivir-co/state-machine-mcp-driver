@@ -27,7 +27,7 @@ export class DevOpsServer extends BaseMCPServer {
         super(config);
 
         // Initialize manager architecture for better code organization
-        // this.initializeManagers();
+        this.initializeManagers();
 
         // Initialize MCP adapter for connecting to other servers
         // this.initializeMCPAdapter();

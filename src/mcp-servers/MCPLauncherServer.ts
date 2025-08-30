@@ -70,6 +70,19 @@ export const DEFAULT_WIKI_MCP_SERVER_CONFIG: BaseMCPServerConfig = {
     autoRestart: true,
     healthCheckInterval: 30000,
     version: "1.0.0",
+	url: "http://localhost"
+};
+
+export const DEFAULT_STATE_MACHINE_MCP_SERVER_CONFIG: BaseMCPServerConfig = {
+    id: "state-machine-server",
+    name: "Simple MCP Server for State Machines",
+    script: "src/mcp-servers/MCPStateMachineServer.ts",
+    port: 3004,
+    description: "Easy state management",
+    autoRestart: true,
+    healthCheckInterval: 30000,
+    version: "1.0.0",
+	url: "http://localhost"
 };
 
 export const DEFAULT_XPLUS1_MCP_SERVER_CONFIG: BaseMCPServerConfig = {
@@ -81,11 +94,12 @@ export const DEFAULT_XPLUS1_MCP_SERVER_CONFIG: BaseMCPServerConfig = {
     autoRestart: true,
     healthCheckInterval: 30000,
     version: "1.0.0",
+	url: "http://localhost"
 };
 
 export const CONFIGS_BASE_MCP_SERVER = {
-    not_set: DEFAULT_XPLUS1_MCP_SERVER_CONFIG,
-    "mcp-service-launcher": DEFAULT_LAUNCHER_MCP_SERVER_CONFIG,
+    not_set: DEFAULT_LAUNCHER_MCP_SERVER_CONFIG,
+    "state-machine-server": DEFAULT_STATE_MACHINE_MCP_SERVER_CONFIG,
     "xplus1-mcp-machine": DEFAULT_XPLUS1_MCP_SERVER_CONFIG,
     "wiki-mcp-browser": DEFAULT_WIKI_MCP_SERVER_CONFIG,
     "devops-mcp-server": DEFAULT_DEVOPS_MCP_SERVER_CONFIG,
@@ -1374,7 +1388,7 @@ export class MCPLauncherServer extends BaseMCPServer {
 
         // Add verbose serverProcess event listeners
         serverProcess.on('spawn', () => {
-            Logger.info(`MCP Launcher: Process ${config.id} spawned successfully npm run ${tsxCmd} ${args}`);
+            Logger.info(`MCP Launcher: Process ${config.id} spawned successfully ${tsxCmd} ${args.join(' ')} Pid: ${serverProcess.pid}`);
 			/* console.log("CP Launcher: Process", {
                 pid: serverProcess.pid,
                 command: tsxCmd,
@@ -1402,7 +1416,7 @@ export class MCPLauncherServer extends BaseMCPServer {
         });
 
         serverProcess.on('close', (code: any, signal: any) => {
-            Logger.mcpVerbose(`MCP Launcher: Process ${config.id} closed`, {
+            Logger.info(`MCP Launcher: Process ${config.id} closed`, {
                 pid: serverProcess.pid,
                 code,
                 signal

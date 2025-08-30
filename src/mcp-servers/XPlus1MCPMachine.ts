@@ -7,7 +7,7 @@ import { BaseMCPServer } from './BaseMCPServer';
 import { BaseMCPServerConfig } from "./MCPServerConfig";
 import { z } from 'zod';
 import { Logger } from '../utils/logger';
-import { DEFAULT_XPLUS1_MCP_SERVER_CONFIG } from './MCPLauncherServer';
+import { DEFAULT_STATE_MACHINE_MCP_SERVER_CONFIG, DEFAULT_XPLUS1_MCP_SERVER_CONFIG } from './MCPLauncherServer';
 
 /**
  * X+1 State data structure
@@ -64,7 +64,7 @@ export class MCPBasicStateMachineServer extends BaseMCPServer {
   private eventListeners: Set<(event: any) => void> = new Set();
 
   constructor() {
-    const config: BaseMCPServerConfig = DEFAULT_XPLUS1_MCP_SERVER_CONFIG;
+    const config: BaseMCPServerConfig = DEFAULT_STATE_MACHINE_MCP_SERVER_CONFIG;
 
     super(config);
 

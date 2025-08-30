@@ -16,7 +16,8 @@
 	},
 	"mcp": {
 		"servers": {
-			"devops-mcp-server": {}
+			"devops-mcp-server": {},
+			"state-machine-server": {}
 		}
 	},
 	"orchestration": {

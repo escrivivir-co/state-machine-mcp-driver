@@ -7,6 +7,10 @@
     "devops-mcp-server": {
       "type": "http",
       "url": "http://localhost:3003"
+    },
+    "state-machine-server": {
+      "type": "http",
+      "url": "http://localhost:3004"
     }
   }
 }

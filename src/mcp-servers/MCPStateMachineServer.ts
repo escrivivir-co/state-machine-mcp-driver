@@ -1,6 +1,5 @@
 import { Logger } from "@/utils";
 import MCPBasicStateMachineServer from "./MCPStateMachineServerImpl";
-import { DevOpsServer } from "./DevOpsServerImpl";
 
 /**
  * CLI entry point - run as standalone MCP server
@@ -8,7 +7,7 @@ import { DevOpsServer } from "./DevOpsServerImpl";
 async function main() {
 
     try {
-        const server = new DevOpsServer();
+        const server = new MCPBasicStateMachineServer();
 		Logger.info("MCPBasicStateMachineServer Server instance created, starting...");
         await server.start();
 
