@@ -1158,6 +1158,8 @@ function showHelp(): void {
  * CLI entry point
  */
 async function main() {
+
+	console.log("Launching all main...")
     const args = process.argv.slice(2);
 
     // Check for help flag
@@ -1166,9 +1168,11 @@ async function main() {
         return;
     }
 
+	console.log("Launching all nodes...")
     // Check for kill all node processes flag
     if (args.includes("--kill-all-node")) {
         try {
+			console.log("Killing all nodes...")
             await killAllNodeProcesses();
         } catch (error) {
             console.error("💥 Failed to kill Node.js processes:", error);
@@ -1192,5 +1196,6 @@ async function main() {
 
 // Run if this file is executed directly
 if (require.main === module) {
+	console.log("Escecuted directly")
     main();
 }

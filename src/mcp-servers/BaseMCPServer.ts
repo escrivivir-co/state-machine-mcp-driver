@@ -16,46 +16,52 @@ import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/
  * Abstract base class for MCP servers with HttpStreamable transport
  */
 export abstract class BaseMCPServer {
-    protected server: McpServer;
-    protected config: BaseMCPServerConfig;
-    protected app: express.Application;
+    protected server!: McpServer;
+    protected config!: BaseMCPServerConfig;
+    protected app!: express.Application;
 
     constructor(config: BaseMCPServerConfig) {
-        // Allow overriding port via environment variable (used by launcher)
-        const envPort = process.env.MCP_SERVER_PORT
-            ? parseInt(process.env.MCP_SERVER_PORT, 10)
-            : undefined;
-        this.config = {
-            ...config,
-            port: envPort || config.port,
-            features: {
-                enableManagers: false,
-                enableWebConsole: true,
-                enableHealthChecks: true,
-                ...config.features,
-            },
-        };
-
-        // Initialize Express app
-        this.app = express();
-        this.app.use(express.json());
-
-        // Initialize MCP server with capabilities
-        this.server = new McpServer(
-            {
-                name: config.name || '',
-                version: config.version || '',
-            },
-            {
-                capabilities: {
-                    tools: config.capabilities?.tools ? {} : undefined,
-                    resources: config.capabilities?.resources ? {} : undefined,
-                    prompts: config.capabilities?.prompts ? {} : undefined,
+        try {
+            // Allow overriding port via environment variable (used by launcher)
+            const envPort = process.env.MCP_SERVER_PORT
+                ? parseInt(process.env.MCP_SERVER_PORT, 10)
+                : undefined;
+            this.config = {
+                ...config,
+                port: envPort || config.port,
+                features: {
+                    enableManagers: false,
+                    enableWebConsole: true,
+                    enableHealthChecks: true,
+                    ...config.features,
                 },
-            }
-        );
+            };
 
-        this.setupExpressRoutes();
+            // Initialize Express app
+            this.app = express();
+            this.app.use(express.json());
+
+            // Initialize MCP server with capabilities
+            this.server = new McpServer(
+                {
+                    name: config.name || "",
+                    version: config.version || "",
+                },
+                {
+                    capabilities: {
+                        tools: config.capabilities?.tools ? {} : undefined,
+                        resources: config.capabilities?.resources
+                            ? {}
+                            : undefined,
+                        prompts: config.capabilities?.prompts ? {} : undefined,
+                    },
+                }
+            );
+
+            this.setupExpressRoutes();
+        } catch (error) {
+            console.log("BaseMCPServer Constructor", error);
+        }
     }
 
     /**

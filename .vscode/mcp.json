@@ -4,14 +4,6 @@
       "type": "http",
       "url": "http://localhost:3000"
     },
-    "xplus1-mcp-machine": {
-      "type": "http",
-      "url": "http://localhost:3001"
-    },
-    "wiki-mcp-browser": {
-      "type": "http",
-      "url": "http://localhost:3002"
-    },
     "devops-mcp-server": {
       "type": "http",
       "url": "http://localhost:3003"

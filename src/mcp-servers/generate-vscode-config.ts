@@ -6,8 +6,8 @@
  * for connecting VS Code to running MCP servers
  */
 
-import { MCPDriverAdapter } from "../src/drivers/MCPDriverAdapter";
-import { logger } from "../src/utils/logger";
+import { MCPDriverAdapter } from "../drivers/MCPDriverAdapter";
+import { logger } from "../utils/logger";
 
 interface GenerateConfigOptions {
     outputPath?: string;
@@ -18,31 +18,26 @@ interface GenerateConfigOptions {
 /**
  * Generate VS Code MCP configuration
  */
-async function generateVSCodeConfig(options: GenerateConfigOptions = {}) {
+export async function generateVSCodeConfig(
+    mcpDriver: MCPDriverAdapter,
+    options: GenerateConfigOptions = {}
+) {
     const {
         outputPath = ".vscode/mcp.json",
         includeDescription = true,
         check = false,
     } = options;
 
-    console.log("🔧 VS Code MCP Configuration Generator");
-    console.log("=====================================");
+    console.log("\n🔧 VS Code MCP Configuration Generator");
+    logger.info("=====================================");
 
     try {
         // Initialize MCP Driver
-        console.log("📡 Connecting to MCP Service Launcher...");
-        const mcpDriver = new MCPDriverAdapter();
-
-        // Add service launcher server
-        await mcpDriver.addServer({
-            id: "mcp-service-launcher",
-            name: "MCP Service Launcher",
-            url: "http://localhost:3000",
-        });
+        logger.info("📡 Connecting to MCP Service Launcher...");
 
         if (check) {
             // Just check status
-            console.log("\n📊 Checking MCP servers status...");
+            logger.info("\n📊 Checking MCP servers status...");
             const statusResult = await mcpDriver.executeTool(
                 "mcp-service-launcher",
                 "get_server_status",
@@ -50,17 +45,17 @@ async function generateVSCodeConfig(options: GenerateConfigOptions = {}) {
             );
 
             if (statusResult.success) {
-                console.log("✅ Server status retrieved successfully");
-                console.log(JSON.stringify(statusResult, null, 2));
+                logger.info("✅ Server status retrieved successfully");
+                logger.info(JSON.stringify(statusResult, null, 2));
             } else {
-                console.error("❌ Failed to get server status");
+                logger.error("❌ Failed to get server status");
             }
             return;
         }
 
         // Generate configuration
-        console.log(`\n🛠️  Generating VS Code MCP configuration...`);
-        const configResult = await mcpDriver.executeTool(
+        logger.info(`\n🛠️  Generating VS Code MCP configuration...`);
+        const toolResult: any = await mcpDriver.executeTool(
             "mcp-service-launcher",
             "generate_vscode_mcp_config",
             {
@@ -69,46 +64,52 @@ async function generateVSCodeConfig(options: GenerateConfigOptions = {}) {
             }
         );
 
-        if (configResult.success) {
-            console.log(`✅ Configuration generated successfully!`);
-            console.log(`📁 Saved to: ${configResult.outputPath}`);
+        let configElement = toolResult && Array.isArray(toolResult) ? toolResult.pop() : null;
+
+        if (!configElement) {
+            configElement = { success: false };
+        }
+
+        configElement = JSON.parse(configElement.text);
+        if (configElement?.success) {
+            logger.info(`✅ Configuration generated successfully!`);
+            logger.info(`📁 Saved to: ${configElement.outputPath}`);
 
             // Show setup instructions
-            if (configResult.instructions) {
-                console.log("\n" + "=".repeat(50));
-                console.log("🎯 VS Code Setup Instructions");
-                console.log("=".repeat(50));
+            if (configElement.instructions) {
+                logger.info("\n" + "=".repeat(50));
+                logger.info("🎯 VS Code Setup Instructions");
+                logger.info("=".repeat(50));
 
-                console.log("\n📋 Quick Setup:");
-                configResult.instructions.quickCommands?.forEach(
+                logger.info("\n📋 Quick Setup:");
+                configElement.instructions.quickCommands?.forEach(
                     (cmd: string) => {
-                        console.log(`   • ${cmd}`);
+                        logger.info(`   • ${cmd}`);
                     }
                 );
 
-                console.log("\n💡 Next Steps:");
-                console.log("   1. Open VS Code in this workspace");
-                console.log("   2. Install Model Context Protocol extension");
-                console.log(
+                logger.info("\n💡 Next Steps:");
+                logger.info("   1. Open VS Code in this workspace");
+                logger.info("   2. Install Model Context Protocol extension");
+                logger.info(
                     '   3. Use Ctrl+Shift+P → "MCP: Connect to Server"'
                 );
-                console.log("   4. Select from available servers");
-                console.log("   5. Start using MCP tools!");
+                logger.info("   4. Select from available servers");
+                logger.info("   5. Start using MCP tools!");
 
-                console.log("\n📄 Configuration preview:");
-                console.log(JSON.stringify(configResult.configFile, null, 2));
+                logger.info("\n📄 Configuration preview:");
+                logger.info(JSON.stringify(configElement.configFile, null, 2));
             }
         } else {
-            console.error(
-                "❌ Failed to generate configuration:",
-                configResult.error
-            );
+            logger.error("❌ Failed to generate configuration:");
+            logger.debug("SCODEconfigResult", configElement.error);
+            console.log("SCODEconfigResult", configElement);
             process.exit(1);
         }
     } catch (error) {
-        console.error("❌ Error:", error);
-        console.log("\n💡 Make sure the MCP Service Launcher is running:");
-        console.log("   npm run launcher:x-plus-1");
+        logger.error("❌ Error:", error);
+        logger.info("\n💡 Make sure the MCP Service Launcher is running:");
+        logger.info("   npm run launcher:x-plus-1");
         process.exit(1);
     }
 }
@@ -141,7 +142,7 @@ function parseArgs(): GenerateConfigOptions {
                 process.exit(0);
                 break;
             default:
-                console.error(`Unknown argument: ${arg}`);
+                logger.error(`Unknown argument: ${arg}`);
                 showHelp();
                 process.exit(1);
         }
@@ -154,7 +155,7 @@ function parseArgs(): GenerateConfigOptions {
  * Show help information
  */
 function showHelp() {
-    console.log(`
+    logger.info(`
 🔧 VS Code MCP Configuration Generator
 
 Usage: npx tsx scripts/generate-vscode-config.ts [options]
@@ -185,9 +186,9 @@ Note: Make sure MCP servers are running before generating configuration.
 async function main() {
     try {
         const options = parseArgs();
-        await generateVSCodeConfig(options);
+        await generateVSCodeConfig(new MCPDriverAdapter(), options);
     } catch (error) {
-        console.error("❌ Script failed:", error);
+        logger.error("❌ Script failed:", error);
         process.exit(1);
     }
 }

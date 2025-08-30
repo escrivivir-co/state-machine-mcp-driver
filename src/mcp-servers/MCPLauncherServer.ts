@@ -1273,11 +1273,12 @@ export class MCPLauncherServer extends BaseMCPServer {
             throw new Error(`Server ${config.id} is already running`);
         }
 
+		const HEALTH_POINT = `${config.url + ":" + config.port}/health`;
         // Pre-check: is the desired port already in use?
         let portOccupied = false;
         try {
             const response = await axios.get(
-                `${config.url + ":" + config.port}/health`,
+                HEALTH_POINT,
                 { timeout: 1000 }
             );
             if (response.status === 200) {
@@ -1371,6 +1372,128 @@ export class MCPLauncherServer extends BaseMCPServer {
             throw new Error(`Failed to start server ${config.id}`);
         }
 
+        // Add verbose serverProcess event listeners
+        serverProcess.on('spawn', () => {
+            Logger.info(`MCP Launcher: Process ${config.id} spawned successfully npm run ${tsxCmd} ${args}`);
+			/* console.log("CP Launcher: Process", {
+                pid: serverProcess.pid,
+                command: tsxCmd,
+                args: args
+            }) */
+        });
+
+        serverProcess.on('error', (error: any) => {
+            Logger.info(`MCP Launcher: Process ${config.id} spawn error`, {
+                error: error.message,
+                stack: error.stack,
+                code: (error as any).code,
+                errno: (error as any).errno,
+                syscall: (error as any).syscall
+            });
+        });
+
+        serverProcess.on('exit', (code: any, signal: any) => {
+            Logger.mcpVerbose(`MCP Launcher: Process ${config.id} exited`, {
+                pid: serverProcess.pid,
+                code,
+                signal,
+                killed: serverProcess.killed
+            });
+        });
+
+        serverProcess.on('close', (code: any, signal: any) => {
+            Logger.mcpVerbose(`MCP Launcher: Process ${config.id} closed`, {
+                pid: serverProcess.pid,
+                code,
+                signal
+            });
+        });
+
+        serverProcess.on('disconnect', () => {
+            Logger.mcpVerbose(`MCP Launcher: Process ${config.id} disconnected`, {
+                pid: serverProcess.pid
+            });
+        });
+
+        // Verbose stdout monitoring
+        if (serverProcess.stdout) {
+            serverProcess.stdout.on('data', (data: any) => {
+                const output = data.toString().trim();
+                if (output) {
+                    Logger.mcpVerbose(`MCP Launcher: ${config.id} stdout`, {
+                        pid: serverProcess.pid,
+                        data: output,
+                        length: output.length
+                    });
+                }
+            });
+
+            serverProcess.stdout.on('error', (error: any) => {
+                Logger.mcpError(`MCP Launcher: ${config.id} stdout error`, {
+                    pid: serverProcess.pid,
+                    error: error.message
+                });
+            });
+
+            serverProcess.stdout.on('end', () => {
+                Logger.mcpVerbose(`MCP Launcher: ${config.id} stdout ended`, {
+                    pid: serverProcess.pid
+                });
+            });
+        }
+
+        // Verbose stderr monitoring
+        if (serverProcess.stderr) {
+            serverProcess.stderr.on('data', (data: any) => {
+                const output = data.toString().trim();
+                if (output) {
+                    Logger.mcpVerbose(`MCP Launcher: ${config.id} stderr`, {
+                        pid: serverProcess.pid,
+                        data: output,
+                        length: output.length,
+                        isError: true
+                    });
+                }
+            });
+
+            serverProcess.stderr.on('error', (error: any) => {
+                Logger.mcpError(`MCP Launcher: ${config.id} stderr error`, {
+                    pid: serverProcess.pid,
+                    error: error.message
+                });
+            });
+
+            serverProcess.stderr.on('end', () => {
+                Logger.mcpVerbose(`MCP Launcher: ${config.id} stderr ended`, {
+                    pid: serverProcess.pid
+                });
+            });
+        }
+
+        // Verbose stdin monitoring (if needed)
+        if (serverProcess.stdin) {
+            serverProcess.stdin.on('error', (error: any) => {
+                Logger.mcpError(`MCP Launcher: ${config.id} stdin error`, {
+                    pid: serverProcess.pid,
+                    error: error.message
+                });
+            });
+
+            serverProcess.stdin.on('close', () => {
+                Logger.mcpVerbose(`MCP Launcher: ${config.id} stdin closed`, {
+                    pid: serverProcess.pid
+                });
+            });
+        }
+
+        Logger.mcpVerbose(`MCP Launcher: ${config.id} process setup complete`, {
+            pid: serverProcess.pid,
+            connected: serverProcess.connected,
+            killed: serverProcess.killed,
+            exitCode: serverProcess.exitCode,
+            signalCode: serverProcess.signalCode
+        });
+
         // Store process reference
         this.processes.set(config.id, serverProcess);
 
@@ -1393,12 +1516,12 @@ export class MCPLauncherServer extends BaseMCPServer {
 
         // Poll for server readiness (port exposed)
         const start = Date.now();
-        const timeoutMs = 15000;
+        const timeoutMs = 2000;
         let reachable = false;
         while (Date.now() - start < timeoutMs) {
             try {
                 const res = await axios.get(
-                    `http://localhost:${config.port}/health`,
+                    HEALTH_POINT,
                     { timeout: 1000 }
                 );
                 if (res.status === 200) {
