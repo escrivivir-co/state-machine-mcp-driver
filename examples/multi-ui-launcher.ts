@@ -211,7 +211,7 @@ async function main(): Promise<void> {
         // 1. Initialize MCP Driver Adapter first
         console.log("🔄 Initializing MCP Driver...");
         const adapterConfig: MCPDriverAdapterConfig = {};
-        mcpAdapter = new MCPDriverAdapter(adapterConfig);
+        mcpAdapter = new MCPDriverAdapter();
 
         // Configure MCP servers
         for (const serverId of config.mcp.servers) {

@@ -1209,7 +1209,7 @@ async function killAllNodeProcesses(): Promise<void> {
     return new Promise((resolve, reject) => {
         rl.question(
             "\n❓ Are you sure you want to proceed? (yes/no): ",
-            (answer) => {
+            (answer: string) => {
                 rl.close();
 
                 if (answer.toLowerCase() !== "yes") {
@@ -1239,7 +1239,7 @@ async function killAllNodeProcesses(): Promise<void> {
                     shell: process.platform === "win32",
                 });
 
-                killProcess.on("close", (code) => {
+                killProcess.on("close", (code: number) => {
                     if (code === 0) {
                         console.log(
                             "✅ All Node.js processes terminated successfully"
@@ -1256,7 +1256,7 @@ async function killAllNodeProcesses(): Promise<void> {
                     resolve();
                 });
 
-                killProcess.on("error", (error) => {
+                killProcess.on("error", (error: any) => {
                     console.error(
                         "❌ Error terminating Node.js processes:",
                         error

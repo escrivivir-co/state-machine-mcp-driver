@@ -64,7 +64,7 @@ async function main() {
       enableMCP: true
     });
     
-    chatProvider.connectMCP(mcpAdapter.getNativeDriver(), orchestrator);
+    chatProvider.connectMCP(mcpAdapter, orchestrator);
     orchestrator.connectChatProvider(chatProvider);
 
     console.log('✅ Chat Provider connected');
@@ -90,7 +90,7 @@ async function main() {
     console.log('🤖 Setting up Agent Control...');
     
     const agentControl = new AgentControlService(
-      mcpAdapter.getNativeDriver(),
+      mcpAdapter,
       runtime,
       orchestrator
     );

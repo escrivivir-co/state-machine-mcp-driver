@@ -4,7 +4,6 @@
  */
 
 // MCP Driver exports
-export { MCPDriverDEPRECATED as MCPDriver } from './MCPDriver';
 export { MCPClientDriver } from './MCPClientDriver';
 export { MCPDriverAdapter } from './MCPDriverAdapter';
 export { IMCPDriver } from './IMCPDriver';

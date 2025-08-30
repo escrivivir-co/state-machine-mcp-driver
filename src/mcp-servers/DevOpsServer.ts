@@ -97,7 +97,7 @@ export class DevOpsServer extends BaseMCPServer {
    */
   private initializeMCPAdapter(): void {
     try {
-      this.mcpAdapter = new MCPDriverAdapter({});
+      this.mcpAdapter = new MCPDriverAdapter();
 
       // Add default MCP servers that might be running
       this.setupMCPConnections();

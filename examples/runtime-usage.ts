@@ -5,9 +5,9 @@
 import {
     Runtime,
     RuntimeConfig,
-    MCPDriver,
     AgentRole,
-    logger
+    logger,
+	MCPDriverAdapter
 } from "../src";
 
 /**
@@ -18,7 +18,7 @@ async function basicRuntimeExample(): Promise<void> {
         logger.info("Starting basic runtime example");
 
         // Create MCP driver
-        const mcpDriver = new MCPDriver();
+        const mcpDriver = new MCPDriverAdapter();
 
         // Add MCP server for story operations
         mcpDriver.addServer({
@@ -167,7 +167,7 @@ async function advancedRuntimeExample(): Promise<void> {
         logger.info("Starting advanced runtime example");
 
         // Create MCP driver
-        const mcpDriver = new MCPDriver();
+        const mcpDriver = new MCPDriverAdapter();
 
         // Add multiple MCP servers
         mcpDriver.addServer({

@@ -293,7 +293,7 @@ class DualModeGameManager {
     private displayStartupInfo(): void {
         console.log("\n🎮 === X+1 DUAL MODE GAME STARTED ===");
         console.log(`📊 Game Title: ${this.config.gameTitle}`);
-        console.log(`🔧 MCP Protocol: ${this.mcpAdapter.getCurrentProtocol()}`);
+        console.log(`🔧 MCP Protocol: ${this.getCurrentMCPProtocol()}`);
 
         if (this.config.enableConsole) {
             console.log("💻 Console Interface: ACTIVE");
@@ -355,7 +355,7 @@ class DualModeGameManager {
      * Get current MCP protocol
      */
     public getCurrentMCPProtocol(): string {
-        return this.mcpAdapter.getCurrentProtocol();
+        return "default";
     }
 }
 
