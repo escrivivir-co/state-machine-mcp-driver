@@ -24,7 +24,8 @@
       "@models/*": ["src/models/*"],
       "@drivers/*": ["src/drivers/*"],
       "@runtime/*": ["src/runtime/*"],
-      "@utils/*": ["src/utils/*"]
+      "@utils/*": ["src/utils/*"],
+	  "@examples/*": ["examples/*"]
     },
     "allowSyntheticDefaultImports": true,
     "experimentalDecorators": true,

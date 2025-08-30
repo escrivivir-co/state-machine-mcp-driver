@@ -11,8 +11,9 @@ import { OllamaChatProvider } from "../src/chat-provider/OllamaChatProvider";
 import { Logger } from "../src/utils/logger";
 
 // Import X+1 specific components
-import { createXPlus1RuntimeConfig } from "./x-plus-1-state-machine/game-config";
+import { getBasicRuntimeConfig } from "./xplus1-app/getBasicRuntimeConfig";
 import { ChannelConsumer } from "@/orchestration/channel/deprecated-channel-consumer";
+import { AppConfig } from "@/utils";
 
 /**
  * Dual Mode Game Configuration
@@ -61,7 +62,7 @@ class DualModeGameManager {
     async start(): Promise<void> {
         try {
             // 1. Create runtime configuration
-            this.runtimeConfig = await createXPlus1RuntimeConfig();
+            this.runtimeConfig = await getBasicRuntimeConfig({} as AppConfig);
 
             // 2. Initialize runtime
             this.runtime = new Runtime(

@@ -4,16 +4,17 @@
  */
 
 import { MultiUIGameConfig } from "@/ui/MultiUIGameConfig";
-import { MCPServerConfig } from "../drivers";
 import { LogLevel } from "./logger";
-import { LaunchConfig } from "scripts/LaunchConfig";
-import { AppType } from "scripts/AppType";
 import { BaseMCPServerConfig } from "@/mcp-servers/MCPServerConfig";
 import {
     CONFIGS_BASE_MCP_SERVER,
 } from "@/mcp-servers/MCPLauncherServer";
 import { DEFAULT_LAUNCHER_MCP_SERVER_CONFIG } from "@/mcp-servers/DEFAULT_LAUNCHER_MCP_SERVER_CONFIG";
 import { MCPServerTransportConfig } from "@/drivers/IMCPDriver";
+import { RuntimeConfig } from "@/runtime";
+import { DEFAULT_RUNTIME_CONFIG } from "@/mcp-servers/DEFAULT_RUNTIME_CONFIG";
+import { AppType } from "@/scripts/AppType";
+import { LaunchConfig } from "@/scripts/LaunchConfig";
 
 export type AppConfigMcpServers = {
     [key: string]: BaseMCPServerConfig;
@@ -30,6 +31,7 @@ export interface AppConfig extends MultiUIGameConfig {
     port: number;
     /** Node environment */
     nodeEnv: "development" | "production" | "test";
+	runtime: RuntimeConfig;
     /** MCP server configurations */
     mcp: {
         servers: AppConfigMcpServers;
@@ -123,25 +125,12 @@ function parseEnvBoolean(
 }
 
 /**
- * Default MCP server configurations
- */
-const defaultMCPServers: MCPServerConfig = parseEnvJson(
-    process.env.MCP_SERVERS,
-    {
-        id: "default-server",
-        name: "Default MCP Server",
-        url: process.env.DEFAULT_MCP_URL || "http://localhost:3001/api",
-        timeout: 30000,
-        maxRetries: 3,
-    }
-);
-
-/**
  * Main application configuration
  */
 export const DEFAULT_APP_CONFIG: AppConfig = {
     port: parseEnvNumber(process.env.PORT, 3000),
     nodeEnv: (process.env.NODE_ENV as AppConfig["nodeEnv"]) || "development",
+	runtime: DEFAULT_RUNTIME_CONFIG,
     logging: {
         level: (process.env.LOG_LEVEL as LogLevel) || LogLevel.INFO,
         format:

@@ -4,10 +4,10 @@
  */
 
 // Import game-specific configurations
-import { createDevelopmentOrchestrator, Orchestrator } from "@/orchestration";
 import { AppConfig, Logger } from "@/utils";
 import { readFile } from "fs/promises";
-import { ApplicationLauncher } from "scripts/launcher";
+import { getBasicRuntimeConfig } from "./getBasicRuntimeConfig";
+import { ApplicationLauncher } from "@/scripts/launcher";
 
 /**
  * Main Xplus1 Launcher function
@@ -36,6 +36,8 @@ async function main(): Promise<void> {
 
 		launcher = new ApplicationLauncher(config);
 		launcher.launch(config);
+
+		launcher.launchApplication(await getBasicRuntimeConfig(config));
 
     } catch (error) {
         Logger.error("❌ Xplus1 Launcher failed", error as Error);

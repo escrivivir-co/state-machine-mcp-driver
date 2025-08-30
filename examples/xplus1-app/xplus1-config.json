@@ -12,7 +12,96 @@
 	"game": {
 		"id": "x-plus-1-multi",
 		"name": "X+1 Multi-UI Demo",
-		"description": "X+1 game running with both console and web interfaces"
+		"description": "X+1 game running with both console and web interfaces",
+		"mcpServerId": "state-machine-server",
+		"graphId": "x-plus-1-game",
+		"userId": "player-1",
+		"sessionId": "x-plus-1-1756594661560",
+		"maxMessagesPerThread": 10,
+		"sessionTimeout": 1800000,
+		"autoSave": true,
+		"autoSaveInterval": 30000,
+		"agentConfigs": [
+			{
+				"id": "dionisio-bot",
+				"name": "DionisioBot",
+				"role": "narrator",
+				"description": "Hedonistic agent that represents immediate gratification and cosmic doom-scrolling",
+				"mcpServerId": "wiki-mcp-browser",
+				"autoStart": true,
+				"priority": 10,
+				"config": {
+					"maxActionsPerMinute": 3,
+					"allowedActions": [
+						"narrate",
+						"describe",
+						"present",
+						"browse_cosmic"
+					],
+					"personality": "hedonistic",
+					"influence": "negative",
+					"topics": "cosmic"
+				}
+			},
+			{
+				"id": "apolo-bot",
+				"name": "ApoloBot",
+				"role": "guide",
+				"description": "Wisdom agent that represents discipline and historical learning",
+				"mcpServerId": "wiki-mcp-browser",
+				"autoStart": true,
+				"priority": 10,
+				"config": {
+					"maxActionsPerMinute": 3,
+					"allowedActions": [
+						"guide",
+						"help",
+						"suggest",
+						"explain",
+						"browse_history"
+					],
+					"personality": "wise",
+					"influence": "positive",
+					"topics": "historical"
+				}
+			},
+			{
+				"id": "justice-bot",
+				"name": "JusticeBot",
+				"role": "system",
+				"description": "Neutral arbiter that manages the X+1 decision process",
+				"mcpServerId": "xplus1-mcp-machine",
+				"autoStart": true,
+				"priority": 100,
+				"config": {
+					"maxActionsPerMinute": 5,
+					"allowedActions": [
+						"question",
+						"validate",
+						"update_state",
+						"manage_turn"
+					],
+					"personality": "neutral",
+					"influence": "balanced",
+					"keyQuestion": "Did you consume today, do I reset?"
+				}
+			},
+			{
+				"id": "user-simulator",
+				"name": "UserSimulator",
+				"role": "player",
+				"description": "Simulated user that decides yes/no and can choose next agent",
+				"autoStart": true,
+				"priority": 90,
+				"config": {
+					"personality": "balanced",
+					"allowedActions": [
+						"choose",
+						"interact"
+					]
+				}
+			}
+		]
 	},
 	"mcp": {
 		"servers": {

@@ -15,9 +15,9 @@ import { Logger } from "../src/utils/logger";
 import { MCPServerTransportConfig } from "../src/drivers/IMCPDriver";
 
 // Import game-specific configurations
-import { createXPlus1RuntimeConfig } from "./x-plus-1-state-machine/game-config";
+import { getBasicRuntimeConfig } from "./xplus1-app/getBasicRuntimeConfig";
 import { ChannelConsumer } from "@/orchestration/channel/deprecated-channel-consumer";
-import { DEFAULT_APP_CONFIG, getConfigOrDefault, parseMcpConfigToTransportConfig } from "@/utils/config";
+import { AppConfig, DEFAULT_APP_CONFIG, getConfigOrDefault, parseMcpConfigToTransportConfig } from "@/utils/config";
 
 /**
  * Retry configuration
@@ -249,7 +249,7 @@ async function main(): Promise<void> {
 
         switch (config.game.id) {
             case "x-plus-1-multi":
-                const gameConfig = await createXPlus1RuntimeConfig();
+                const gameConfig = await getBasicRuntimeConfig({} as AppConfig);
                 runtimeConfig = {
                     mcpServerId: "xplus1-mcp-machine",
                     graphId: gameConfig.graphId,
