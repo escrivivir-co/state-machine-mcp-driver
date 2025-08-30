@@ -11,6 +11,10 @@
     "state-machine-server": {
       "type": "http",
       "url": "http://localhost:3004"
+    },
+    "wiki-mcp-browser": {
+      "type": "http",
+      "url": "http://localhost:3002"
     }
   }
 }

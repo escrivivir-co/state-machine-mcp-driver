@@ -3,37 +3,36 @@
  * Demonstrates how to use the DevOps server with plugins to control UserSimulator
  */
 
-import { DevOpsServer } from '../src/mcp-servers/DevOpsServer.js';
-import { Logger } from '../src/utils/logger.js';
+import { DevOpsServer } from "@/mcp-servers";
+import { Logger } from "../src/utils/logger.js";
 
 async function testXPlus1ControlPlugin() {
-  console.log('🧪 Testing XPlus1 Control Plugin Integration');
-  
-  // Start DevOps server with plugins
-  const devopsServer = new DevOpsServer();
-  
-  try {
-    await devopsServer.start();
-    console.log('✅ DevOps server started with plugin system');
+    console.log("🧪 Testing XPlus1 Control Plugin Integration");
 
-    // Simulate some plugin operations
-    console.log('\n📋 Testing plugin capabilities...');
-    
-    // Note: These would be called via MCP protocol in real usage
-    // Here we're just demonstrating the architecture
-    
-    console.log('✅ Plugin system integration test complete');
-    
-  } catch (error) {
-    console.error('❌ Test failed:', error);
-  }
+    // Start DevOps server with plugins
+    const devopsServer = new DevOpsServer();
+
+    try {
+        await devopsServer.start();
+        console.log("✅ DevOps server started with plugin system");
+
+        // Simulate some plugin operations
+        console.log("\n📋 Testing plugin capabilities...");
+
+        // Note: These would be called via MCP protocol in real usage
+        // Here we're just demonstrating the architecture
+
+        console.log("✅ Plugin system integration test complete");
+    } catch (error) {
+        console.error("❌ Test failed:", error);
+    }
 }
 
 // Demonstrate usage patterns
 async function demonstrateUsagePatterns() {
-  console.log('\n🎯 Usage Patterns for XPlus1 Control:');
-  
-  console.log(`
+    console.log("\n🎯 Usage Patterns for XPlus1 Control:");
+
+    console.log(`
 ## 🎮 UserSimulator Control via DevOps Server
 
 ### 1. **Set Personality** 
@@ -101,7 +100,7 @@ The plugin system enables:
 }
 
 if (require.main === module) {
-  testXPlus1ControlPlugin()
-    .then(() => demonstrateUsagePatterns())
-    .catch(console.error);
+    testXPlus1ControlPlugin()
+        .then(() => demonstrateUsagePatterns())
+        .catch(console.error);
 }

@@ -17,7 +17,8 @@
 	"mcp": {
 		"servers": {
 			"devops-mcp-server": {},
-			"state-machine-server": {}
+			"state-machine-server": {},
+			"wiki-mcp-browser": {}
 		}
 	},
 	"orchestration": {

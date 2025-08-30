@@ -25,7 +25,7 @@ import { LaunchConfig } from "./LaunchConfig";
 import { MCPLauncherServer } from "@/mcp-servers";
 import { generateVSCodeConfig } from "@/mcp-servers/generate-vscode-config";
 import { IMCPDriver } from "@/drivers";
-import { MCPServerTransportConfig } from "@/drivers/IMCPDriver";
+
 import {
     getConfigOrDefault,
     parseMcpConfigToTransportConfig,
@@ -252,9 +252,6 @@ export class ApplicationLauncher {
         // Check project structure
         console.log("📁 Checking project structure...");
         const requiredPaths = [
-            "src/mcp-servers/XPlus1MCPMachine.ts",
-            "src/mcp-servers/WikiMCPBrowser.ts",
-            "examples/x-plus-1-state-machine/index.ts",
             "src/runtime/Runtime.ts",
         ];
 
@@ -263,6 +260,7 @@ export class ApplicationLauncher {
                 await fs.access(path.join(process.cwd(), filePath));
                 console.log(`✅ ${filePath}`);
             } catch {
+				logger.info(`❌ Required file missing: ${filePath}`);
                 throw new Error(`❌ Required file missing: ${filePath}`);
             }
         }

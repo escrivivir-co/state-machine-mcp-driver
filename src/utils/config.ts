@@ -11,8 +11,8 @@ import { AppType } from "scripts/AppType";
 import { BaseMCPServerConfig } from "@/mcp-servers/MCPServerConfig";
 import {
     CONFIGS_BASE_MCP_SERVER,
-    DEFAULT_LAUNCHER_MCP_SERVER_CONFIG,
 } from "@/mcp-servers/MCPLauncherServer";
+import { DEFAULT_LAUNCHER_MCP_SERVER_CONFIG } from "@/mcp-servers/DEFAULT_LAUNCHER_MCP_SERVER_CONFIG";
 import { MCPServerTransportConfig } from "@/drivers/IMCPDriver";
 
 export type AppConfigMcpServers = {

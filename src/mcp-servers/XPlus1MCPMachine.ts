@@ -7,7 +7,8 @@ import { BaseMCPServer } from './BaseMCPServer';
 import { BaseMCPServerConfig } from "./MCPServerConfig";
 import { z } from 'zod';
 import { Logger } from '../utils/logger';
-import { DEFAULT_STATE_MACHINE_MCP_SERVER_CONFIG, DEFAULT_XPLUS1_MCP_SERVER_CONFIG } from './MCPLauncherServer';
+import { DEFAULT_XPLUS1_MCP_SERVER_CONFIG } from "./DEFAULT_XPLUS1_MCP_SERVER_CONFIG";
+import { DEFAULT_STATE_MACHINE_MCP_SERVER_CONFIG } from "./DEFAULT_STATE_MACHINE_MCP_SERVER_CONFIG";
 
 /**
  * X+1 State data structure

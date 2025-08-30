@@ -1,5 +1,4 @@
-import { Logger } from "@/utils";
-import { DevOpsServer } from "./DevOpsServerImpl";
+import MCPWikiBrowserServer from "./MCPWikiBrowserServerImpl";
 
 /**
  * CLI entry point - run as standalone MCP server
@@ -7,26 +6,26 @@ import { DevOpsServer } from "./DevOpsServerImpl";
 async function main() {
 
     try {
-        const server = new DevOpsServer();
-		Logger.info("MCPBasicStateMachineServer Server instance created, starting...");
+        const server = new MCPWikiBrowserServer();
+		console.log(`🌍 Starting Wikipedia MCP Browser on port 3002`);
         await server.start();
 
         // Keep process alive
         process.on("SIGINT", () => {
-            console.log("\n🔄 Shutting down X+1 MCP Machine...");
+            console.log("\n🔄 Shutting down Wikipedia MCP Browser...");
             server.shutdown().then(() => {
                 process.exit(0);
             });
         });
 
         process.on("SIGTERM", () => {
-            console.log("\n🔄 Shutting down X+1 MCP Machine...");
+            console.log("\n🔄 Shutting down Wikipedia MCP Browser...");
             server.shutdown().then(() => {
                 process.exit(0);
             });
         });
     } catch (error) {
-        console.error("❌ Failed to start X+1 MCP Machine:", error);
+        console.error("❌ Failed to start Wikipedia MCP Browser:", error);
         process.exit(1);
     }
 }

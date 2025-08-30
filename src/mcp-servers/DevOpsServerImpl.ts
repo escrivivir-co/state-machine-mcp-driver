@@ -2,7 +2,7 @@ import { MCPDriverAdapter } from "@/drivers";
 import { Logger } from "@/utils";
 import BaseMCPServer from "./BaseMCPServer";
 import { ContentManager, CRUDToolsManager, CoreComponentsManager } from "./managers";
-import { DEFAULT_DEVOPS_MCP_SERVER_CONFIG } from "./MCPLauncherServer";
+import { DEFAULT_DEVOPS_MCP_SERVER_CONFIG } from "./DEFAULT_DEVOPS_MCP_SERVER_CONFIG";
 import { BaseMCPServerConfig } from "./MCPServerConfig";
 import { DevOpsPluginManager, PluginContext, XPlus1ControlPlugin } from "./plugins";
 import { z } from "zod";

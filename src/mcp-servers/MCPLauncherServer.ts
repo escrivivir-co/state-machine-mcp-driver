@@ -12,6 +12,11 @@ import axios from "axios";
 import { AppConfig } from "@/utils";
 import { MCPDriverAdapter } from "@/drivers";
 import { DEFAULT_APP_CONFIG, getConfigOrDefault } from "@/utils/config";
+import { DEFAULT_WIKI_MCP_SERVER_CONFIG } from "./DEFAULT_WIKI_MCP_SERVER_CONFIG";
+import { DEFAULT_STATE_MACHINE_MCP_SERVER_CONFIG } from "./DEFAULT_STATE_MACHINE_MCP_SERVER_CONFIG";
+import { DEFAULT_XPLUS1_MCP_SERVER_CONFIG } from "./DEFAULT_XPLUS1_MCP_SERVER_CONFIG";
+import { DEFAULT_LAUNCHER_MCP_SERVER_CONFIG } from "./DEFAULT_LAUNCHER_MCP_SERVER_CONFIG";
+import { DEFAULT_DEVOPS_MCP_SERVER_CONFIG } from "./DEFAULT_DEVOPS_MCP_SERVER_CONFIG";
 
 export interface VsCodeMCPServer {
     url: string;
@@ -20,83 +25,6 @@ export interface VsCodeMCPServer {
 export interface VSCodeMCPJSON {
     servers: { [key: string]: VsCodeMCPServer };
 }
-export const DEFAULT_DEVOPS_MCP_SERVER_CONFIG: BaseMCPServerConfig = {
-    id: "devops-mcp-server",
-    name: "DevOps MCP Server",
-    script: "src/mcp-servers/DevOpsServer.ts",
-    port: 3003,
-    capabilitiesCheck: {
-        tools: true,
-        resources: true,
-        prompts: true,
-    },
-    features: {
-        enableManagers: true,
-        enableWebConsole: true,
-        enableHealthChecks: true,
-    },
-    description:
-        "DevOps automation and management server with CRUD capabilities",
-    autoRestart: true,
-    healthCheckInterval: 30000,
-	url: "http://localhost",
-    version: "1.0.0",
-};
-
-export const DEFAULT_LAUNCHER_MCP_SERVER_CONFIG: BaseMCPServerConfig = {
-    id: "mcp-service-launcher",
-    name: "MCP Service Launcher",
-    script: "src/mcp-servers/MCPLauncherServer.ts",
-    port: 3000,
-    description: "Main MCP root node",
-    autoRestart: true,
-    healthCheckInterval: 30000,
-    capabilitiesCheck: {
-        tools: true,
-        resources: true,
-        prompts: true,
-    },
-    version: "1.0.0",
-	url: "http://localhost"
-};
-
-export const DEFAULT_WIKI_MCP_SERVER_CONFIG: BaseMCPServerConfig = {
-    id: "wiki-mcp-browser",
-    name: "Wiki MCP Browser",
-    script: "src/mcp-servers/WikiMCPBrowser.ts",
-    port: 3002,
-    description:
-        "Real Wikipedia browsing server with doom-scrolling prevention",
-    autoRestart: true,
-    healthCheckInterval: 30000,
-    version: "1.0.0",
-	url: "http://localhost"
-};
-
-export const DEFAULT_STATE_MACHINE_MCP_SERVER_CONFIG: BaseMCPServerConfig = {
-    id: "state-machine-server",
-    name: "Simple MCP Server for State Machines",
-    script: "src/mcp-servers/MCPStateMachineServer.ts",
-    port: 3004,
-    description: "Easy state management",
-    autoRestart: true,
-    healthCheckInterval: 30000,
-    version: "1.0.0",
-	url: "http://localhost"
-};
-
-export const DEFAULT_XPLUS1_MCP_SERVER_CONFIG: BaseMCPServerConfig = {
-    id: "xplus1-mcp-machine",
-    name: "X+1 MCP Machine",
-    script: "src/mcp-servers/XPlus1MCPMachine.ts",
-    port: 3001,
-    description: "X+1 inductive pattern management and remote control server",
-    autoRestart: true,
-    healthCheckInterval: 30000,
-    version: "1.0.0",
-	url: "http://localhost"
-};
-
 export const CONFIGS_BASE_MCP_SERVER = {
     not_set: DEFAULT_LAUNCHER_MCP_SERVER_CONFIG,
     "state-machine-server": DEFAULT_STATE_MACHINE_MCP_SERVER_CONFIG,
