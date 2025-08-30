@@ -12,11 +12,12 @@ import {
 import { MultiUIGameManager } from "../src/ui/MultiUIGameManager";
 import { MultiUIGameConfig } from "../src/ui/MultiUIGameConfig";
 import { Logger } from "../src/utils/logger";
-import { MCPServerConfig } from "../src/drivers/IMCPDriver";
+import { MCPServerTransportConfig } from "../src/drivers/IMCPDriver";
 
 // Import game-specific configurations
 import { createXPlus1RuntimeConfig } from "./x-plus-1-state-machine/game-config";
 import { ChannelConsumer } from "@/orchestration/channel/deprecated-channel-consumer";
+import { DEFAULT_APP_CONFIG, getConfigOrDefault, parseMcpConfigToTransportConfig } from "@/utils/config";
 
 /**
  * Retry configuration
@@ -214,21 +215,11 @@ async function main(): Promise<void> {
         mcpAdapter = new MCPDriverAdapter();
 
         // Configure MCP servers
-        for (const serverId of config.mcp.servers) {
-            const serverConfig: MCPServerConfig = {
-                id: serverId,
-                name:
-                    serverId === "xplus1-mcp-machine"
-                        ? "X+1 MCP Machine"
-                        : "Wiki MCP Browser",
-                url:
-                    serverId === "xplus1-mcp-machine"
-                        ? "http://localhost:3001"
-                        : "http://localhost:3002",
-            };
-
-            mcpAdapter.addServer(serverConfig);
-        }
+		for ( const key of Object.keys(config.mcp.servers)){
+			const server = getConfigOrDefault(key, DEFAULT_APP_CONFIG);
+			const transportConfig = parseMcpConfigToTransportConfig(server);
+			mcpAdapter.addServer(transportConfig);
+		}
 
         console.log("✅ MCP Driver initialized");
 

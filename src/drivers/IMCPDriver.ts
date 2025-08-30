@@ -3,7 +3,7 @@
  * Provides a common interface for both legacy MCPDriver and new MCPClientDriver
  */
 
-export interface MCPServerConfig {
+export interface MCPServerTransportConfig {
   id: string;
   name: string;
   url: string;
@@ -19,10 +19,10 @@ export interface MCPServerConfig {
  */
 export interface IMCPDriver {
   // Server management
-  addServer(config: MCPServerConfig): void | Promise<void>;
+  addServer(config: MCPServerTransportConfig): void | Promise<void>;
   removeServer(serverId: string): boolean | Promise<boolean>;
-  getServers(): MCPServerConfig[];
-  getServer(serverId: string): MCPServerConfig | undefined;
+  getServers(): MCPServerTransportConfig[];
+  getServer(serverId: string): MCPServerTransportConfig | undefined;
 
   // Core MCP operations
   executeTool(serverId: string, toolName: string, params: any): Promise<any>;

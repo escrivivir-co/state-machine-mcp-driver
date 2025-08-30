@@ -16,75 +16,71 @@ import { logger } from "../src/utils/logger";
 import { MCPDriverAdapter } from "../src/drivers/MCPDriverAdapter";
 import {
     MultiUIGameConfig,
-    getMultiUIConfig,
     validateMultiUIConfig,
 } from "../src/ui/MultiUIGameConfig";
 import { ChannelConsumer } from "@/orchestration/channel/deprecated-channel-consumer";
-
-interface LaunchConfig {
-    ollamaUrl: string;
-    requiredModel: string;
-    mcpServiceLauncherPort: number;
-    mcpServers: Array<{
-        id: string;
-        name: string;
-        port: number;
-        script: string;
-    }>;
-    healthCheckTimeout: number;
-    shutdownGracePeriod: number;
-}
+import { Orchestrator } from "@/orchestration";
+import { AppConfig } from "@/utils";
+import { LaunchConfig } from "./LaunchConfig";
+import { MCPLauncherServer } from "@/mcp-servers";
+import { generateVSCodeConfig } from "@/mcp-servers/generate-vscode-config";
+import { IMCPDriver } from "@/drivers";
+import { MCPServerTransportConfig } from "@/drivers/IMCPDriver";
+import {
+    getConfigOrDefault,
+    parseMcpConfigToTransportConfig,
+} from "@/utils/config";
 
 const DEFAULT_CONFIG: LaunchConfig = {
     ollamaUrl: "http://localhost:11434",
     requiredModel: process.env.OLLAMA_MODEL || "GPT-OSS:20b",
     mcpServiceLauncherPort: 3000,
-    mcpServers: [
-        {
-            id: "xplus1-mcp-machine",
-            name: "X+1 MCP Machine",
-            port: 3001,
-            script: "src/mcp-servers/XPlus1MCPMachine.ts",
-        },
-        {
-            id: "wiki-mcp-browser",
-            name: "Wiki MCP Browser",
-            port: 3002,
-            script: "src/mcp-servers/WikiMCPBrowser.ts",
-        },
-    ],
     healthCheckTimeout: 30000,
     shutdownGracePeriod: 5000,
 };
 
 export class ApplicationLauncher {
-    private config: LaunchConfig;
+    private config: AppConfig;
     private processes: Map<string, ChildProcess> = new Map();
     private mcpDriver?: MCPDriverAdapter;
+    private mcpserverImpl!: MCPLauncherServer;
     private isShuttingDown = false;
+    orchestrator!: Orchestrator;
 
-    constructor(config: Partial<LaunchConfig> = {}) {
-        this.config = { ...DEFAULT_CONFIG, ...config };
+    constructor(config: Partial<AppConfig> = {}) {
+        this.config = config as AppConfig;
+        this.config.launcher = { ...DEFAULT_CONFIG, ...config.launcher };
+
         this.setupSignalHandlers();
     }
 
     /**
      * Main launch sequence
      */
-    async launch(
-        target:
-            | "x-plus-1"
-            | "x-plus-1-multi"
-            | "dev-multi"
-            | "console-only"
-            | "custom",
-        customScript?: string
-    ): Promise<void> {
+    async launch(appConfig: AppConfig, customScript?: string): Promise<void> {
         try {
             console.log("🚀 State Machine MCP Driver - Application Launcher");
             console.log("===================================================");
 
-            // Load Multi-UI configuration for the specific target
+            console.log(
+                `📱 Orchestrator Config Agents requested: ${
+                    this.config?.orchestration?.autoRegisterComponentsKeys
+                        ?.length || "not detected"
+                }`
+            );
+
+            // 3. Initialize Interface Orchestrator
+            console.log("🔄 Initializing Interface Orchestrator...");
+            // this.orchestrator = createDevelopmentOrchestrator(this.config);
+            // this.orchestrator.start();
+            console.log("✅ Interface Orchestrator initialized");
+
+            // 4. ActiveHandles and Request
+            // this.orchestrator.logRequestsAndHandlers();
+
+            this.mainLaunch(appConfig);
+
+            /* Load Multi-UI configuration for the specific target
             const multiUIConfig = this.loadMultiUIConfig(target);
             if (multiUIConfig) {
                 await this.launchMultiUI(multiUIConfig);
@@ -96,7 +92,7 @@ export class ApplicationLauncher {
                 await this.launchSingleUI(target, customScript);
             } else {
                 throw new Error(`Unknown target: ${target}`);
-            }
+            }*/
         } catch (error) {
             logger.error("Launch sequence failed", error as Error);
             console.error("❌ Launch failed:", error);
@@ -162,6 +158,42 @@ export class ApplicationLauncher {
     }
 
     /**
+     * Setup default server configurations
+     */
+    public async registerServesInMCPDriver(mcpDriver: IMCPDriver): Promise<void> {
+
+		for (const serverKey of this.mcpserverImpl.requestToLaunchConfigs.keys()) {
+			const server = getConfigOrDefault(serverKey, this.config);
+			const transportConfig = parseMcpConfigToTransportConfig(server);
+			await mcpDriver.addServer(transportConfig)
+		}
+
+    }
+
+    /**
+     * Launch single UI application (legacy)
+     */
+    private async mainLaunch(
+        config: AppConfig,
+        customScript?: string
+    ): Promise<void> {
+        // Phase 1: Environment checks
+        await this.checkEnvironment();
+
+        // Phase 2: Start MCP Service Launcher
+        await this.startMCPServiceLauncher();
+
+        // Phase 3: Launch MCP servers via service launcher
+        await this.launchMCPServers();
+
+        // Phase 4: Health checks
+        await this.performHealthChecks();
+
+        // Phase 5: Launch target application
+        // await this.launchApplication(target, customScript);
+    }
+
+    /**
      * Check environment prerequisites
      */
     private async checkEnvironment(): Promise<void> {
@@ -172,7 +204,7 @@ export class ApplicationLauncher {
         console.log("📡 Checking Ollama server...");
         try {
             const response = await axios.get(
-                `${this.config.ollamaUrl}/api/version`,
+                `${this.config.launcher?.ollamaUrl}/api/version`,
                 {
                     timeout: 5000,
                 }
@@ -183,34 +215,38 @@ export class ApplicationLauncher {
                 })`
             );
         } catch (error) {
-            throw new Error(
-                `❌ Ollama server not available at ${this.config.ollamaUrl}. Please start Ollama first.`
+            logger.error(
+                `❌ Ollama server not available at ${this.config.launcher?.ollamaUrl}. Please start Ollama first.`
             );
         }
 
         // Check required model
-        console.log(`🤖 Checking model: ${this.config.requiredModel}...`);
+        console.log(
+            `🤖 Checking model: ${this.config.launcher?.requiredModel}...`
+        );
         try {
             const response = await axios.get(
-                `${this.config.ollamaUrl}/api/tags`
+                `${this.config.launcher?.ollamaUrl}/api/tags`
             );
             const models = response.data?.models || [];
             const hasModel = models.some(
                 (model: any) =>
-                    model.name === this.config.requiredModel ||
-                    model.name.startsWith(this.config.requiredModel)
+                    model.name === this.config.launcher?.requiredModel ||
+                    model.name.startsWith(this.config.launcher?.requiredModel)
             );
 
             if (!hasModel) {
                 console.log(
-                    `⚠️  Model ${this.config.requiredModel} not found. Attempting to pull...`
+                    `⚠️  Model ${this.config.launcher?.requiredModel} not found. Attempting to pull...`
                 );
-                await this.pullModel(this.config.requiredModel);
+                await this.pullModel(this.config.launcher?.requiredModel || "");
             } else {
-                console.log(`✅ Model ${this.config.requiredModel} available`);
+                console.log(
+                    `✅ Model ${this.config.launcher?.requiredModel} available`
+                );
             }
         } catch (error) {
-            throw new Error(`❌ Failed to verify model availability: ${error}`);
+            logger.error(`❌ Failed to verify model availability: ${error}`);
         }
 
         // Check project structure
@@ -294,19 +330,26 @@ export class ApplicationLauncher {
         console.log("\n⚡ Phase 2: Starting MCP Service Launcher");
         console.log("------------------------------------------");
 
+        this.mcpserverImpl = new MCPLauncherServer();
+        this.mcpserverImpl.start();
+
+        /*
+        console.log("\n⚡ Phase 2: Starting MCP Service Launcher");
+        console.log("------------------------------------------");
+
         const { cmd, args: baseArgs } = this.getTsxCommand();
 
         console.log("🔄 Starting MCP Service Launcher on port 3000...");
 
         const launcherProcess = spawn(
             cmd,
-            [...baseArgs, "src/mcp-servers/MCPServiceLauncher.ts"],
+            [...baseArgs, "src/mcp-servers/MCPLauncherServer.ts"],
             {
                 stdio: ["inherit", "pipe", "pipe"],
                 env: {
                     ...process.env,
                     MCP_SERVER_PORT:
-                        this.config.mcpServiceLauncherPort.toString(),
+                        this.config.launcher?.mcpServiceLauncherPort.toString(),
                     MCP_USE_NATIVE_PROTOCOL: "true",
                 },
                 shell: process.platform === "win32",
@@ -343,7 +386,7 @@ export class ApplicationLauncher {
         while (Date.now() - start < timeoutMs) {
             try {
                 const res = await axios.get(
-                    `http://localhost:${this.config.mcpServiceLauncherPort}/health`,
+                    `http://localhost:${this.config?.launcher?.mcpServiceLauncherPort}/health`,
                     { timeout: 1000 }
                 );
                 if (res.status === 200) {
@@ -351,7 +394,7 @@ export class ApplicationLauncher {
                     break;
                 }
             } catch {
-                /* wait and retry */
+                // PASS
             }
             await this.sleep(500);
         }
@@ -363,16 +406,17 @@ export class ApplicationLauncher {
         console.log(
             `✅ MCP Service Launcher started (PID: ${launcherProcess.pid})`
         );
-
+		*/
         // Initialize MCP Driver to communicate with the launcher
         this.mcpDriver = new MCPDriverAdapter();
-        await this.mcpDriver.addServer({
-            id: "mcp-service-launcher",
-            name: "MCP Service Launcher",
-            url: `http://localhost:${this.config.mcpServiceLauncherPort}`,
-            timeout: 10000,
-            maxRetries: 3,
-        });
+        const mcpConfigKey = "mcp-service-launcher";
+        if (mcpConfigKey) {
+            const server = getConfigOrDefault(mcpConfigKey, this.config);
+            const transportConfig = parseMcpConfigToTransportConfig(server);
+            await this.mcpDriver.addServer(transportConfig);
+        }
+
+        this.mcpserverImpl.requestToLaunchMCPServers(this.config, this.mcpDriver);
     }
 
     /**
@@ -402,7 +446,7 @@ export class ApplicationLauncher {
             if (process.env.MCP_QUIET !== "true") {
                 console.log(
                     "📊 Launch Results:",
-                    JSON.stringify(result, null, 2)
+                    result.length
                 );
             }
 
@@ -433,91 +477,15 @@ export class ApplicationLauncher {
                 console.warn("⚠️ Some servers may have failed to launch");
                 console.log("Results:", parsedResult);
             }
+
+            await this.registerServesInMCPDriver(this.mcpDriver);
+
+            logger.info("Initial launch Done!");
         } catch (error) {
             console.error(
                 "❌ Failed to launch MCP servers via service launcher:",
                 error
             );
-            console.log("➡️  Falling back to legacy direct server startup...");
-            // Fallback: start servers directly without the service launcher tools
-            await this.startMCPServersLegacy();
-            console.log("✅ Legacy MCP server startup completed");
-        }
-    }
-
-    /**
-     * Legacy method: Start all MCP servers directly (now deprecated in favor of service launcher)
-     */
-    private async startMCPServersLegacy(): Promise<void> {
-        console.log("\n⚡ Phase 2: Starting MCP Servers (Legacy Mode)");
-        console.log("------------------------------------------------");
-
-        const { cmd, args: baseArgs } = this.getTsxCommand();
-
-        for (const server of this.config.mcpServers) {
-            console.log(`🔄 Starting ${server.name} on port ${server.port}...`);
-
-            const serverProcess = spawn(
-                cmd,
-                [...baseArgs, server.script, "--port", server.port.toString()],
-                {
-                    stdio: ["inherit", "pipe", "pipe"],
-                    env: {
-                        ...process.env,
-                        MCP_SERVER_PORT: server.port.toString(),
-                        MCP_SERVER_ID: server.id,
-                    },
-                    shell: process.platform === "win32", // Enable shell on Windows
-                }
-            );
-
-            // Store process reference
-            this.processes.set(server.id, serverProcess);
-
-            // Handle process output
-            serverProcess.stdout?.on("data", (data) => {
-                console.log(`[${server.name}] ${data.toString().trim()}`);
-            });
-
-            serverProcess.stderr?.on("data", (data) => {
-                console.error(`[${server.name}] ${data.toString().trim()}`);
-            });
-
-            serverProcess.on("close", (code) => {
-                if (!this.isShuttingDown) {
-                    console.error(`❌ ${server.name} exited with code ${code}`);
-                }
-                this.processes.delete(server.id);
-            });
-
-            // Poll for readiness on /health
-            const start = Date.now();
-            const timeoutMs = 15000;
-            let reachable = false;
-            while (Date.now() - start < timeoutMs) {
-                try {
-                    const res = await axios.get(
-                        `http://localhost:${server.port}/health`,
-                        { timeout: 1000 }
-                    );
-                    if (res.status === 200) {
-                        reachable = true;
-                        break;
-                    }
-                } catch {
-                    /* retry */
-                }
-                await this.sleep(500);
-            }
-            if (reachable) {
-                console.log(
-                    `✅ ${server.name} exposed on port ${server.port} (PID: ${serverProcess.pid})`
-                );
-            } else {
-                console.warn(
-                    `⚠️ ${server.name} did not become reachable on port ${server.port} within ${timeoutMs}ms`
-                );
-            }
         }
     }
 
@@ -550,7 +518,7 @@ export class ApplicationLauncher {
             if (process.env.MCP_QUIET !== "true") {
                 console.log(
                     "📊 Health Check Results:",
-                    JSON.stringify(healthResults, null, 2)
+                    healthResults.length
                 );
             }
 
@@ -601,7 +569,7 @@ export class ApplicationLauncher {
 
                     // Generate VS Code MCP configuration (unless disabled)
                     if (process.env.MCP_SKIP_VSCODE_CONFIG !== "true") {
-                        await this.generateVSCodeMCPConfiguration();
+                        await generateVSCodeConfig(this.mcpDriver);
                     } else {
                         console.log(
                             "⏭️ VS Code MCP configuration generation skipped (MCP_SKIP_VSCODE_CONFIG=true)"
@@ -628,138 +596,21 @@ export class ApplicationLauncher {
     }
 
     /**
-     * Generate VS Code MCP configuration automatically
-     */
-    private async generateVSCodeMCPConfiguration(): Promise<void> {
-        if (!this.mcpDriver) {
-            console.warn(
-                "⚠️ MCP Driver not available, skipping VS Code configuration generation"
-            );
-            return;
-        }
-
-        try {
-            console.log("\n🔧 Generating VS Code MCP Configuration...");
-
-            const configResult = await this.mcpDriver.executeTool(
-                "mcp-service-launcher",
-                "generate_vscode_mcp_config",
-                {
-                    includeDescription: true,
-                    outputPath: ".vscode/mcp.json",
-                }
-            );
-
-            // Parse the nested result structure (similar to other MCP tool responses)
-            let parsedResult: any = configResult;
-
-            // Handle wrapped text response format
-            if (
-                Array.isArray(configResult) &&
-                configResult[0]?.type === "text"
-            ) {
-                try {
-                    parsedResult = JSON.parse(configResult[0].text);
-                } catch (error) {
-                    if (process.env.MCP_QUIET !== "true") {
-                        console.warn(
-                            "⚠️ Failed to parse VS Code config result:",
-                            error
-                        );
-                    }
-                    parsedResult = {
-                        success: false,
-                        error: "Failed to parse response",
-                    };
-                }
-            } else if (configResult?.content?.[0]?.type === "text") {
-                try {
-                    parsedResult = JSON.parse(configResult.content[0].text);
-                } catch (error) {
-                    if (process.env.MCP_QUIET !== "true") {
-                        console.warn(
-                            "⚠️ Failed to parse VS Code config result:",
-                            error
-                        );
-                    }
-                    parsedResult = {
-                        success: false,
-                        error: "Failed to parse response",
-                    };
-                }
-            }
-
-            if (parsedResult.success) {
-                console.log(
-                    "✅ VS Code MCP configuration generated successfully!"
-                );
-                console.log(
-                    `📁 Configuration saved to: ${parsedResult.outputPath}`
-                );
-
-                // Show user instructions
-                if (parsedResult.instructions) {
-                    this.showVSCodeInstructions(parsedResult.instructions);
-                }
-            } else {
-                console.warn(
-                    "⚠️ Failed to generate VS Code MCP configuration:",
-                    parsedResult.error || "Unknown error"
-                );
-            }
-        } catch (error) {
-            console.warn(
-                "⚠️ Error generating VS Code MCP configuration:",
-                error
-            );
-        }
-    }
-
-    /**
-     * Display VS Code setup instructions to the user
-     */
-    private showVSCodeInstructions(instructions: any): void {
-        console.log("\n" + "=".repeat(60));
-        console.log("🎯 VS Code MCP Setup Instructions");
-        console.log("=".repeat(60));
-
-        if (instructions && instructions.steps) {
-            console.log("\n📋 Setup Steps:");
-            instructions.steps.forEach((step: any) => {
-                console.log(`\n${step.step}. ${step.action}`);
-                console.log(`   ${step.description}`);
-            });
-        }
-
-        if (instructions && instructions.quickCommands) {
-            console.log("\n⚡ Quick Commands in VS Code:");
-            instructions.quickCommands.forEach((cmd: string) => {
-                console.log(`   • ${cmd}`);
-            });
-        }
-
-        console.log("\n💡 Next Steps:");
-        console.log("   1. Open VS Code in this workspace folder");
-        console.log("   2. Install the Model Context Protocol extension");
-        console.log('   3. Use Ctrl+Shift+P → "MCP: Connect to Server"');
-        console.log("   4. Select from available MCP servers");
-        console.log("   5. Start using MCP tools and resources in VS Code!");
-
-        console.log("\n" + "=".repeat(60));
-    }
-
-    /**
      * Perform basic health checks (fallback method)
      */
     private async performBasicHealthChecks(): Promise<void> {
         // Check MCP servers
-        for (const server of this.config.mcpServers) {
+        for (const serverKey of Object.keys(this.config.mcp.servers)) {
+            const server = this.config.mcp.servers[serverKey];
             console.log(`🔍 Health check: ${server.name}...`);
 
             const startTime = Date.now();
             let isHealthy = false;
 
-            while (Date.now() - startTime < this.config.healthCheckTimeout) {
+            while (
+                Date.now() - startTime <
+                (this.config?.launcher?.healthCheckTimeout || 0)
+            ) {
                 try {
                     // Try to connect to MCP server (basic TCP check)
                     const response = await axios
@@ -792,9 +643,9 @@ export class ApplicationLauncher {
         console.log("🔍 Testing Ollama model generation...");
         try {
             const testResponse = await axios.post(
-                `${this.config.ollamaUrl}/api/generate`,
+                `${this.config.launcher?.ollamaUrl}/api/generate`,
                 {
-                    model: this.config.requiredModel,
+                    model: this.config.launcher?.requiredModel,
                     prompt: "Test",
                     stream: false,
                 },
@@ -858,9 +709,9 @@ export class ApplicationLauncher {
                 ...process.env,
                 MCP_XPLUS1_URL: "http://localhost:3001",
                 MCP_WIKI_URL: "http://localhost:3002",
-                MCP_SERVICE_LAUNCHER_URL: `http://localhost:${this.config.mcpServiceLauncherPort}`,
-                OLLAMA_URL: this.config.ollamaUrl,
-                OLLAMA_MODEL: this.config.requiredModel,
+                MCP_SERVICE_LAUNCHER_URL: `http://localhost:${this.config.launcher?.mcpServiceLauncherPort}`,
+                OLLAMA_URL: this.config.launcher?.ollamaUrl,
+                OLLAMA_MODEL: this.config.launcher?.requiredModel,
             },
             shell: process.platform === "win32", // Enable shell on Windows
         });
@@ -896,7 +747,7 @@ export class ApplicationLauncher {
         }
 
         // Wait for graceful shutdown
-        await this.sleep(this.config.shutdownGracePeriod);
+        await this.sleep(this.config?.launcher?.shutdownGracePeriod || 0);
 
         // Force kill remaining processes
         for (const [id, process] of this.processes) {
@@ -1070,9 +921,9 @@ export class ApplicationLauncher {
                     url: "http://localhost:3002",
                 },
             ];
-
+            /*
             for (const serverConfig of serverConfigs) {
-                if (config.mcp.servers.includes(serverConfig.id)) {
+                if (config.mcp.servers.includes(serverConfig)) {
                     try {
                         await mcpAdapter.addServer(serverConfig);
                         console.log(`✅ Connected to ${serverConfig.name}`);
@@ -1088,13 +939,16 @@ export class ApplicationLauncher {
                         }
                     }
                 }
-            }
-
+            }*/
+            /*
             // Wait for MCP connections to be established with health checks
             console.log("⏳ Waiting for MCP connections...");
-            await this.waitForMCPHealthy(mcpAdapter, config.mcp.servers);
+            await this.waitForMCPHealthy(
+                mcpAdapter,
+                config.mcp.servers.map((s) => s.id)
+            );
             console.log("✅ MCP Driver initialized");
-
+*/
             // 2. Initialize Runtime with graceful error handling
             console.log("🧠 Initializing Runtime...");
             let runtimeConfig;
@@ -1147,16 +1001,12 @@ export class ApplicationLauncher {
 
             // 3. Initialize Interface Orchestrator
             console.log("🔄 Initializing Interface Orchestrator...");
-            const orchestrator = new ChannelConsumer(
-                runtime,
-                mcpAdapter,
-                {
-                    syncInterval: config.orchestration?.syncInterval || 100,
-                    enableChatProvider: false,
-                    enableUI: true,
-                    enableAgentControl: true,
-                }
-            );
+            const orchestrator = new ChannelConsumer(runtime, mcpAdapter, {
+                syncInterval: config.orchestration?.syncInterval || 100,
+                enableChatProvider: false,
+                enableUI: true,
+                enableAgentControl: true,
+            });
             console.log("✅ Interface Orchestrator initialized");
 
             // 4. Initialize Multi-UI Manager

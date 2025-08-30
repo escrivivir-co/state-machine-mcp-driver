@@ -5,6 +5,8 @@
 
 import { OrchestratorConfig } from "@/orchestration";
 import { BaseGamificationUIConfig } from "./GamificationUI";
+import { MCPServerConfig } from "@/drivers";
+import { AppConfigMcpServers } from "@/utils/config";
 
 /**
  * UI Type identifiers
@@ -68,11 +70,9 @@ export interface MultiUIGameConfig {
     /** Orchestration settings */
     orchestration: OrchestratorConfig;
 
-    /** MCP configuration */
-    mcp: {
-        /** MCP servers to launch */
-        servers: string[];
-    };
+	mcp: {
+		servers: AppConfigMcpServers;
+	};
 }
 
 /**
@@ -142,7 +142,7 @@ export const X_PLUS_1_MULTI_UI: MultiUIGameConfig = {
     },
 
     mcp: {
-        servers: ["xplus1-mcp-machine", "wiki-mcp-browser"],
+        servers: {},
     },
 };
 
@@ -210,7 +210,7 @@ export const DEV_MULTI_UI: MultiUIGameConfig = {
     },
 
     mcp: {
-        servers: ["xplus1-mcp-machine", "wiki-mcp-browser"],
+        servers: {},
     },
 };
 
@@ -249,7 +249,7 @@ export const CONSOLE_ONLY: MultiUIGameConfig = {
     },
 
     mcp: {
-        servers: ["xplus1-mcp-machine"],
+        servers: {},
     },
 };
 

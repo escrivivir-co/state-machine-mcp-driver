@@ -1,14 +1,23 @@
 {
+	"app": {
+		"type": "x-plus-1"
+	},
+	"launcher": {
+		"ollamaUrl": "http://localhost:11434",
+		"requiredModel": "GPT-OSS:20b",
+		"mcpServiceLauncherPort": 3000,
+		"healthCheckTimeout": 30000,
+		"shutdownGracePeriod": 5000
+	},
 	"game": {
 		"id": "x-plus-1-multi",
 		"name": "X+1 Multi-UI Demo",
 		"description": "X+1 game running with both console and web interfaces"
 	},
 	"mcp": {
-		"servers": [
-			"xplus1-mcp-machine",
-			"wiki-mcp-browser"
-		]
+		"servers": {
+			"devops-mcp-server": {}
+		}
 	},
 	"orchestration": {
 		"enableReplay": true,

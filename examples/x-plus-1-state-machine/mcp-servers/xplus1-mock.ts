@@ -5,7 +5,7 @@
  * The full implementation is in src/mcp-servers/XPlus1MCPMachine.ts
  */
 
-import { XPlus1MCPMachine } from '../../../src/mcp-servers/XPlus1MCPMachine';
+import { MCPBasicStateMachineServer } from '../../../src/mcp-servers/XPlus1MCPMachine';
 import { loadXPlus1Messages, type XPlus1MessagesConfig } from './config-loader';
 
 // Load configuration from JSON files
@@ -14,8 +14,8 @@ const messagesConfig: XPlus1MessagesConfig = loadXPlus1Messages();
 /**
  * Initialize and start the X+1 MCP Server for the example
  */
-export async function startXPlus1Server(): Promise<XPlus1MCPMachine> {
-  const server = new XPlus1MCPMachine();
+export async function startXPlus1Server(): Promise<MCPBasicStateMachineServer> {
+  const server = new MCPBasicStateMachineServer();
   
   console.log(messagesConfig.messages.server.starting);
   
@@ -33,9 +33,9 @@ export async function startXPlus1Server(): Promise<XPlus1MCPMachine> {
  * Mock client interface for testing
  */
 export class MockXPlus1Client {
-  private server: XPlus1MCPMachine;
+  private server: MCPBasicStateMachineServer;
 
-  constructor(server: XPlus1MCPMachine) {
+  constructor(server: MCPBasicStateMachineServer) {
     this.server = server;
   }
 
@@ -64,4 +64,4 @@ export class MockXPlus1Client {
   }
 }
 
-export { XPlus1MCPMachine };
+export { MCPBasicStateMachineServer as XPlus1MCPMachine };

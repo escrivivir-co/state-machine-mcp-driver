@@ -6,17 +6,34 @@
 import { MultiUIGameConfig } from "@/ui/MultiUIGameConfig";
 import { MCPServerConfig } from "../drivers";
 import { LogLevel } from "./logger";
+import { LaunchConfig } from "scripts/LaunchConfig";
+import { AppType } from "scripts/AppType";
+import { BaseMCPServerConfig } from "@/mcp-servers/MCPServerConfig";
+import {
+    CONFIGS_BASE_MCP_SERVER,
+    DEFAULT_LAUNCHER_MCP_SERVER_CONFIG,
+} from "@/mcp-servers/MCPLauncherServer";
+import { MCPServerTransportConfig } from "@/drivers/IMCPDriver";
 
+export type AppConfigMcpServers = {
+    [key: string]: BaseMCPServerConfig;
+};
 /**
  * Application configuration interface
  */
 export interface AppConfig extends MultiUIGameConfig {
+    app: {
+        type: AppType;
+    };
+    launcher?: LaunchConfig;
     /** Server port */
     port: number;
     /** Node environment */
     nodeEnv: "development" | "production" | "test";
     /** MCP server configurations */
-    mcpServers: MCPServerConfig[];
+    mcp: {
+        servers: AppConfigMcpServers;
+    };
     /** Logging configuration */
     logging: {
         level: LogLevel;
@@ -108,101 +125,100 @@ function parseEnvBoolean(
 /**
  * Default MCP server configurations
  */
-const defaultMCPServers: MCPServerConfig[] = parseEnvJson(
+const defaultMCPServers: MCPServerConfig = parseEnvJson(
     process.env.MCP_SERVERS,
-    [
-        {
-            id: "default-server",
-            name: "Default MCP Server",
-            url: process.env.DEFAULT_MCP_URL || "http://localhost:3001/api",
-            timeout: 30000,
-            maxRetries: 3,
-        },
-    ]
+    {
+        id: "default-server",
+        name: "Default MCP Server",
+        url: process.env.DEFAULT_MCP_URL || "http://localhost:3001/api",
+        timeout: 30000,
+        maxRetries: 3,
+    }
 );
 
 /**
  * Main application configuration
  */
-export const config: AppConfig = {
-	port: parseEnvNumber(process.env.PORT, 3000),
-	nodeEnv: (process.env.NODE_ENV as AppConfig["nodeEnv"]) || "development",
+export const DEFAULT_APP_CONFIG: AppConfig = {
+    port: parseEnvNumber(process.env.PORT, 3000),
+    nodeEnv: (process.env.NODE_ENV as AppConfig["nodeEnv"]) || "development",
+    logging: {
+        level: (process.env.LOG_LEVEL as LogLevel) || LogLevel.INFO,
+        format:
+            (process.env.LOG_FORMAT as "json" | "simple" | "combined") ||
+            "simple",
+        enableFile: parseEnvBoolean(
+            process.env.LOG_ENABLE_FILE,
+            process.env.NODE_ENV === "production"
+        ),
+        logDir: process.env.LOG_DIR || "logs",
+    },
 
-	mcpServers: defaultMCPServers,
+    session: {
+        timeout: parseEnvNumber(process.env.SESSION_TIMEOUT, 3600000), // 1 hour
+        cleanup: parseEnvBoolean(process.env.SESSION_CLEANUP, true),
+        cleanupInterval: parseEnvNumber(
+            process.env.SESSION_CLEANUP_INTERVAL,
+            300000
+        ), // 5 minutes
+    },
 
-	logging: {
-		level: (process.env.LOG_LEVEL as LogLevel) || LogLevel.INFO,
-		format: (process.env.LOG_FORMAT as "json" | "simple" | "combined") ||
-			"simple",
-		enableFile: parseEnvBoolean(
-			process.env.LOG_ENABLE_FILE,
-			process.env.NODE_ENV === "production"
-		),
-		logDir: process.env.LOG_DIR || "logs",
-	},
+    security: {
+        enableAuth: parseEnvBoolean(process.env.ENABLE_AUTH, false),
+        apiKeys: parseEnvJson(process.env.API_KEYS, []),
+        cors: {
+            origin: parseEnvJson(process.env.CORS_ORIGIN, "*"),
+            credentials: parseEnvBoolean(process.env.CORS_CREDENTIALS, true),
+        },
+    },
 
-	session: {
-		timeout: parseEnvNumber(process.env.SESSION_TIMEOUT, 3600000), // 1 hour
-		cleanup: parseEnvBoolean(process.env.SESSION_CLEANUP, true),
-		cleanupInterval: parseEnvNumber(
-			process.env.SESSION_CLEANUP_INTERVAL,
-			300000
-		), // 5 minutes
-	},
+    performance: {
+        maxConcurrentRequests: parseEnvNumber(
+            process.env.MAX_CONCURRENT_REQUESTS,
+            100
+        ),
+        requestTimeout: parseEnvNumber(process.env.REQUEST_TIMEOUT, 30000),
+        enableCaching: parseEnvBoolean(process.env.ENABLE_CACHING, false),
+        cacheTtl: parseEnvNumber(process.env.CACHE_TTL, 300000), // 5 minutes
+    },
 
-	security: {
-		enableAuth: parseEnvBoolean(process.env.ENABLE_AUTH, false),
-		apiKeys: parseEnvJson(process.env.API_KEYS, []),
-		cors: {
-			origin: parseEnvJson(process.env.CORS_ORIGIN, "*"),
-			credentials: parseEnvBoolean(process.env.CORS_CREDENTIALS, true),
-		},
-	},
-
-	performance: {
-		maxConcurrentRequests: parseEnvNumber(
-			process.env.MAX_CONCURRENT_REQUESTS,
-			100
-		),
-		requestTimeout: parseEnvNumber(process.env.REQUEST_TIMEOUT, 30000),
-		enableCaching: parseEnvBoolean(process.env.ENABLE_CACHING, false),
-		cacheTtl: parseEnvNumber(process.env.CACHE_TTL, 300000), // 5 minutes
-	},
-
-	development: {
-		hotReload: parseEnvBoolean(
-			process.env.HOT_RELOAD,
-			process.env.NODE_ENV === "development"
-		),
-		debug: parseEnvBoolean(
-			process.env.DEBUG,
-			process.env.NODE_ENV === "development"
-		),
-		mockServers: parseEnvBoolean(
-			process.env.MOCK_SERVERS,
-			process.env.NODE_ENV === "development"
-		),
-	},
-	game: {
-		id: "",
-		name: "",
-		version: "",
-		description: undefined
-	},
-	ui: [],
-	shared: {
-		gameTitle: "",
-		welcomeMessage: undefined,
-		debugMode: undefined,
-		maxMessagesPerThread: undefined,
-		enablePostulations: undefined
-	},
-	orchestration: {
-		
-	},
-	mcp: {
-		servers: []
-	}
+    development: {
+        hotReload: parseEnvBoolean(
+            process.env.HOT_RELOAD,
+            process.env.NODE_ENV === "development"
+        ),
+        debug: parseEnvBoolean(
+            process.env.DEBUG,
+            process.env.NODE_ENV === "development"
+        ),
+        mockServers: parseEnvBoolean(
+            process.env.MOCK_SERVERS,
+            process.env.NODE_ENV === "development"
+        ),
+    },
+    game: {
+        id: "",
+        name: "",
+        version: "",
+        description: undefined,
+    },
+    ui: [],
+    shared: {
+        gameTitle: "",
+        welcomeMessage: undefined,
+        debugMode: undefined,
+        maxMessagesPerThread: undefined,
+        enablePostulations: undefined,
+    },
+    orchestration: {},
+    app: {
+        type: "x-plus-1",
+    },
+    mcp: {
+        servers: {
+            "mcp-service-launcher": DEFAULT_LAUNCHER_MCP_SERVER_CONFIG,
+        },
+    },
 };
 
 /**
@@ -219,11 +235,12 @@ export class ConfigManager {
             errors.push("Port must be between 1 and 65535");
         }
 
-        if (config.mcpServers.length === 0) {
+        if (Object.keys(config.mcp.servers).length === 0) {
             errors.push("At least one MCP server must be configured");
         }
 
-        config.mcpServers.forEach((server, index) => {
+        Object.keys(config.mcp.servers).forEach((key: string, index) => {
+            const server = getConfigOrDefault(key, config);
             if (!server.id) errors.push(`MCP server ${index}: ID is required`);
             if (!server.name)
                 errors.push(`MCP server ${index}: Name is required`);
@@ -231,7 +248,7 @@ export class ConfigManager {
                 errors.push(`MCP server ${index}: URL is required`);
 
             try {
-                new URL(server.url);
+                new URL(server.url || "");
             } catch {
                 errors.push(`MCP server ${index}: Invalid URL format`);
             }
@@ -327,7 +344,7 @@ export class ConfigManager {
         return {
             port: config.port,
             environment: config.nodeEnv,
-            mcpServerCount: config.mcpServers.length,
+            mcpServerCount: Object.keys(config.mcp.servers).length,
             logLevel: config.logging.level,
             authEnabled: config.security.enableAuth,
             cachingEnabled: config.performance.enableCaching,
@@ -337,14 +354,40 @@ export class ConfigManager {
 }
 
 // Validate configuration on import
-const validationErrors = ConfigManager.validate(config);
+const validationErrors = ConfigManager.validate(DEFAULT_APP_CONFIG);
 if (validationErrors.length > 0) {
     console.error("Configuration validation errors:");
     validationErrors.forEach((error) => console.error(`- ${error}`));
 
-    if (config.nodeEnv === "production") {
+    if (DEFAULT_APP_CONFIG.nodeEnv === "production") {
         process.exit(1);
     }
 }
 
-export default config;
+export function getConfigOrDefault(
+    key: string,
+    config: AppConfig
+): BaseMCPServerConfig {
+    const baseConfig =
+        key in CONFIGS_BASE_MCP_SERVER
+            ? CONFIGS_BASE_MCP_SERVER[
+                  key as keyof typeof CONFIGS_BASE_MCP_SERVER
+              ]
+            : CONFIGS_BASE_MCP_SERVER["not_set"];
+
+    return {
+        ...baseConfig,
+        ...config.mcp.servers[key],
+    };
+}
+
+export function parseMcpConfigToTransportConfig(
+    server: BaseMCPServerConfig
+): MCPServerTransportConfig {
+    const transportConfig: MCPServerTransportConfig = {
+        id: server.id,
+        name: server.name || "default",
+        url: (server.url || "http://localhost") + ":" + server.port,
+    };
+    return transportConfig;
+}

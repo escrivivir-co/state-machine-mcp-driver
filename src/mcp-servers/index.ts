@@ -4,10 +4,8 @@
  */
 
 export { BaseMCPServer } from './BaseMCPServer';
-export { XPlus1MCPMachine } from './XPlus1MCPMachine';
-export { WikiMCPBrowser } from './WikiMCPBrowser';
-export { MCPServiceLauncher } from './MCPServiceLauncher';
+export { MCPBasicStateMachineServer as XPlus1MCPMachine } from './XPlus1MCPMachine';
+export { MCPWikiBrowserServer as WikiMCPBrowser } from './WikiMCPBrowser';
+export { MCPLauncherServer as MCPLauncherServer } from './MCPLauncherServer';
 export { DevOpsServer } from './DevOpsServer';
 
-// Export types
-export type { MCPServerConfig } from './BaseMCPServer';

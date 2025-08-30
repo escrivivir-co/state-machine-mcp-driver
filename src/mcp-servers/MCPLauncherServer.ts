@@ -3,27 +3,93 @@
  * Manages launching and monitoring other MCP servers in separate console processes
  */
 
-import { BaseMCPServer, MCPServerConfig } from "./BaseMCPServer";
+import { BaseMCPServer } from "./BaseMCPServer";
+import { BaseMCPServerConfig } from "./MCPServerConfig";
 import { z } from "zod";
 import { spawn, ChildProcess } from "child_process";
 import { logger, Logger } from "../utils/logger";
-import * as path from "path";
 import axios from "axios";
+import { AppConfig } from "@/utils";
+import { MCPDriverAdapter } from "@/drivers";
+import { DEFAULT_APP_CONFIG, getConfigOrDefault } from "@/utils/config";
 
-/**
- * Configuration for a managed MCP server
- */
-interface ManagedServerConfig {
-    id: string;
-    name: string;
-    script: string;
-    port: number;
-    description?: string;
-    args?: string[];
-    env?: Record<string, string>;
-    autoRestart?: boolean;
-    healthCheckInterval?: number;
+export interface VsCodeMCPServer {
+    url: string;
+    type: "http";
 }
+export interface VSCodeMCPJSON {
+    servers: { [key: string]: VsCodeMCPServer };
+}
+export const DEFAULT_DEVOPS_MCP_SERVER_CONFIG: BaseMCPServerConfig = {
+    id: "devops-mcp-server",
+    name: "DevOps MCP Server",
+    script: "src/mcp-servers/DevOpsServer.ts",
+    port: 3003,
+    capabilitiesCheck: {
+        tools: true,
+        resources: true,
+        prompts: true,
+    },
+    features: {
+        enableManagers: true,
+        enableWebConsole: true,
+        enableHealthChecks: true,
+    },
+    description:
+        "DevOps automation and management server with CRUD capabilities",
+    autoRestart: true,
+    healthCheckInterval: 30000,
+	url: "http://localhost",
+    version: "1.0.0",
+};
+
+export const DEFAULT_LAUNCHER_MCP_SERVER_CONFIG: BaseMCPServerConfig = {
+    id: "mcp-service-launcher",
+    name: "MCP Service Launcher",
+    script: "src/mcp-servers/MCPLauncherServer.ts",
+    port: 3000,
+    description: "Main MCP root node",
+    autoRestart: true,
+    healthCheckInterval: 30000,
+    capabilitiesCheck: {
+        tools: true,
+        resources: true,
+        prompts: true,
+    },
+    version: "1.0.0",
+	url: "http://localhost"
+};
+
+export const DEFAULT_WIKI_MCP_SERVER_CONFIG: BaseMCPServerConfig = {
+    id: "wiki-mcp-browser",
+    name: "Wiki MCP Browser",
+    script: "src/mcp-servers/WikiMCPBrowser.ts",
+    port: 3002,
+    description:
+        "Real Wikipedia browsing server with doom-scrolling prevention",
+    autoRestart: true,
+    healthCheckInterval: 30000,
+    version: "1.0.0",
+};
+
+export const DEFAULT_XPLUS1_MCP_SERVER_CONFIG: BaseMCPServerConfig = {
+    id: "xplus1-mcp-machine",
+    name: "X+1 MCP Machine",
+    script: "src/mcp-servers/XPlus1MCPMachine.ts",
+    port: 3001,
+    description: "X+1 inductive pattern management and remote control server",
+    autoRestart: true,
+    healthCheckInterval: 30000,
+    version: "1.0.0",
+};
+
+export const CONFIGS_BASE_MCP_SERVER = {
+    not_set: DEFAULT_XPLUS1_MCP_SERVER_CONFIG,
+    "mcp-service-launcher": DEFAULT_LAUNCHER_MCP_SERVER_CONFIG,
+    "xplus1-mcp-machine": DEFAULT_XPLUS1_MCP_SERVER_CONFIG,
+    "wiki-mcp-browser": DEFAULT_WIKI_MCP_SERVER_CONFIG,
+    "devops-mcp-server": DEFAULT_DEVOPS_MCP_SERVER_CONFIG,
+};
 
 /**
  * Status of a managed server
@@ -57,25 +123,15 @@ interface LaunchSession {
  * MCP Service Launcher Server
  * Provides tools to launch, monitor and manage other MCP servers
  */
-export class MCPServiceLauncher extends BaseMCPServer {
+export class MCPLauncherServer extends BaseMCPServer {
     private session: LaunchSession;
     private processes: Map<string, ChildProcess> = new Map();
     private healthCheckIntervals: Map<string, NodeJS.Timeout> = new Map();
-    private defaultConfigs: Map<string, ManagedServerConfig> = new Map();
+    public requestToLaunchConfigs: Map<string, BaseMCPServerConfig> = new Map();
+    mcpDriver: MCPDriverAdapter | undefined;
 
-    constructor() {
-        const config: MCPServerConfig = {
-            name: "mcp-service-launcher",
-            version: "1.0.0",
-            description:
-                "MCP server manager for launching and monitoring other MCP servers",
-            port: 3000,
-            capabilities: {
-                tools: true,
-                resources: true,
-                prompts: true,
-            },
-        };
+    constructor(public appConfig: AppConfig = DEFAULT_APP_CONFIG) {
+        const config: BaseMCPServerConfig = DEFAULT_LAUNCHER_MCP_SERVER_CONFIG;
 
         super(config);
 
@@ -88,8 +144,6 @@ export class MCPServiceLauncher extends BaseMCPServer {
             totalRestarts: 0,
             lastGlobalCheck: 0,
         };
-
-        this.setupDefaultConfigs();
     }
 
     /**
@@ -104,38 +158,16 @@ export class MCPServiceLauncher extends BaseMCPServer {
     /**
      * Setup default server configurations
      */
-    private setupDefaultConfigs(): void {
-        this.defaultConfigs.set("xplus1-mcp-machine", {
-            id: "xplus1-mcp-machine",
-            name: "X+1 MCP Machine",
-            script: "src/mcp-servers/XPlus1MCPMachine.ts",
-            port: 3001,
-            description: "X+1 inductive pattern management server",
-            autoRestart: true,
-            healthCheckInterval: 30000,
+    public requestToLaunchMCPServers(
+        config: AppConfig,
+        mcpDriver: MCPDriverAdapter | undefined
+    ): void {
+        this.appConfig = config;
+        Object.keys(this.appConfig.mcp.servers).forEach((key) => {
+            const server = getConfigOrDefault(key, this.appConfig);
+            this.requestToLaunchConfigs.set(server.id, server);
         });
-
-        this.defaultConfigs.set("wiki-mcp-browser", {
-            id: "wiki-mcp-browser",
-            name: "Wiki MCP Browser",
-            script: "src/mcp-servers/WikiMCPBrowser.ts",
-            port: 3002,
-            description:
-                "Real Wikipedia browsing server with doom-scrolling prevention",
-            autoRestart: true,
-            healthCheckInterval: 30000,
-        });
-
-        this.defaultConfigs.set("devops-mcp-server", {
-            id: "devops-mcp-server",
-            name: "DevOps MCP Server",
-            script: "src/mcp-servers/DevOpsServer.ts",
-            port: 3003,
-            description:
-                "DevOps automation and management server with CRUD capabilities",
-            autoRestart: true,
-            healthCheckInterval: 30000,
-        });
+        this.mcpDriver = mcpDriver;
     }
 
     /**
@@ -535,10 +567,10 @@ export class MCPServiceLauncher extends BaseMCPServer {
                                             message: `VS Code MCP configuration generated successfully`,
                                             outputPath,
                                             configFile: mcpConfig,
-                                            instructions:
-                                                this.getVSCodeInstructions(
+                                            instructions: ''
+                                                /* this.getVSCodeInstructions(
                                                     outputPath
-                                                ),
+                                                )*/,
                                             timestamp: Date.now(),
                                         },
                                         null,
@@ -790,7 +822,7 @@ export class MCPServiceLauncher extends BaseMCPServer {
             },
             async () => {
                 const availableServers = Object.fromEntries(
-                    this.defaultConfigs
+                    this.requestToLaunchConfigs
                 );
 
                 return {
@@ -826,7 +858,7 @@ export class MCPServiceLauncher extends BaseMCPServer {
                     totalRestarts: this.session.totalRestarts,
                     lastGlobalCheck: this.session.lastGlobalCheck,
                     processCount: this.processes.size,
-                    availableConfigs: Array.from(this.defaultConfigs.keys()),
+                    availableConfigs: Array.from(this.requestToLaunchConfigs.keys()),
                 };
 
                 return {
@@ -946,7 +978,7 @@ export class MCPServiceLauncher extends BaseMCPServer {
                                         : "") +
                                     `Total Restarts: ${this.session.totalRestarts}\n` +
                                     `Available Configs: ${Array.from(
-                                        this.defaultConfigs.keys()
+                                        this.requestToLaunchConfigs.keys()
                                     ).join(", ")}`,
                             },
                         },
@@ -967,7 +999,7 @@ export class MCPServiceLauncher extends BaseMCPServer {
             },
             async ({ context }) => {
                 const notRunning = Array.from(
-                    this.defaultConfigs.keys()
+                    this.requestToLaunchConfigs.keys()
                 ).filter(
                     (id) =>
                         !this.session.managedServers.has(id) ||
@@ -993,7 +1025,7 @@ export class MCPServiceLauncher extends BaseMCPServer {
                                           notRunning
                                               .map((id) => {
                                                   const config =
-                                                      this.defaultConfigs.get(
+                                                      this.requestToLaunchConfigs.get(
                                                           id
                                                       )!;
                                                   return `🔄 ${config.name} (${id}) - Port ${config.port}`;
@@ -1110,40 +1142,30 @@ export class MCPServiceLauncher extends BaseMCPServer {
      */
     private async generateVSCodeMCPConfig(
         includeDescription: boolean = true
-    ): Promise<any> {
-        const runningServers = Array.from(
-            this.session.managedServers.values()
-        ).filter((s) => s.status === "running");
-
-        const servers: Record<string, any> = {};
-
-        // Add service launcher itself
-        servers["mcp-service-launcher"] = {
-            type: "http",
-            url: `http://localhost:${this.config.port}`,
+    ): Promise<VSCodeMCPJSON> {
+        // Proposed fix: iterate using for...of to correctly loop through keys
+        let config: VSCodeMCPJSON = {
+            servers: {},
         };
+        const keys = this.mcpDriver?.configs.keys() || [];
+        for (const sKey of keys) {
+            const s = this.mcpDriver?.configs.get(sKey);
 
-        // Add running servers
-        for (const server of runningServers) {
-            const defaultConfig = this.defaultConfigs.get(server.id);
-            if (defaultConfig) {
-                servers[server.id] = {
-                    type: "http",
-                    url: `http://localhost:${server.port}`,
-                };
-            }
+            const configServer: VsCodeMCPServer = {
+                type: "http",
+                url: s?.url || "http://localhost",
+            };
+            config.servers[sKey] = configServer;
         }
 
-        return {
-            servers,
-        };
+        return config;
     }
 
     /**
      * Save VS Code MCP configuration to file
      */
     private async saveVSCodeMCPConfig(
-        config: any,
+        config: VSCodeMCPJSON,
         outputPath: string
     ): Promise<boolean> {
         try {
@@ -1228,8 +1250,8 @@ export class MCPServiceLauncher extends BaseMCPServer {
     private getServerConfig(
         serverId: string,
         customConfig?: any
-    ): ManagedServerConfig {
-        const defaultConfig = this.defaultConfigs.get(serverId);
+    ): BaseMCPServerConfig {
+        const defaultConfig = this.requestToLaunchConfigs.get(serverId);
         if (!defaultConfig) {
             throw new Error(`Unknown server ID: ${serverId}`);
         }
@@ -1244,7 +1266,7 @@ export class MCPServiceLauncher extends BaseMCPServer {
      * Launch a single MCP server
      */
     private async launchServer(
-        config: ManagedServerConfig
+        config: BaseMCPServerConfig
     ): Promise<{ pid: number }> {
         // Check if already running
         if (this.processes.has(config.id)) {
@@ -1255,7 +1277,7 @@ export class MCPServiceLauncher extends BaseMCPServer {
         let portOccupied = false;
         try {
             const response = await axios.get(
-                `http://localhost:${config.port}/health`,
+                `${config.url + ":" + config.port}/health`,
                 { timeout: 1000 }
             );
             if (response.status === 200) {
@@ -1278,10 +1300,10 @@ export class MCPServiceLauncher extends BaseMCPServer {
                         // Register the existing server without launching a new one
                         const status: ServerStatus = {
                             id: config.id,
-                            name: config.name,
+                            name: config.name || "",
                             status: "running",
                             pid: -1, // Unknown PID for existing process
-                            port: config.port,
+                            port: config.port || 0,
                             startTime: Date.now(), // We don't know the real start time
                             restartCount: 0,
                             uptime: 0,
@@ -1317,7 +1339,7 @@ export class MCPServiceLauncher extends BaseMCPServer {
 
         // Get tsx command for launching TypeScript files
         const tsxCmd = process.platform === "win32" ? "npx.cmd" : "npx";
-        const args = ["tsx", config.script];
+        const args: any = ["tsx", config.script];
 
         if (config.args) {
             args.push(...config.args);
@@ -1327,7 +1349,7 @@ export class MCPServiceLauncher extends BaseMCPServer {
         const env = {
             ...process.env,
             ...config.env,
-            MCP_SERVER_PORT: config.port.toString(),
+            MCP_SERVER_PORT: config.port?.toString(),
         };
 
         Logger.mcpVerbose(`MCP Launcher: Starting ${config.name}`, {
@@ -1337,7 +1359,7 @@ export class MCPServiceLauncher extends BaseMCPServer {
         });
 
         // Launch in separate process (hidden console on Windows)
-        const serverProcess = spawn(tsxCmd, args, {
+        const serverProcess: any = spawn(tsxCmd, args, {
             stdio: "pipe",
             env,
             detached: true,
@@ -1355,10 +1377,10 @@ export class MCPServiceLauncher extends BaseMCPServer {
         // Create server status
         const status: ServerStatus = {
             id: config.id,
-            name: config.name,
+            name: config.name || "",
             status: "starting",
-            pid: serverProcess.pid,
-            port: config.port,
+            pid: serverProcess.pid || 0,
+            port: config.port || 0,
             startTime: Date.now(),
             restartCount: 0,
             uptime: 0,
@@ -1414,7 +1436,7 @@ export class MCPServiceLauncher extends BaseMCPServer {
      * Setup process event handlers
      */
     private setupProcessHandlers(
-        config: ManagedServerConfig,
+        config: BaseMCPServerConfig,
         process: ChildProcess
     ): void {
         process.on("exit", (code, signal) => {
@@ -1474,7 +1496,7 @@ export class MCPServiceLauncher extends BaseMCPServer {
     /**
      * Setup health check for a server
      */
-    private setupHealthCheck(config: ManagedServerConfig): void {
+    private setupHealthCheck(config: BaseMCPServerConfig): void {
         const interval = setInterval(async () => {
             try {
                 await this.healthCheckServer(config.id);
@@ -1504,7 +1526,7 @@ export class MCPServiceLauncher extends BaseMCPServer {
      * Auto-restart a failed server
      */
     private async autoRestartServer(
-        config: ManagedServerConfig
+        config: BaseMCPServerConfig
     ): Promise<void> {
         const status = this.session.managedServers.get(config.id);
         if (!status) return;
@@ -1585,7 +1607,7 @@ export class MCPServiceLauncher extends BaseMCPServer {
         serverId: string,
         graceful: boolean = true
     ): Promise<void> {
-        const config = this.defaultConfigs.get(serverId);
+        const config = this.requestToLaunchConfigs.get(serverId);
         if (!config) {
             throw new Error(`Unknown server ID: ${serverId}`);
         }
@@ -1610,7 +1632,7 @@ export class MCPServiceLauncher extends BaseMCPServer {
     ): Promise<Record<string, any>> {
         const results: Record<string, any> = {};
 
-        for (const [serverId, config] of this.defaultConfigs) {
+        for (const [serverId, config] of this.requestToLaunchConfigs) {
             try {
                 const result = await this.launchServer(config);
                 results[serverId] = {
@@ -1813,7 +1835,7 @@ export class MCPServiceLauncher extends BaseMCPServer {
             }
 
             // Check against default configs
-            for (const [serverId, config] of this.defaultConfigs) {
+            for (const [serverId, config] of this.requestToLaunchConfigs) {
                 if (
                     config.port === port &&
                     (healthData.server === serverId ||
@@ -1856,7 +1878,7 @@ export class MCPServiceLauncher extends BaseMCPServer {
     }
 }
 
-export default MCPServiceLauncher;
+export default MCPLauncherServer;
 
 /**
  * CLI entry point - run as standalone MCP server
@@ -1865,7 +1887,7 @@ async function main() {
     console.log(`🚀 Starting MCP Service Launcher on port 3000`);
 
     try {
-        const launcher = new MCPServiceLauncher();
+        const launcher = new MCPLauncherServer();
         await launcher.start();
         console.log("✅ MCP Service Launcher ready");
         console.log("📡 Waiting for commands...");

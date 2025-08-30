@@ -3,9 +3,11 @@
  * Provides tools, resources and prompts for X+1 inductive pattern management
  */
 
-import { BaseMCPServer, MCPServerConfig } from './BaseMCPServer';
+import { BaseMCPServer } from './BaseMCPServer';
+import { BaseMCPServerConfig } from "./MCPServerConfig";
 import { z } from 'zod';
 import { Logger } from '../utils/logger';
+import { DEFAULT_XPLUS1_MCP_SERVER_CONFIG } from './MCPLauncherServer';
 
 /**
  * X+1 State data structure
@@ -55,24 +57,14 @@ interface SharedGameState {
  * X+1 MCP Machine Server
  * Handles the X+1 inductive pattern logic via MCP protocol
  */
-export class XPlus1MCPMachine extends BaseMCPServer {
+export class MCPBasicStateMachineServer extends BaseMCPServer {
   private state: XPlusOneState;
   private gameState: SharedGameState;
   private commandQueue: RemoteCommand[] = [];
   private eventListeners: Set<(event: any) => void> = new Set();
 
   constructor() {
-    const config: MCPServerConfig = {
-      name: 'xplus1-mcp-machine',
-      version: '1.0.0',
-      description: 'X+1 inductive pattern management server',
-      port: 3001,
-      capabilities: {
-        tools: true,
-        resources: true,
-        prompts: true,
-      },
-    };
+    const config: BaseMCPServerConfig = DEFAULT_XPLUS1_MCP_SERVER_CONFIG;
 
     super(config);
 
@@ -213,7 +205,7 @@ export class XPlus1MCPMachine extends BaseMCPServer {
           reason
         });
 
-        Logger.mcpOperation('advance_x', this.config.name, true, undefined, undefined);
+        Logger.mcpOperation('advance_x', this.config.name || '', true, undefined, undefined);
         Logger.mcpVerbose(`X advanced: ${previousX} → ${this.state.x}`, { reason, metadata });
 
         return {
@@ -255,7 +247,7 @@ export class XPlus1MCPMachine extends BaseMCPServer {
           reason
         });
 
-        Logger.mcpOperation('reset_x', this.config.name, true, undefined, undefined);
+        Logger.mcpOperation('reset_x', this.config.name || '', true, undefined, undefined);
         Logger.mcpVerbose(`X reset: ${previousX} → 0`, { reason, resetCount: this.state.resetCount });
 
         return {
@@ -1624,7 +1616,7 @@ Reset Count: ${this.state.resetCount}
   }
 }
 
-export default XPlus1MCPMachine;
+export default MCPBasicStateMachineServer;
 
 /**
  * CLI entry point - run as standalone MCP server
@@ -1633,7 +1625,7 @@ async function main() {
   console.log(`🎮 Starting X+1 MCP Machine on port 3001`);
   
   try {
-    const server = new XPlus1MCPMachine();
+    const server = new MCPBasicStateMachineServer();
     await server.start();
     
     // Keep process alive

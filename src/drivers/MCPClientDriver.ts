@@ -19,7 +19,7 @@ import {
     ListPromptsResultSchema,
     GetPromptResultSchema,
 } from "@modelcontextprotocol/sdk/types.js";
-import { IMCPDriver, MCPServerConfig } from "./IMCPDriver";
+import { IMCPDriver, MCPServerTransportConfig } from "./IMCPDriver";
 import { MCPToolResponse } from "./MCPTypes";
 import { logger, Logger } from "../utils/logger";
 import { EventEmitter } from "events";
@@ -39,7 +39,7 @@ export interface MCPEvent {
 export class MCPClientDriver extends EventEmitter implements IMCPDriver {
     private clients: Map<string, Client> = new Map();
     private transports: Map<string, StreamableHTTPClientTransport> = new Map();
-    private configs: Map<string, MCPServerConfig> = new Map();
+    public configs: Map<string, MCPServerTransportConfig> = new Map();
     private healthStatus: Map<string, boolean> = new Map();
     private healthIntervals: Map<string, NodeJS.Timeout> = new Map();
 
@@ -53,7 +53,7 @@ export class MCPClientDriver extends EventEmitter implements IMCPDriver {
     /**
      * Add a new MCP server configuration
      */
-    async addServer(config: MCPServerConfig): Promise<void> {
+    async addServer(config: MCPServerTransportConfig): Promise<void> {
         try {
             // Validate configuration
             this.validateServerConfig(config);
@@ -85,12 +85,16 @@ export class MCPClientDriver extends EventEmitter implements IMCPDriver {
             const transport = new StreamableHTTPClientTransport(baseUrl);
 
             // Connect to server
-            await client.connect(transport);
+            try {
+                await client.connect(transport);
+            } catch (err) {
+				// Skip
+				this.healthStatus.set(config.id, false);
+			}
 
             // Store client and transport
             this.clients.set(config.id, client);
             this.transports.set(config.id, transport);
-            this.healthStatus.set(config.id, true);
 
             Logger.mcpInfo(
                 `MCPClientDriver: Successfully connected to ${config.name} at ${config.url}`
@@ -139,14 +143,14 @@ export class MCPClientDriver extends EventEmitter implements IMCPDriver {
     /**
      * Get a list of all configured servers
      */
-    getServers(): MCPServerConfig[] {
+    getServers(): MCPServerTransportConfig[] {
         return Array.from(this.configs.values());
     }
 
     /**
      * Get server by ID
      */
-    getServer(serverId: string): MCPServerConfig | undefined {
+    getServer(serverId: string): MCPServerTransportConfig | undefined {
         return this.configs.get(serverId);
     }
 
@@ -337,7 +341,7 @@ export class MCPClientDriver extends EventEmitter implements IMCPDriver {
 
     // ===== Private Helper Methods =====
 
-    private validateServerConfig(config: MCPServerConfig): void {
+    private validateServerConfig(config: MCPServerTransportConfig): void {
         if (!config.id) throw new Error("Server ID is required");
         if (!config.name) throw new Error("Server name is required");
         if (!config.url) throw new Error("Server URL is required");

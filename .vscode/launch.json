@@ -1,6 +1,33 @@
 {
   "version": "0.2.0",
   "configurations": [
+	{
+      "name": "Start2 nvm unix",
+      "type": "node",
+      "request": "launch",
+      "runtimeArgs": ["--require", "tsx/cjs"],
+      "program": "${workspaceFolder}/examples/xplus1-app/xplus1-app.ts",
+      "args": [
+        "examples/xplus1-app/xplus1-config.json"
+      ],
+      "cwd": "${workspaceFolder}",
+      "env": {
+        "OLLAMA_MODEL": "gpt-oss:20b",
+        "MCP_QUIET": "false",
+        "NODE_ENV": "development"
+      },
+      "console": "integratedTerminal",
+      "skipFiles": ["<node_internals>/**"],
+      "sourceMaps": true,
+      "resolveSourceMapLocations": [
+        "${workspaceFolder}/**",
+        "!**/node_modules/**"
+      ],
+      "restart": true,
+      "stopOnEntry": false,
+      "autoAttachChildProcesses": true,
+      "outputCapture": "std"
+    },
     {
       "name": "Debug npm start (nvm path)",
       "type": "node",

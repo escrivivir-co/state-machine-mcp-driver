@@ -3,7 +3,7 @@
  * Provides generic CRUD tools that can be registered by any MCP server
  */
 
-import { McpServer } from '@modelcontextprotocol/sdk/server/mcp';
+import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
 import { ContentManager } from './ContentManager.js';
 import { ResourceDefinition, PromptDefinition } from './ContentDefinitions.js';

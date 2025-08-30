@@ -3,7 +3,7 @@
  * Base interface for creating modular DevOps server plugins
  */
 
-import { McpServer } from "@modelcontextprotocol/sdk/server/mcp";
+import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { MCPDriverAdapter } from "../../drivers/MCPDriverAdapter.js";
 import { z } from "zod";
 

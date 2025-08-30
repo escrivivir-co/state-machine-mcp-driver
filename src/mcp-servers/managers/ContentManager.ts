@@ -3,11 +3,11 @@
  * Manages prompts and resources with automatic handler registration
  */
 
-import { McpServer } from '@modelcontextprotocol/sdk/server/mcp';
-import { z } from 'zod';
+
 import { GenericCRUDManager } from './GenericCRUDManager.js';
 import { ResourceDefinition, PromptDefinition, ContentFilters } from './ContentDefinitions.js';
 import { Logger } from '../../utils/logger.js';
+import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 
 /**
  * Content Manager for handling prompts and resources

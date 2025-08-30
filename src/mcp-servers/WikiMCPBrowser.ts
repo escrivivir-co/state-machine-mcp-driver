@@ -3,13 +3,15 @@
  * Real Wikipedia access via public API following the MCP protocol
  */
 
-import { BaseMCPServer, MCPServerConfig } from './BaseMCPServer';
+import { BaseMCPServer } from './BaseMCPServer';
+import { BaseMCPServerConfig } from "./MCPServerConfig";
 import { z } from 'zod';
 import axios from 'axios';
 import { logger } from '../utils/logger';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import * as crypto from 'crypto';
+import { DEFAULT_WIKI_MCP_SERVER_CONFIG } from './MCPLauncherServer';
 
 /**
  * Wikipedia article structure from API
@@ -80,24 +82,14 @@ interface BrowsingSession {
  * Real Wikipedia MCP Browser Server
  * Provides genuine Wikipedia access with doom-scrolling awareness
  */
-export class WikiMCPBrowser extends BaseMCPServer {
+export class MCPWikiBrowserServer extends BaseMCPServer {
   private session: BrowsingSession;
   private readonly WIKIPEDIA_API_BASE = 'https://en.wikipedia.org/api/rest_v1';
   private readonly WIKIPEDIA_API_OLD = 'https://en.wikipedia.org/w/api.php';
   private cache: CacheConfig;
 
   constructor() {
-    const config: MCPServerConfig = {
-      name: 'wiki-mcp-browser',
-      version: '1.0.0',
-      description: 'Real Wikipedia browsing server with doom-scrolling prevention',
-      port: 3002,
-      capabilities: {
-        tools: true,
-        resources: true,
-        prompts: true,
-      },
-    };
+    const config: BaseMCPServerConfig = DEFAULT_WIKI_MCP_SERVER_CONFIG;
 
     super(config);
 
@@ -1209,7 +1201,7 @@ export class WikiMCPBrowser extends BaseMCPServer {
   }
 }
 
-export default WikiMCPBrowser;
+export default MCPWikiBrowserServer;
 
 /**
  * CLI entry point - run as standalone MCP server
@@ -1218,7 +1210,7 @@ async function main() {
   console.log(`🌍 Starting Wikipedia MCP Browser on port 3002`);
   
   try {
-    const server = new WikiMCPBrowser();
+    const server = new MCPWikiBrowserServer();
     await server.start();
     
     // Keep process alive

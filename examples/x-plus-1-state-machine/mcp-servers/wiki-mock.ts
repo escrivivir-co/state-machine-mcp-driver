@@ -5,7 +5,7 @@
  * The full implementation is in src/mcp-servers/WikiMCPBrowser.ts
  */
 
-import { WikiMCPBrowser } from '../../../src/mcp-servers/WikiMCPBrowser';
+import { MCPWikiBrowserServer } from '../../../src/mcp-servers/WikiMCPBrowser';
 import { 
   loadWikiTopics, 
   loadWikiContent, 
@@ -23,8 +23,8 @@ const messagesConfig: WikiMessagesConfig = loadWikiMessages();
 /**
  * Initialize and start the Wiki MCP Server for the example
  */
-export async function startWikiServer(): Promise<WikiMCPBrowser> {
-  const server = new WikiMCPBrowser();
+export async function startWikiServer(): Promise<MCPWikiBrowserServer> {
+  const server = new MCPWikiBrowserServer();
   
   console.log(messagesConfig.messages.server.starting);
   
@@ -49,10 +49,10 @@ export const APOLO_TOPICS = topicsConfig.apolo;
  * Mock client interface for testing Wikipedia browsing
  */
 export class MockWikiClient {
-  private server: WikiMCPBrowser;
+  private server: MCPWikiBrowserServer;
   private currentTopic: string = '';
 
-  constructor(server: WikiMCPBrowser) {
+  constructor(server: MCPWikiBrowserServer) {
     this.server = server;
   }
 
@@ -92,4 +92,4 @@ export class MockWikiClient {
   }
 }
 
-export { WikiMCPBrowser };
+export { MCPWikiBrowserServer as WikiMCPBrowser };

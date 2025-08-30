@@ -573,6 +573,74 @@ export class Orchestrator extends EventEmitter {
             filter(({ message }) => message.source === source)
         );
     }
+
+	logRequestsAndHandlers() {
+		console.log("\n🔍 Event Loop Status:");
+        const activeHandles = (process as any)._getActiveHandles();
+        const activeRequests = (process as any)._getActiveRequests();
+
+        console.log(`📊 Active Handles: ${activeHandles.length}`);
+        activeHandles.forEach((handle: any, index: number) => {
+            const handleType = handle.constructor.name;
+            const handleInfo = handle._idleTimeout
+                ? `(timeout: ${handle._idleTimeout}ms)`
+                : "";
+            console.log(`   ${index + 1}. ${handleType} ${handleInfo}`);
+        });
+
+        console.log(`📊 Active Requests: ${activeRequests.length}`);
+        activeRequests.forEach((request: any, index: number) => {
+            const requestType = request.constructor.name;
+            console.log(`   ${index + 1}. ${requestType}`);
+        });
+
+        console.log("\nPress Ctrl+C to stop all interfaces.");
+
+        // 5. Monitor handles periodically (every 15 seconds)
+        const monitorInterval = setInterval(() => {
+            const activeHandles = (process as any)._getActiveHandles();
+            const activeRequests = (process as any)._getActiveRequests();
+
+            console.log(
+                `\n⏰ [${new Date().toLocaleTimeString()}] Event Loop Monitor:`
+            );
+            console.log(`   Active Handles: ${activeHandles.length}`);
+            console.log(`   Active Requests: ${activeRequests.length}`);
+
+            // Show handle types summary
+            const handleTypes = activeHandles.reduce(
+                (acc: any, handle: any) => {
+                    const type = handle.constructor.name;
+                    acc[type] = (acc[type] || 0) + 1;
+                    return acc;
+                },
+                {}
+            );
+
+            if (Object.keys(handleTypes).length > 0) {
+                console.log(
+                    "   Handle types:",
+                    Object.entries(handleTypes)
+                        .map(([type, count]) => `${type}(${count})`)
+                        .join(", ")
+                );
+            }
+        }, 15000);
+
+        // Cleanup monitor on process exit
+        process.on("SIGINT", () => {
+            console.log("\n🛑 Received SIGINT, cleaning up...");
+            clearInterval(monitorInterval);
+            if (this) {
+                this.stop().then(() => {
+                    console.log("✅ Orchestrator stopped");
+                    process.exit(0);
+                });
+            } else {
+                process.exit(0);
+            }
+        });
+	}
 }
 
 /**

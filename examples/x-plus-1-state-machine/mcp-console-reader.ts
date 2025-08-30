@@ -3,14 +3,14 @@
  * Demonstrates how to use the console reading tools with X+1 Game
  */
 
-import { XPlus1MCPMachine } from '../../src/mcp-servers/XPlus1MCPMachine';
+import { MCPBasicStateMachineServer } from '../../src/mcp-servers/XPlus1MCPMachine';
 import { XPlus1GameConsole } from './ConsoleGamificationUI';
 import { logger } from '../../src/utils/logger';
 
 /**
  * Enhanced X+1 MCP Machine with Console Reading Integration
  */
-export class EnhancedXPlus1MCPMachine extends XPlus1MCPMachine {
+export class EnhancedXPlus1MCPMachine extends MCPBasicStateMachineServer {
   private consoleUI?: XPlus1GameConsole;
 
   /**

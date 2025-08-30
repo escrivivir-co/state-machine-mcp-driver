@@ -3,7 +3,7 @@
  * Provides common server functionality like health checks, status, and web console
  */
 
-import { McpServer } from '@modelcontextprotocol/sdk/server/mcp';
+import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
 
 /**

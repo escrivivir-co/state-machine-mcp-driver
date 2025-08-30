@@ -35,7 +35,7 @@ export { Runtime, RuntimeConfig, RuntimeStats, RuntimeEvent } from "./runtime";
 export * from "./chat-provider";
 
 // Util exports (excluding conflicting validators)
-export { config, AppConfig, ConfigManager } from "./utils/config";
+export { DEFAULT_APP_CONFIG as config, AppConfig, ConfigManager } from "./utils/config";
 export { logger, Logger, LogLevel, LoggerConfig } from "./utils/logger";
 export {
     Validators,

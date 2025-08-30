@@ -7,6 +7,7 @@
 import { createDevelopmentOrchestrator, Orchestrator } from "@/orchestration";
 import { AppConfig, Logger } from "@/utils";
 import { readFile } from "fs/promises";
+import { ApplicationLauncher } from "scripts/launcher";
 
 /**
  * Main Xplus1 Launcher function
@@ -16,14 +17,15 @@ async function main(): Promise<void> {
 
     if (!configPath) {
         console.error(
-            "❌ Usage: npx tsx xplus1-state-machine-app.ts <config-file>"
+            "❌ Usage: npx tsx xplus1-app.ts <config-file>"
         );
         process.exit(1);
     }
 
-    let orchestrator: Orchestrator | undefined;
+	let launcher!: ApplicationLauncher;
+
     try {
-		let config: AppConfig;
+        let config: AppConfig;
 
         // 1. Load configuration
         console.log(`📋 Loading XPlus1 configuration from: ${configPath}`);
@@ -31,17 +33,10 @@ async function main(): Promise<void> {
         config = JSON.parse(configContent);
 
         console.log(`🎮 Starting XPlus1 Game: ${config.game.name}`);
-        console.log(
-            `📱 Orchestrator Config Agents requested: ${config?.orchestration?.autoRegisterComponentsKeys?.length || 'not detected'}`
-        );
 
-        // 3. Initialize Interface Orchestrator
-        console.log("🔄 Initializing Interface Orchestrator...");
-        orchestrator = createDevelopmentOrchestrator(config);
-		orchestrator.start();
-        console.log("✅ Interface Orchestrator initialized");
+		launcher = new ApplicationLauncher(config);
+		launcher.launch(config);
 
-        console.log("Press Ctrl+C to stop all interfaces.");
     } catch (error) {
         Logger.error("❌ Xplus1 Launcher failed", error as Error);
         process.exit(1);
