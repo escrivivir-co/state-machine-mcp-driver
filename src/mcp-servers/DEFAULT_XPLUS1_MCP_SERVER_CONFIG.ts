@@ -2,7 +2,7 @@ import { BaseMCPServerConfig } from "./MCPServerConfig";
 
 
 export const DEFAULT_XPLUS1_MCP_SERVER_CONFIG: BaseMCPServerConfig = {
-	id: "xplus1-mcp-machine",
+	id: "state-machine-server",
 	name: "X+1 MCP Machine",
 	script: "src/mcp-servers/XPlus1MCPMachine.ts",
 	port: 3001,

@@ -15,6 +15,7 @@ import {
     AgentStatus,
     AgentAction,
     AgentActionResult,
+    StateNode,
 } from "../models";
 import { logger, Logger } from "../utils/logger";
 import { StateManager } from "@/state/StateManager";
@@ -170,17 +171,25 @@ export class Runtime extends EventEmitter {
 
             Logger.runtime("StateGraph loaded", {
                 graphId: this.stateGraph.id,
-                statesCount: Object.keys(this.stateGraph.states).length,
+                statesCount: Object.keys(this.stateGraph?.states || {}).length,
             });
 
-            // Load or create state
-            await this.loadOrCreateState();
+            try {
+                // Load or create state
+                await this.loadOrCreateState();
+            } catch (error) {
+                console.log("Error at loadOrCreate", error);
+            }
 
-            // Initialize agents
-            if (this.config.agentConfigs) {
-                for (const agentConfig of this.config.agentConfigs) {
-                    await this.addAgent(agentConfig);
+            try {
+                // Initialize agents
+                if (this.config.agentConfigs) {
+                    for (const agentConfig of this.config.agentConfigs) {
+                        await this.addAgent(agentConfig);
+                    }
                 }
+            } catch (error) {
+                console.log("Error at addAgent", error);
             }
 
             // Setup auto-save if enabled
@@ -190,7 +199,12 @@ export class Runtime extends EventEmitter {
 
             this.isInitialized = true;
             this.sessionStartTime = Date.now();
-            this.updateStats();
+
+            try {
+                this.updateStats();
+            } catch (error) {
+                console.log("Error at updateStats", error);
+            }
 
             this.emit(RuntimeEvent.INITIALIZED, {
                 graphId: this.config.graphId,
@@ -230,15 +244,19 @@ export class Runtime extends EventEmitter {
                         agent.mcpServerId,
                         `agent_${agent.role}`,
                         {
-                            state: this.currentState,
-                            stateNode: this.getCurrentStateNode(),
-                            agent: agent,
+                            state: JSON.stringify(this.currentState),
+                            stateNode: JSON.stringify(this.getCurrentStateNode()),
+                            agent: JSON.stringify(agent),
                         }
                     );
-                } catch (error) {
-                    Logger.warn(`Could not load prompt for agent ${agent.id}`, {
-                        error,
-                    });
+					logger.info(`Agent ${agent.name} now has a prompt!`);
+                } catch (error: any) {
+                    Logger.warn(
+                        `Could not load prompt for agent ${agent.id} at ${agent.mcpServerId}`,
+                        {
+                            error: error.message || error,
+                        }
+                    );
                 }
             }
 
@@ -277,11 +295,14 @@ export class Runtime extends EventEmitter {
     /**
      * Get current state node
      */
-    getCurrentStateNode(): any {
+    getCurrentStateNode(): StateNode {
         if (!this.stateGraph || !this.currentState) {
             throw new Error("Runtime not initialized");
         }
 
+        if (!this.currentState.currentStateId) {
+            return this.currentState as unknown as StateNode;
+        }
         const stateNode =
             this.stateGraph.states[this.currentState.currentStateId];
         if (!stateNode) {
@@ -290,7 +311,7 @@ export class Runtime extends EventEmitter {
             );
         }
 
-        return stateNode;
+        return stateNode || this.currentState;
     }
 
     /**
@@ -509,6 +530,12 @@ export class Runtime extends EventEmitter {
                 this.config.mcpServerId,
                 this.currentState
             );
+            this.stateGraph = this.stateGraph || ({} as StateGraph);
+            this.stateGraph.states = this.stateGraph?.states || {};
+            const key: string = this.currentState.currentStateId || "test";
+            this.stateGraph.states[key] = this
+                .currentState as unknown as StateNode;
+
             this.emit(RuntimeEvent.STATE_SAVED, { state: this.currentState });
             Logger.runtime("State saved successfully");
         } catch (error) {
@@ -554,12 +581,17 @@ export class Runtime extends EventEmitter {
     // Private helper methods
 
     private async loadOrCreateState(): Promise<void> {
-        // Try to load existing state
-        const existingState = await this.mcpDriver.loadState(
-            this.config.mcpServerId,
-            this.config.graphId,
-            this.config.userId
-        );
+        let existingState;
+        try {
+            // Try to load existing state
+            existingState = await this.mcpDriver.loadState(
+                this.config.mcpServerId,
+                this.config.graphId,
+                this.config.userId
+            );
+        } catch (error: any) {
+            console.log("Error on loadOrCreateState", error.message);
+        }
 
         if (!existingState) {
             // Create new state
@@ -570,20 +602,24 @@ export class Runtime extends EventEmitter {
                 sessionId: this.config.sessionId,
             });
 
+            await this.saveCurrentState();
+
             Logger.runtime("Created new state", {
                 stateId: this.currentState.id,
                 initialState: this.currentState.currentStateId,
             });
         } else {
-            this.currentState = existingState;
+            this.currentState = { ...this.currentState, ...existingState };
             Logger.runtime("Loaded existing state", {
                 stateId: this.currentState?.id,
                 currentState: this.currentState?.currentStateId,
-                transitionsCount: this.currentState?.history.length || 0,
+                transitionsCount: this.currentState?.history?.length || 0,
             });
         }
 
-        this.emit(RuntimeEvent.STATE_LOADED, { state: this.currentState });
+        this.emit(RuntimeEvent.STATE_LOADED, {
+            state: JSON.parse(JSON.stringify(this.currentState)),
+        });
     }
 
     private async validateTransition(

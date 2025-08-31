@@ -62,7 +62,7 @@ export const DEFAULT_RUNTIME_CONFIG: RuntimeConfig = {
 			name: "JusticeBot",
 			role: AgentRole.SYSTEM,
 			description: "Neutral arbiter that manages the X+1 decision process",
-			mcpServerId: "xplus1-mcp-machine",
+			mcpServerId: "state-machine-server",
 			autoStart: true,
 			priority: 100, // Highest priority for managing decisions
 			config: {

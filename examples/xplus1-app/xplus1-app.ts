@@ -16,13 +16,11 @@ async function main(): Promise<void> {
     const configPath = process.argv[2];
 
     if (!configPath) {
-        console.error(
-            "❌ Usage: npx tsx xplus1-app.ts <config-file>"
-        );
+        console.error("❌ Usage: npx tsx xplus1-app.ts <config-file>");
         process.exit(1);
     }
 
-	let launcher!: ApplicationLauncher;
+    let launcher!: ApplicationLauncher;
 
     try {
         let config: AppConfig;
@@ -34,11 +32,14 @@ async function main(): Promise<void> {
 
         console.log(`🎮 Starting XPlus1 Game: ${config.game.name}`);
 
-		launcher = new ApplicationLauncher(config);
-		launcher.launch(config);
+        launcher = new ApplicationLauncher(config);
+        await launcher.launch(config);
 
-		launcher.launchApplication(await getBasicRuntimeConfig(config));
+        await launcher.launchApplication(await getBasicRuntimeConfig(config));
 
+        console.log(
+            `📋 FINISHED: Loading XPlus1 configuration from: ${configPath}`
+        );
     } catch (error) {
         Logger.error("❌ Xplus1 Launcher failed", error as Error);
         process.exit(1);

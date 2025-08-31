@@ -140,7 +140,7 @@ export class ApplicationLauncher {
             // 4. ActiveHandles and Request
             // this.orchestrator.logRequestsAndHandlers();
 
-            this.mainLaunch(appConfig);
+            await this.mainLaunch(appConfig);
 
             /* Load Multi-UI configuration for the specific target
             const multiUIConfig = this.loadMultiUIConfig(target);

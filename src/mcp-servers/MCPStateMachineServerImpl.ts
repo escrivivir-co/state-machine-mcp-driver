@@ -422,7 +422,7 @@ export class MCPStateMachineServer extends BaseMCPServer {
                 Logger.mcpVerbose("State save requested", {
                     stateSize: JSON.stringify(state).length,
                 });
-
+				this.state = state;
                 return {
                     content: [
                         {

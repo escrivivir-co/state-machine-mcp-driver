@@ -70,7 +70,7 @@
 				"name": "JusticeBot",
 				"role": "system",
 				"description": "Neutral arbiter that manages the X+1 decision process",
-				"mcpServerId": "xplus1-mcp-machine",
+				"mcpServerId": "state-machine-server",
 				"autoStart": true,
 				"priority": 100,
 				"config": {

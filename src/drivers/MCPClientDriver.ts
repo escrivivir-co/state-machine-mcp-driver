@@ -24,6 +24,12 @@ import { MCPToolResponse } from "./MCPTypes";
 import { logger, Logger } from "../utils/logger";
 import { EventEmitter } from "events";
 
+export interface MCPResource {
+    mimeType: string;
+    uri: string;
+    text: string;
+    value: any;
+}
 /**
  * Native MCP Client Driver using official SDK
  * Implements IMCPDriver interface for Runtime compatibility
@@ -36,18 +42,43 @@ export interface MCPEvent {
     timestamp: number;
 }
 
+export class MCPClient extends Client {
+    name: string | undefined = "notset";
+}
+
 export class MCPClientDriver extends EventEmitter implements IMCPDriver {
     private clients: Map<string, Client> = new Map();
     private transports: Map<string, StreamableHTTPClientTransport> = new Map();
     public configs: Map<string, MCPServerTransportConfig> = new Map();
     private healthStatus: Map<string, boolean> = new Map();
     private healthIntervals: Map<string, NodeJS.Timeout> = new Map();
+    private requestMutex: Map<string, Promise<any>> = new Map(); // Prevent concurrent requests
 
     constructor() {
         super();
         Logger.mcpVerbose(
             "MCPClientDriver: Initializing native MCP client driver"
         );
+
+        // Set up global sync error handler
+        this.on("mcp-sync-error", async (event) => {
+            Logger.mcpWarn(
+                `MCPClientDriver: Auto-handling sync error for server ${event.serverId}`
+            );
+
+            // Automatically attempt to resolve sync issues
+            const resolved = await this.handleSyncIssues(event.serverId);
+
+            if (resolved) {
+                Logger.mcpInfo(
+                    `MCPClientDriver: Auto-resolved sync error for ${event.serverId}`
+                );
+            } else {
+                Logger.mcpError(
+                    `MCPClientDriver: Failed to auto-resolve sync error for ${event.serverId}`
+                );
+            }
+        });
     }
 
     /**
@@ -62,22 +93,43 @@ export class MCPClientDriver extends EventEmitter implements IMCPDriver {
             this.configs.set(config.id, config);
 
             // Create MCP client
-            const client = new Client(
+            const client = new MCPClient(
                 {
-                    name: "mcp-driver-client",
+                    name: config.id,
                     version: "1.0.0",
                 },
                 {
                     capabilities: {},
                 }
             );
+            client.name = "MCPC_" + config.id;
 
             // Set up error handler
             client.onerror = (error) => {
                 Logger.mcpError(
-                    `MCPClientDriver: Client error for ${config.id}:`,
-                    { error }
+                    `MCPClientDriver: Client error for ${config.id}/${client.name}:`,
+                    { error: error.message, serverId: config.id }
                 );
+
+                // Check if it's the "unknown message ID" error
+                if (error.message.includes("unknown message ID")) {
+                    Logger.mcpWarn(
+                        `MCPClientDriver: Message ID synchronization issue detected for ${config.id}`,
+                        {
+                            suggestion:
+                                "Consider reconnecting or checking for concurrent requests",
+                            serverId: config.id,
+                        }
+                    );
+
+                    // Emit event for monitoring
+                    this.emit("mcp-sync-error", {
+                        type: "sync-error",
+                        serverId: config.id,
+                        error: error.message,
+                        timestamp: Date.now(),
+                    });
+                }
             };
 
             // Create transport
@@ -88,9 +140,9 @@ export class MCPClientDriver extends EventEmitter implements IMCPDriver {
             try {
                 await client.connect(transport);
             } catch (err) {
-				// Skip
-				this.healthStatus.set(config.id, false);
-			}
+                // Skip
+                this.healthStatus.set(config.id, false);
+            }
 
             // Store client and transport
             this.clients.set(config.id, client);
@@ -101,7 +153,9 @@ export class MCPClientDriver extends EventEmitter implements IMCPDriver {
             );
         } catch (error) {
             Logger.mcpError(
-                `MCPClientDriver: Failed to add server ${config.id}:`,
+                `MCPClientDriver: Failed to add server ${config.id}${
+                    "MCPC_" + config.id
+                }:`,
                 { error }
             );
             this.healthStatus.set(config.id, false);
@@ -109,6 +163,69 @@ export class MCPClientDriver extends EventEmitter implements IMCPDriver {
         }
     }
 
+    public async reconnectClient(configId: string): Promise<boolean> {
+        try {
+            Logger.mcpVerbose(
+                `MCPClientDriver: Attempting to reconnect client ${configId}`
+            );
+
+            // Get existing client and transport
+            const client = this.clients.get(configId);
+            const transport = this.transports.get(configId);
+            const config = this.configs.get(configId);
+
+            if (!client || !transport || !config) {
+                Logger.mcpError(
+                    `MCPClientDriver: Cannot reconnect - missing client/transport/config for ${configId}`
+                );
+                return false;
+            }
+
+            // Close existing connection gracefully
+            try {
+                await transport.close();
+                Logger.mcpVerbose(
+                    `MCPClientDriver: Closed existing transport for ${configId}`
+                );
+            } catch (err) {
+                Logger.mcpWarn(
+                    `MCPClientDriver: Error closing transport for ${configId}:`,
+                    { error: err }
+                );
+            }
+
+            // Create new transport
+            const baseUrl = new URL(`${config.url}/mcp`);
+            const newTransport = new StreamableHTTPClientTransport(baseUrl);
+
+            // Reconnect with new transport
+            await client.connect(newTransport);
+
+            // Update stored transport
+            this.transports.set(configId, newTransport);
+            this.healthStatus.set(configId, true);
+
+            Logger.mcpInfo(
+                `MCPClientDriver: Successfully reconnected client ${configId}`
+            );
+
+            // Emit reconnection event
+            this.emit("mcp-reconnected", {
+                type: "reconnected",
+                serverId: configId,
+                timestamp: Date.now(),
+            });
+
+            return true;
+        } catch (err) {
+            Logger.mcpError(
+                `MCPClientDriver: Failed to reconnect client ${configId}:`,
+                { error: err }
+            );
+            this.healthStatus.set(configId, false);
+            return false;
+        }
+    }
     /**
      * Remove a server configuration
      */
@@ -123,6 +240,7 @@ export class MCPClientDriver extends EventEmitter implements IMCPDriver {
             this.clients.delete(serverId);
             this.transports.delete(serverId);
             this.healthStatus.delete(serverId);
+            this.requestMutex.delete(serverId); // Clean up mutex
 
             if (removed) {
                 Logger.mcpVerbose(
@@ -154,6 +272,52 @@ export class MCPClientDriver extends EventEmitter implements IMCPDriver {
         return this.configs.get(serverId);
     }
 
+    /**
+     * Check and handle synchronization issues
+     */
+    public async handleSyncIssues(serverId: string): Promise<boolean> {
+        Logger.mcpVerbose(
+            `MCPClientDriver: Handling sync issues for ${serverId}`
+        );
+
+        try {
+            // Try to reconnect the client to reset message ID state
+            const reconnected = await this.reconnectClient(serverId);
+
+            if (reconnected) {
+                Logger.mcpInfo(
+                    `MCPClientDriver: Sync issues resolved for ${serverId} via reconnection`
+                );
+                return true;
+            } else {
+                Logger.mcpWarn(
+                    `MCPClientDriver: Could not resolve sync issues for ${serverId}`
+                );
+                return false;
+            }
+        } catch (error) {
+            Logger.mcpError(
+                `MCPClientDriver: Error handling sync issues for ${serverId}:`,
+                { error }
+            );
+            return false;
+        }
+    }
+
+    /**
+     * Get health status of a server
+     */
+    public getServerHealth(serverId: string): boolean {
+        return this.healthStatus.get(serverId) ?? false;
+    }
+
+    /**
+     * Get health status of all servers
+     */
+    public getAllServerHealth(): Map<string, boolean> {
+        return new Map(this.healthStatus);
+    }
+
     // ===== MCPClientLike Interface Methods =====
 
     /**
@@ -183,8 +347,18 @@ export class MCPClientDriver extends EventEmitter implements IMCPDriver {
         params: any
     ): Promise<any> {
         const startTime = Date.now();
+        const requestKey = `${serverId}:${toolName}:${startTime}`;
 
         try {
+            // Check if there's an ongoing request for this server
+            const ongoingRequest = this.requestMutex.get(serverId);
+            if (ongoingRequest) {
+                Logger.mcpVerbose(
+                    `MCPClientDriver: Waiting for ongoing request to complete for ${serverId}`
+                );
+                await ongoingRequest;
+            }
+
             const client = this.getClient(serverId);
 
             const request = {
@@ -195,7 +369,17 @@ export class MCPClientDriver extends EventEmitter implements IMCPDriver {
                 },
             };
 
-            const result = await client.request(request, CallToolResultSchema);
+            // Store the promise to prevent concurrent requests
+            const requestPromise = client.request(
+                request,
+                CallToolResultSchema
+            );
+            this.requestMutex.set(serverId, requestPromise);
+
+            const result = await requestPromise;
+
+            // Clear the mutex after completion
+            this.requestMutex.delete(serverId);
 
             // Convert MCP result to legacy format
             const mcpResponse: MCPToolResponse = {
@@ -204,13 +388,35 @@ export class MCPClientDriver extends EventEmitter implements IMCPDriver {
                 executionTime: Date.now() - startTime,
             };
 
-            logger.debug(
+            Logger.mcpVerbose(
                 `MCPClientDriver: Tool ${toolName} executed successfully`,
                 { serverId, executionTime: mcpResponse.executionTime }
             );
 
             return mcpResponse.result;
         } catch (error) {
+            // Clear the mutex on error
+            this.requestMutex.delete(serverId);
+
+            // Check if it's a sync error
+            if (
+                error instanceof Error &&
+                error.message.includes("unknown message ID")
+            ) {
+                Logger.mcpWarn(
+                    `MCPClientDriver: Sync error detected during tool execution for ${serverId}`
+                );
+
+                // Emit sync error event for auto-handling
+                this.emit("mcp-sync-error", {
+                    type: "sync-error",
+                    serverId,
+                    error: error.message,
+                    timestamp: Date.now(),
+                    context: { toolName, requestKey },
+                });
+            }
+
             Logger.mcpError(`MCPClientDriver: Tool execution failed:`, {
                 serverId,
                 toolName,
@@ -227,10 +433,9 @@ export class MCPClientDriver extends EventEmitter implements IMCPDriver {
         serverId: string,
         resourceId: string,
         params?: any
-    ): Promise<any> {
+    ): Promise<MCPResource | null> {
         try {
             const client = this.getClient(serverId);
-
             const request = {
                 method: "resources/read" as const,
                 params: {
@@ -243,12 +448,20 @@ export class MCPClientDriver extends EventEmitter implements IMCPDriver {
                 request,
                 ReadResourceResultSchema
             );
-            return result.contents;
-        } catch (error) {
+            const resource: MCPResource | null =
+                Array.isArray(result.contents) && result.contents.length > 0
+                    ? (result.contents[0] as unknown as MCPResource)
+                    : null;
+            if (resource) {
+                resource.value = JSON.parse(resource.text);
+            }
+
+            return resource as MCPResource;
+        } catch (error: any) {
             Logger.mcpError(`MCPClientDriver: Resource retrieval failed:`, {
                 serverId,
                 resourceId,
-                error,
+                error: error.message || error,
             });
             throw error;
         }
@@ -391,9 +604,12 @@ export class MCPClientDriver extends EventEmitter implements IMCPDriver {
     /**
      * Load state graph from MCP server
      */
-    async loadStateGraph(serverId: string, graphId: string): Promise<any> {
+    async loadStateGraph(
+        serverId: string,
+        graphId: string
+    ): Promise<MCPResource | null> {
         try {
-            return await this.getResource(serverId, `stategraph:${graphId}`);
+            return (await this.getResource(serverId, `stategraph:${graphId}`))?.value;
         } catch (error) {
             Logger.mcpError(
                 `MCPClientDriver: Error loading state graph ${graphId}:`,
@@ -424,10 +640,7 @@ export class MCPClientDriver extends EventEmitter implements IMCPDriver {
         userId: string
     ): Promise<any> {
         try {
-            return await this.getResource(
-                serverId,
-                `state:${graphId}:${userId}`
-            );
+			return (await this.getResource(serverId, "xplus1://state/current"))?.value;
         } catch (error) {
             Logger.mcpError(
                 `MCPClientDriver: Error loading state for ${graphId}:${userId}:`,
@@ -467,10 +680,10 @@ export class MCPClientDriver extends EventEmitter implements IMCPDriver {
                         : ""
                 )
                 .join("\n");
-        } catch (error) {
+        } catch (error: any) {
             Logger.mcpError(
-                `MCPClientDriver: Error getting prompt ${promptId}:`,
-                { error }
+                `MCPClientDriver: Error getting prompt ${promptId} at ${serverId}:`,
+                { error: error.message || error }
             );
             throw error;
         }
@@ -581,13 +794,6 @@ export class MCPClientDriver extends EventEmitter implements IMCPDriver {
         // Store interval for cleanup
         this.healthIntervals = this.healthIntervals || new Map();
         this.healthIntervals.set(serverId, interval);
-    }
-
-    /**
-     * Get server health status
-     */
-    getServerHealth(serverId: string): boolean {
-        return this.healthStatus.get(serverId) ?? false;
     }
 
     /**
