@@ -9,6 +9,7 @@ import { takeUntil, tap, filter, map, catchError, share } from "rxjs/operators";
 
 import { Runtime } from "../runtime/Runtime";
 import { MCPDriverAdapter } from "../drivers/MCPDriverAdapter";
+import { StateMachineUI } from "@ui/templates/state-machine-ui";
 import {
     GamificationUI,
     GamificationUIEvent,
@@ -26,11 +27,16 @@ import {
 } from "../ui/HTML5GamificationUI";
 import { Logger } from "../utils/logger";
 import {
+    IndependentConsoleLauncher,
+    LaunchedConsole,
+} from "./launcher/ui-console-launcher";
+import {
     MultiUIGameConfig,
     UIInstanceConfig,
     UIType,
 } from "./MultiUIGameConfig";
 import { ChannelConsumer } from "@/orchestration/channel/deprecated-channel-consumer";
+import { Orchestrator } from "@/orchestration";
 
 /**
  * Temporary wrapper to make ConsoleGamificationUI compatible with GamificationUI
@@ -138,6 +144,111 @@ class ConsoleGamificationUIWrapper extends GamificationUI {
 }
 
 /**
+ * Wrapper for Custom UI running in independent console
+ */
+class IndependentConsoleUIWrapper extends GamificationUI {
+    private launchedConsole: LaunchedConsole;
+    private uiConfig: UIInstanceConfig;
+
+    constructor(
+        runtime: Runtime,
+        mcpAdapter: MCPDriverAdapter,
+        config: UIInstanceConfig,
+        launchedConsole: LaunchedConsole
+    ) {
+        const baseConfig: BaseGamificationUIConfig = {
+            gameTitle: config.name,
+            maxMessagesPerThread: config.config.maxMessagesPerThread || 50,
+        };
+
+        super(runtime, mcpAdapter, baseConfig);
+        this.uiConfig = config;
+        this.launchedConsole = launchedConsole;
+
+        Logger.info(
+            `Created independent console UI wrapper for ${config.name} (PID: ${launchedConsole.pid})`
+        );
+    }
+
+    async start(): Promise<void> {
+        Logger.info(
+            `Independent console UI already started (PID: ${this.launchedConsole.pid})`
+        );
+        // Console is already started, just emit the event
+        this.emit(GamificationUIEvent.STATE_CHANGED, {
+            state: "running",
+            processId: this.launchedConsole.pid,
+        });
+    }
+
+    async stop(): Promise<void> {
+        Logger.info(
+            `Stopping independent console UI (PID: ${this.launchedConsole.pid})`
+        );
+        this.launchedConsole.close();
+        this.emit(GamificationUIEvent.STATE_CHANGED, {
+            state: "stopped",
+            processId: this.launchedConsole.pid,
+        });
+    }
+
+    protected async handleGameStateUpdate(state: any): Promise<void> {
+        // Independent console manages its own state
+        Logger.mcpVerbose("State update sent to independent console", {
+            processId: this.launchedConsole.pid,
+            state,
+        });
+    }
+
+    protected async handleThreadUpdate(thread: GameThread): Promise<void> {
+        // Independent console manages its own threads
+        Logger.mcpVerbose("Thread update sent to independent console", {
+            processId: this.launchedConsole.pid,
+            thread,
+        });
+    }
+
+    async displayMessage(message: GameMessage): Promise<void> {
+        // Messages are handled by the independent console
+        Logger.mcpVerbose("Message sent to independent console", {
+            processId: this.launchedConsole.pid,
+            message,
+        });
+    }
+
+    async displayAgentPostulations(postulations: any[]): Promise<void> {
+        // Postulations are handled by the independent console
+        Logger.mcpVerbose("Postulations sent to independent console", {
+            processId: this.launchedConsole.pid,
+            postulations,
+        });
+    }
+
+    async displayNotification(
+        title: string,
+        message: string,
+        type?: "info" | "success" | "warning" | "error"
+    ): Promise<void> {
+        Logger.info(
+            `📢 [Independent Console ${this.launchedConsole.pid}] ${title}: ${message}`
+        );
+    }
+
+    async updatePhaseDisplay(phase: string): Promise<void> {
+        Logger.info(
+            `📍 [Independent Console ${this.launchedConsole.pid}] Phase: ${phase}`
+        );
+    }
+
+    /**
+     * Get information about the launched console
+     */
+    getConsoleInfo(): LaunchedConsole {
+        return this.launchedConsole;
+    }
+}
+
+/**
  * UI Factory for creating different types of GamificationUI instances
  */
 class UIFactory {
@@ -146,7 +257,7 @@ class UIFactory {
         config: UIInstanceConfig,
         runtime: Runtime,
         mcpAdapter: MCPDriverAdapter
-    ): GamificationUI {
+    ): GamificationUI | Promise<GamificationUI> {
         switch (type) {
             case "console":
                 // Create a valid ConsoleUIConfig
@@ -185,35 +296,51 @@ class UIFactory {
                         Logger.info(
                             `Loading custom UI: ${config.config.customClass}`
                         );
-                        const customModule = require(config.config.customClass);
-                        // Support both default export and named export
-                        const CustomUIClass =
-                            customModule.default ||
-                            customModule[Object.keys(customModule)[0]] ||
-                            customModule;
 
-                        if (typeof CustomUIClass !== "function") {
-                            const availableExports =
-                                Object.keys(customModule).join(", ");
-                            Logger.error(
-                                `Custom class ${config.config.customClass} is not a constructor function. Available exports: ${availableExports}`,
-                                new Error("Invalid custom class")
+                        // Check if we should launch in independent console
+                        const launchInIndependentConsole =
+                            config.config.launchInIndependentConsole !== false; // Default to true
+
+                        if (launchInIndependentConsole) {
+                            // Launch custom UI in independent console
+                            return UIFactory.createCustomUIInIndependentConsole(
+                                config,
+                                runtime,
+                                mcpAdapter
                             );
-                            throw new Error(
-                                `Custom class ${config.config.customClass} is not a constructor function`
+                        } else {
+                            // Launch custom UI in current process (original behavior)
+                            const customModule = require(config.config
+                                .customClass);
+                            // Support both default export and named export
+                            const CustomUIClass =
+                                customModule.default ||
+                                customModule[Object.keys(customModule)[0]] ||
+                                customModule;
+
+                            if (typeof CustomUIClass !== "function") {
+                                const availableExports =
+                                    Object.keys(customModule).join(", ");
+                                Logger.error(
+                                    `Custom class ${config.config.customClass} is not a constructor function. Available exports: ${availableExports}`,
+                                    new Error("Invalid custom class")
+                                );
+                                throw new Error(
+                                    `Custom class ${config.config.customClass} is not a constructor function`
+                                );
+                            }
+
+                            Logger.info(
+                                `Successfully loaded custom UI class: ${
+                                    CustomUIClass.name || "Unknown"
+                                }`
+                            );
+                            return new CustomUIClass(
+                                runtime,
+                                mcpAdapter,
+                                config.config
                             );
                         }
-
-                        Logger.info(
-                            `Successfully loaded custom UI class: ${
-                                CustomUIClass.name || "Unknown"
-                            }`
-                        );
-                        return new CustomUIClass(
-                            runtime,
-                            mcpAdapter,
-                            config.config
-                        );
                     } catch (error) {
                         Logger.error(
                             `Failed to load custom UI class: ${config.config.customClass}`,
@@ -250,6 +377,97 @@ class UIFactory {
                 throw new Error(`Unsupported UI type: ${type}`);
         }
     }
+
+    /**
+     * Create a custom UI instance that runs in an independent console
+     */
+    static async createCustomUIInIndependentConsole(
+        config: UIInstanceConfig,
+        runtime: Runtime,
+        mcpAdapter: MCPDriverAdapter
+    ): Promise<GamificationUI> {
+        if (!config.config.customClass) {
+            throw new Error(
+                "Custom UI type requires customClass configuration"
+            );
+        }
+
+        try {
+            Logger.info(
+                `Creating custom UI in independent console: ${config.config.customClass}`
+            );
+
+            // Get runtime and adapter data for serialization
+            const runtimeData = {
+                currentState: runtime.getCurrentState(),
+                // Add other runtime data as needed
+            };
+
+            const mcpAdapterData = {
+                // Add serializable MCP adapter data
+                serverConfigs: {}, // You may need to serialize relevant configs
+            };
+
+            // Create the launcher script
+            const launcherPath =
+                await IndependentConsoleLauncher.createCustomUILauncher(
+                    config.name,
+                    config.config.customClass,
+                    runtimeData,
+                    mcpAdapterData,
+                    config.config
+                );
+
+            // Launch in independent console
+            const launchedConsole =
+                await IndependentConsoleLauncher.launchNodeScript(
+                    launcherPath,
+                    [],
+                    {
+                        title: `${config.name} - Custom UI`,
+                        workingDirectory: process.cwd(),
+                        keepOpen: true,
+                    }
+                );
+
+            Logger.info(
+                `Custom UI launched in independent console (PID: ${launchedConsole.pid})`
+            );
+
+            // Return wrapper that manages the independent console
+            return new IndependentConsoleUIWrapper(
+                runtime,
+                mcpAdapter,
+                config,
+                launchedConsole
+            );
+        } catch (error) {
+            Logger.error(
+                `Failed to create custom UI in independent console: ${config.config.customClass}`,
+                error as Error
+            );
+
+            // Fallback to console UI
+            Logger.info(
+                `Falling back to generic console UI for ${config.name}`
+            );
+            const consoleConfig: ConsoleUIConfig = {
+                maxMessagesPerThread: config.config.maxMessagesPerThread || 50,
+                gameTitle: config.name,
+                welcomeMessage: `Welcome to ${config.name} (Custom UI failed, using console fallback)`,
+                debugMode: false,
+                userPrompt: "> ",
+                enableColors: true,
+                enablePostulations: true,
+                autoSelectSingleAgent: false,
+            };
+            return new ConsoleGamificationUIWrapper(
+                runtime,
+                mcpAdapter,
+                consoleConfig
+            );
+        }
+    }
 }
 
 /**
@@ -283,7 +501,7 @@ interface UIInstance {
 export class MultiUIGameManager extends EventEmitter {
     private runtime: Runtime;
     private mcpAdapter: MCPDriverAdapter;
-    private orchestrator: ChannelConsumer;
+    private orchestrator: Orchestrator;
     private config: MultiUIGameConfig;
 
     // UI Management
@@ -305,7 +523,7 @@ export class MultiUIGameManager extends EventEmitter {
     constructor(
         runtime: Runtime,
         mcpAdapter: MCPDriverAdapter,
-        orchestrator: ChannelConsumer,
+        orchestrator: Orchestrator,
         config: MultiUIGameConfig
     ) {
         super();
@@ -526,12 +744,15 @@ export class MultiUIGameManager extends EventEmitter {
                     `Creating UI instance: ${uiConfig.name} (${uiConfig.type})`
                 );
 
-                const ui = UIFactory.create(
+                const uiResult = UIFactory.create(
                     uiConfig.type,
                     uiConfig,
                     this.runtime,
                     this.mcpAdapter
                 );
+
+                // Handle both sync and async UI creation
+                const ui = await Promise.resolve(uiResult);
 
                 const instance: UIInstance = {
                     config: uiConfig,

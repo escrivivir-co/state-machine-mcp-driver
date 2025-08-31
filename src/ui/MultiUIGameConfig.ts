@@ -29,6 +29,8 @@ export interface UIInstanceConfig {
         port?: number;
         /** Custom implementation class path for custom UIs */
         customClass?: string;
+        /** Whether to launch custom UI in independent console (default: true) */
+        launchInIndependentConsole?: boolean;
         /** Priority for event processing (higher = first) */
         priority?: number;
         /** Whether this UI is the primary interface */

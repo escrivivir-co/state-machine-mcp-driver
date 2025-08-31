@@ -18,6 +18,7 @@ import { MCPServerTransportConfig } from "../src/drivers/IMCPDriver";
 import { getBasicRuntimeConfig } from "./xplus1-app/getBasicRuntimeConfig";
 import { ChannelConsumer } from "@/orchestration/channel/deprecated-channel-consumer";
 import { AppConfig, DEFAULT_APP_CONFIG, getConfigOrDefault, parseMcpConfigToTransportConfig } from "@/utils/config";
+import { Orchestrator } from "@/orchestration";
 
 /**
  * Retry configuration
@@ -188,7 +189,7 @@ async function main(): Promise<void> {
     let config: MultiUIGameConfig;
     let runtime: Runtime | undefined;
     let mcpAdapter: MCPDriverAdapter | undefined;
-    let orchestrator: ChannelConsumer | undefined;
+    let orchestrator: Orchestrator | undefined;
     let multiUIManager: MultiUIGameManager | undefined;
 
     try {
@@ -278,44 +279,11 @@ async function main(): Promise<void> {
 
         // 3. Initialize Interface Orchestrator
         console.log("🔄 Initializing Interface Orchestrator...");
-        orchestrator = new ChannelConsumer(runtime, mcpAdapter, {
-            syncInterval: config.orchestration?.syncInterval || 100,
-            enableChatProvider: false, // Disable for now
-            enableUI: true,
-            enableAgentControl: true,
-        });
+
         console.log("✅ Interface Orchestrator initialized");
 
         // 4. Initialize Multi-UI Manager
         console.log("🔄 Initializing Multi-UI Manager...");
-        multiUIManager = new MultiUIGameManager(
-            runtime,
-            mcpAdapter,
-            orchestrator,
-            config
-        );
-
-        // Setup event handlers
-        multiUIManager.on("allUIsReady", (data) => {
-            console.log(`🎉 All ${data.uiCount} UI instances are ready!`);
-            displayGameInfo(config, multiUIManager!);
-        });
-
-        multiUIManager.on("uiStarted", (data) => {
-            console.log(`✅ UI started: ${data.config.name} (${data.uiId})`);
-        });
-
-        multiUIManager.on("uiError", (data) => {
-            console.error(`❌ UI error in ${data.uiId}:`, data.error.message);
-        });
-
-        // 5. Start Multi-UI Manager
-        console.log("🚀 Starting Multi-UI Manager...");
-        await multiUIManager.start();
-
-        // Setup graceful shutdown
-        setupGracefulShutdown(multiUIManager, runtime, mcpAdapter);
-
         console.log("\n🎮 Multi-UI Game is running!");
         console.log("Press Ctrl+C to stop all interfaces.");
     } catch (error) {
@@ -331,99 +299,7 @@ async function main(): Promise<void> {
     }
 }
 
-/**
- * Display game information and available interfaces
- */
-function displayGameInfo(
-    config: MultiUIGameConfig,
-    manager: MultiUIGameManager
-): void {
-    console.log("\n" + "=".repeat(60));
-    console.log(`🎮 ${config.game.name} - Multi-UI Active`);
-    console.log("=".repeat(60));
 
-    const activeUIs = manager.getActiveUIInstances();
-    console.log("\n📱 Active Interfaces:");
-
-    for (const [uiId, ui] of activeUIs) {
-        const uiConfig = config.ui.find((u) => u.id === uiId);
-        if (uiConfig) {
-            console.log(`  • ${uiConfig.name} (${uiConfig.type})`);
-
-            if (uiConfig.type === "html5" && uiConfig.config.port) {
-                console.log(
-                    `    🌐 Web URL: http://localhost:${uiConfig.config.port}`
-                );
-            }
-
-            if (uiConfig.config.isPrimary) {
-                console.log("    👑 Primary Interface");
-            }
-        }
-    }
-
-    const stats = manager.getStats();
-    console.log(`\n📊 Status: ${stats.activeUIs}/${stats.totalUIs} UIs active`);
-
-    if (stats.primaryUIId) {
-        console.log(`🎯 Primary UI: ${stats.primaryUIId}`);
-    }
-
-    console.log("\n🎮 Game Commands:");
-    console.log("  • Type in any active interface to interact");
-    console.log("  • Console UI: Full command support");
-    console.log("  • Web UI: Click and interact through browser");
-    console.log("  • Ctrl+C: Stop all interfaces");
-
-    console.log("\n" + "=".repeat(60));
-}
-
-/**
- * Setup graceful shutdown handlers
- */
-function setupGracefulShutdown(
-    manager: MultiUIGameManager,
-    runtime: Runtime,
-    mcpAdapter: MCPDriverAdapter
-): void {
-    const shutdown = async (signal: string) => {
-        console.log(`\n🛑 Received ${signal}, shutting down gracefully...`);
-
-        try {
-            console.log("🔄 Stopping Multi-UI Manager...");
-            await manager.destroy();
-            console.log("✅ Multi-UI Manager stopped");
-
-            console.log("🔄 Shutting down Runtime...");
-            await runtime.shutdown();
-            console.log("✅ Runtime stopped");
-
-            console.log("🔄 Shutting down MCP Driver...");
-            await mcpAdapter.close();
-            console.log("✅ MCP Driver stopped");
-
-            console.log("👋 Multi-UI Game shutdown complete");
-            process.exit(0);
-        } catch (error) {
-            console.error("❌ Error during shutdown:", error);
-            process.exit(1);
-        }
-    };
-
-    process.on("SIGINT", () => shutdown("SIGINT"));
-    process.on("SIGTERM", () => shutdown("SIGTERM"));
-
-    // Handle uncaught exceptions
-    process.on("uncaughtException", async (error) => {
-        console.error("💥 Uncaught exception:", error);
-        await shutdown("UNCAUGHT_EXCEPTION");
-    });
-
-    process.on("unhandledRejection", async (reason) => {
-        console.error("💥 Unhandled rejection:", reason);
-        await shutdown("UNHANDLED_REJECTION");
-    });
-}
 
 // Start the launcher
 main().catch((error) => {

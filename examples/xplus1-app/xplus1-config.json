@@ -129,7 +129,7 @@
 			"type": "custom",
 			"enabled": true,
 			"config": {
-				"customClass": "../examples/x-plus-1-state-machine/ConsoleGamificationUI",
+				"customClass": "@ui/templates/state-machine-ui",
 				"isPrimary": true,
 				"autoStart": true,
 				"showStats": true,

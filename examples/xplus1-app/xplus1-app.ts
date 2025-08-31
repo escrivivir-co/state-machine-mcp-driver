@@ -36,7 +36,7 @@ async function main(): Promise<void> {
         await launcher.launch(config);
 
         await launcher.launchApplication(await getBasicRuntimeConfig(config));
-
+		await launcher.launchGamificationUIs();
         console.log(
             `📋 FINISHED: Loading XPlus1 configuration from: ${configPath}`
         );

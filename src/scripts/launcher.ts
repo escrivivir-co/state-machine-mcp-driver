@@ -12,7 +12,7 @@ import { spawn, ChildProcess } from "child_process";
 import { promises as fs } from "fs";
 import * as path from "path";
 import axios from "axios";
-import { Orchestrator } from "@/orchestration";
+import { createDevelopmentOrchestrator, Orchestrator } from "@/orchestration";
 import { AppConfig, logger } from "@/utils";
 import { LaunchConfig } from "./LaunchConfig";
 import { MCPLauncherServer } from "@/mcp-servers";
@@ -25,7 +25,11 @@ import {
 } from "@/utils/config";
 import { getBasicRuntimeConfig } from "examples/xplus1-app/getBasicRuntimeConfig";
 import { Runtime, RuntimeConfig } from "@/runtime";
-import MultiUIGameConfig, { validateMultiUIConfig } from "@/ui/MultiUIGameConfig";
+import MultiUIGameConfig, {
+    validateMultiUIConfig,
+} from "@/ui/MultiUIGameConfig";
+import MultiUIGameManager from "@/ui/MultiUIGameManager";
+import { log } from "console";
 
 /**
  * Retry configuration
@@ -43,7 +47,6 @@ const DEFAULT_RETRY_CONFIG: RetryConfig = {
     maxDelay: 10000,
     backoffMultiplier: 1.5,
 };
-
 
 const DEFAULT_CONFIG: LaunchConfig = {
     ollamaUrl: "http://localhost:11434",
@@ -108,6 +111,8 @@ export class ApplicationLauncher {
     private mcpserverImpl!: MCPLauncherServer;
     private isShuttingDown = false;
     orchestrator!: Orchestrator;
+    multiUIManager!: MultiUIGameManager;
+    runtime!: Runtime;
 
     constructor(config: Partial<AppConfig> = {}) {
         this.config = config as AppConfig;
@@ -133,8 +138,8 @@ export class ApplicationLauncher {
 
             // 3. Initialize Interface Orchestrator
             console.log("🔄 Initializing Interface Orchestrator...");
-            // this.orchestrator = createDevelopmentOrchestrator(this.config);
-            // this.orchestrator.start();
+            this.orchestrator = createDevelopmentOrchestrator(this.config);
+            this.orchestrator.start();
             console.log("✅ Interface Orchestrator initialized");
 
             // 4. ActiveHandles and Request
@@ -155,7 +160,6 @@ export class ApplicationLauncher {
             } else {
                 throw new Error(`Unknown target: ${target}`);
             }*/
-
         } catch (error) {
             logger.error("Launch sequence failed", error as Error);
             console.error("❌ Launch failed:", error);
@@ -197,14 +201,14 @@ export class ApplicationLauncher {
     /**
      * Setup default server configurations
      */
-    public async registerServesInMCPDriver(mcpDriver: IMCPDriver): Promise<void> {
-
-		for (const serverKey of this.mcpserverImpl.requestToLaunchConfigs.keys()) {
-			const server = getConfigOrDefault(serverKey, this.config);
-			const transportConfig = parseMcpConfigToTransportConfig(server);
-			await mcpDriver.addServer(transportConfig)
-		}
-
+    public async registerServesInMCPDriver(
+        mcpDriver: IMCPDriver
+    ): Promise<void> {
+        for (const serverKey of this.mcpserverImpl.requestToLaunchConfigs.keys()) {
+            const server = getConfigOrDefault(serverKey, this.config);
+            const transportConfig = parseMcpConfigToTransportConfig(server);
+            await mcpDriver.addServer(transportConfig);
+        }
     }
 
     /**
@@ -225,7 +229,6 @@ export class ApplicationLauncher {
 
         // Phase 4: Health checks
         await this.performHealthChecks();
-
     }
 
     /**
@@ -286,16 +289,14 @@ export class ApplicationLauncher {
 
         // Check project structure
         console.log("📁 Checking project structure...");
-        const requiredPaths = [
-            "src/runtime/Runtime.ts",
-        ];
+        const requiredPaths = ["src/runtime/Runtime.ts"];
 
         for (const filePath of requiredPaths) {
             try {
                 await fs.access(path.join(process.cwd(), filePath));
                 console.log(`✅ ${filePath}`);
             } catch {
-				logger.info(`❌ Required file missing: ${filePath}`);
+                logger.info(`❌ Required file missing: ${filePath}`);
                 throw new Error(`❌ Required file missing: ${filePath}`);
             }
         }
@@ -449,7 +450,10 @@ export class ApplicationLauncher {
             await this.mcpDriver.addServer(transportConfig);
         }
 
-        this.mcpserverImpl.requestToLaunchMCPServers(this.config, this.mcpDriver);
+        this.mcpserverImpl.requestToLaunchMCPServers(
+            this.config,
+            this.mcpDriver
+        );
     }
 
     /**
@@ -477,10 +481,7 @@ export class ApplicationLauncher {
 
             // Only show detailed results in verbose mode, not in quiet mode
             if (process.env.MCP_QUIET !== "true") {
-                console.log(
-                    "📊 Launch Results:",
-                    result.length
-                );
+                console.log("📊 Launch Results:", result.length);
             }
 
             // Parse the nested result structure
@@ -549,10 +550,7 @@ export class ApplicationLauncher {
 
             // Only show detailed results in verbose mode, not in quiet mode
             if (process.env.MCP_QUIET !== "true") {
-                console.log(
-                    "📊 Health Check Results:",
-                    healthResults.length
-                );
+                console.log("📊 Health Check Results:", healthResults.length);
             }
 
             // Parse the nested result structure
@@ -698,30 +696,162 @@ export class ApplicationLauncher {
     /**
      * Launch the target application
      */
-    public async launchApplication(runtimeConfig: RuntimeConfig): Promise<void> {
+    public async launchApplication(
+        runtimeConfig: RuntimeConfig
+    ): Promise<void> {
         console.log("\n🎮 Phase 5: Launching Application");
         console.log("-----------------------------------");
 
-		let runtime: Runtime | undefined;
+        if (this.mcpDriver && runtimeConfig) {
+            this.runtime = new Runtime(this.mcpDriver, runtimeConfig);
+        }
 
-		if (this.mcpDriver && runtimeConfig) {
-			runtime = new Runtime(this.mcpDriver, runtimeConfig);
+        // Initialize runtime with retries
+        await withRetry(
+            async () => await this.runtime!.initialize(),
+            {
+                maxAttempts: 8,
+                baseDelay: 3000,
+                maxDelay: 15000,
+                backoffMultiplier: 1.3,
+            },
+            "Runtime initialization"
+        );
+        console.log("✅ Runtime initialized");
+    }
+
+    public async launchGamificationUIs() {
+        // 4. Initialize Multi-UI Manager
+        console.log("🔄 Initializing Multi-UI Manager...");
+
+        if (this.mcpDriver && this.orchestrator) {
+            this.multiUIManager = new MultiUIGameManager(
+                this.runtime,
+                this.mcpDriver,
+                this.orchestrator,
+                this.config
+            );
+        } else {
+			logger.info("No se ha podido lanzar las UI de gamificacion, falta driver u orchestrator")
+			return;
 		}
 
-		// Initialize runtime with retries
-		await withRetry(
-			async () => await runtime!.initialize(),
-			{
-				maxAttempts: 8,
-				baseDelay: 3000,
-				maxDelay: 15000,
-				backoffMultiplier: 1.3,
-			},
-			"Runtime initialization"
-		);
-		console.log("✅ Runtime initialized");
-	}
+        // Setup event handlers
+        this.multiUIManager.on("allUIsReady", (data) => {
+            console.log(`🎉 All ${data.uiCount} UI instances are ready!`);
+            this.displayGameInfo(this.config, this.multiUIManager!);
+        });
 
+        this.multiUIManager.on("uiStarted", (data) => {
+            console.log(`✅ UI started: ${data.config.name} (${data.uiId})`);
+        });
+
+        this.multiUIManager.on("uiError", (data) => {
+            console.error(`❌ UI error in ${data.uiId}:`, data.error.message);
+        });
+
+        // 5. Start Multi-UI Manager
+        console.log("🚀 Starting Multi-UI Manager...");
+        await this.multiUIManager.start();
+
+        console.log("\n🎮 Multi-UI Game is running!");
+        console.log("Press Ctrl+C to stop all interfaces.");
+    }
+    /**
+     * Display game information and available interfaces
+     */
+    displayGameInfo(
+        config: MultiUIGameConfig,
+        manager: MultiUIGameManager
+    ): void {
+        console.log("\n" + "=".repeat(60));
+        console.log(`🎮 ${config.game.name} - Multi-UI Active`);
+        console.log("=".repeat(60));
+
+        const activeUIs = manager.getActiveUIInstances();
+        console.log("\n📱 Active Interfaces:");
+
+        for (const [uiId, ui] of activeUIs) {
+            const uiConfig = config.ui.find((u) => u.id === uiId);
+            if (uiConfig) {
+                console.log(`  • ${uiConfig.name} (${uiConfig.type})`);
+
+                if (uiConfig.type === "html5" && uiConfig.config.port) {
+                    console.log(
+                        `    🌐 Web URL: http://localhost:${uiConfig.config.port}`
+                    );
+                }
+
+                if (uiConfig.config.isPrimary) {
+                    console.log("    👑 Primary Interface");
+                }
+            }
+        }
+
+        const stats = manager.getStats();
+        console.log(
+            `\n📊 Status: ${stats.activeUIs}/${stats.totalUIs} UIs active`
+        );
+
+        if (stats.primaryUIId) {
+            console.log(`🎯 Primary UI: ${stats.primaryUIId}`);
+        }
+
+        console.log("\n🎮 Game Commands:");
+        console.log("  • Type in any active interface to interact");
+        console.log("  • Console UI: Full command support");
+        console.log("  • Web UI: Click and interact through browser");
+        console.log("  • Ctrl+C: Stop all interfaces");
+
+        console.log("\n" + "=".repeat(60));
+    }
+
+    /**
+     * Setup graceful shutdown handlers
+     */
+    setupGracefulShutdown(
+        manager: MultiUIGameManager,
+        runtime: Runtime,
+        mcpAdapter: MCPDriverAdapter
+    ): void {
+        const shutdown = async (signal: string) => {
+            console.log(`\n🛑 Received ${signal}, shutting down gracefully...`);
+
+            try {
+                console.log("🔄 Stopping Multi-UI Manager...");
+                await manager.destroy();
+                console.log("✅ Multi-UI Manager stopped");
+
+                console.log("🔄 Shutting down Runtime...");
+                await runtime.shutdown();
+                console.log("✅ Runtime stopped");
+
+                console.log("🔄 Shutting down MCP Driver...");
+                await mcpAdapter.close();
+                console.log("✅ MCP Driver stopped");
+
+                console.log("👋 Multi-UI Game shutdown complete");
+                process.exit(0);
+            } catch (error) {
+                console.error("❌ Error during shutdown:", error);
+                process.exit(1);
+            }
+        };
+
+        process.on("SIGINT", () => shutdown("SIGINT"));
+        process.on("SIGTERM", () => shutdown("SIGTERM"));
+
+        // Handle uncaught exceptions
+        process.on("uncaughtException", async (error) => {
+            console.error("💥 Uncaught exception:", error);
+            await shutdown("UNCAUGHT_EXCEPTION");
+        });
+
+        process.on("unhandledRejection", async (reason) => {
+            console.error("💥 Unhandled rejection:", reason);
+            await shutdown("UNHANDLED_REJECTION");
+        });
+    }
     /**
      * Graceful shutdown of all processes
      */
@@ -870,7 +1000,6 @@ export class ApplicationLauncher {
     }
 }
 
-
 /**
  * Kill all Node.js processes on the system (Windows and Unix)
  */
@@ -996,8 +1125,7 @@ function showHelp(): void {
  * CLI entry point
  */
 async function main() {
-
-	console.log("Launching all main...")
+    console.log("Launching all main...");
     const args = process.argv.slice(2);
 
     // Check for help flag
@@ -1006,11 +1134,11 @@ async function main() {
         return;
     }
 
-	console.log("Launching all nodes...")
+    console.log("Launching all nodes...");
     // Check for kill all node processes flag
     if (args.includes("--kill-all-node")) {
         try {
-			console.log("Killing all nodes...")
+            console.log("Killing all nodes...");
             await killAllNodeProcesses();
         } catch (error) {
             console.error("💥 Failed to kill Node.js processes:", error);
@@ -1034,6 +1162,6 @@ async function main() {
 
 // Run if this file is executed directly
 if (require.main === module) {
-	console.log("Escecuted directly")
+    console.log("Escecuted directly");
     main();
 }

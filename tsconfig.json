@@ -24,6 +24,7 @@
       "@models/*": ["src/models/*"],
       "@drivers/*": ["src/drivers/*"],
       "@runtime/*": ["src/runtime/*"],
+	  "@ui/*": ["src/ui/*"],
       "@utils/*": ["src/utils/*"],
 	  "@examples/*": ["examples/*"]
     },
