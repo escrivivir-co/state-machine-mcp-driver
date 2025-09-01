@@ -16,9 +16,12 @@ import {
     AgentAction,
     AgentActionResult,
     StateNode,
+    StateConfig,
 } from "../models";
 import { logger, Logger } from "../utils/logger";
 import { StateManager } from "@/state/StateManager";
+import { DEFAULT_RUNTIME_CONFIG } from "@/mcp-servers/DEFAULT_RUNTIME_CONFIG";
+import { MCPDriverAdapter } from "@/drivers";
 
 // Chat provider types (supporting both strict typing and flexibility)
 export interface ChatProviderLike {
@@ -114,9 +117,9 @@ export enum RuntimeEvent {
  * Main Runtime Engine class
  */
 export class Runtime extends EventEmitter {
-    private mcpDriver: IMCPDriver;
+    private mcpDriver!: IMCPDriver;
     private chatProvider?: ChatProviderLike;
-    private config: RuntimeConfig;
+    private config!: RuntimeConfig;
     private stateGraph?: StateGraph;
     private currentState?: State;
     private agents: Map<string, Agent> = new Map();
@@ -128,20 +131,26 @@ export class Runtime extends EventEmitter {
     private isProcessingActions = false;
 
     constructor(
-        mcpDriver: IMCPDriver,
-        config: RuntimeConfig,
+        mcpDriver?: IMCPDriver,
+        config?: RuntimeConfig,
         chatProvider?: ChatProviderLike
     ) {
         super();
-        this.mcpDriver = mcpDriver;
+
+
+        if (mcpDriver) {
+            this.mcpDriver = mcpDriver;
+        }
         this.chatProvider = chatProvider;
-        this.config = {
-            maxMessagesPerThread: 50,
-            sessionTimeout: 3600000, // 1 hour
-            autoSave: true,
-            autoSaveInterval: 30000, // 30 seconds
-            ...config,
-        };
+        if (config) {
+            this.config = {
+                maxMessagesPerThread: 50,
+                sessionTimeout: 3600000, // 1 hour
+                autoSave: true,
+                autoSaveInterval: 30000, // 30 seconds
+                ...config,
+            };
+        }
 
         this.stats = this.initializeStats();
         this.setupEventHandlers();
@@ -151,12 +160,24 @@ export class Runtime extends EventEmitter {
      * Initialize the runtime
      */
     async initialize(): Promise<void> {
+
+        if (this.isInitialized) return;
+
+        if (!this.config) {
+            this.config = DEFAULT_RUNTIME_CONFIG;
+        }
+
+        if (!this.mcpDriver) {
+            this.mcpDriver = new MCPDriverAdapter();
+        }
+
         try {
             Logger.runtime("Initializing runtime", {
                 graphId: this.config.graphId,
                 userId: this.config.userId,
             });
 
+            /** backmark */
             // Load the state graph
             this.stateGraph = await this.mcpDriver.loadStateGraph(
                 this.config.mcpServerId,
@@ -318,9 +339,16 @@ export class Runtime extends EventEmitter {
      * Get current state
      */
     getCurrentState(): State {
+
         if (!this.currentState) {
-            throw new Error("Runtime not initialized");
+            const stateConfig: StateConfig = {
+                graphId: "not-init",
+                userId: "not-set",
+                initialStateId: "not-set"
+            }
+            this.currentState = StateManager.createNew(stateConfig);
         }
+
         return this.currentState;
     }
 

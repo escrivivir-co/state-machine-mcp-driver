@@ -169,40 +169,90 @@ export class IndependentConsoleLauncher {
         scriptArgs: string[],
         options: ConsoleOptions
     ): Promise<ChildProcess> {
-        const title = options.title || "Custom UI Console";
+        // CRITICAL FIX for Windows "cannot find Interface" error
+        // The issue: Windows start command interprets the first quoted parameter as:
+        // - Window title if followed by another parameter
+        // - Command to execute if it's the only quoted parameter
+        
+        // Create a safe, simple title without ANY special characters
+        const originalTitle = options.title || "CustomUI";
+        const title = "GameUI_" + Date.now().toString().slice(-6); // Safe title: GameUI_123456
         const workingDir = options.workingDirectory || process.cwd();
         const keepOpen = options.keepOpen !== false; // Default to true
 
-        // Build the command string
+        // Build the command string with proper Windows cmd escaping
         const cmdArgs = [nodeCommand, ...scriptArgs]
-            .map((arg) => `"${arg}"`)
+            .map((arg) => {
+                // Escape arguments that contain spaces or special characters
+                if (arg.includes(' ') || arg.includes('&') || arg.includes('^') || arg.includes('%')) {
+                    return `"${arg.replace(/"/g, '""')}"`;
+                }
+                return arg;
+            })
             .join(" ");
+        
         const fullCommand = keepOpen
             ? `${cmdArgs} & echo. & echo Process completed. Press any key to close... & pause > nul`
             : cmdArgs;
 
-        // Use cmd.exe to launch a new console window
-        const consoleProcess = spawn(
-            "cmd.exe",
-            [
-                "/c",
-                "start",
-                `"${title}"`,
-                "/D",
-                `"${workingDir}"`,
-                "cmd.exe",
-                "/k",
-                fullCommand,
-            ],
-            {
-                detached: true,
-                stdio: "ignore",
-                cwd: workingDir,
-                env: { ...process.env, ...options.env },
+        Logger.info(`Launching Windows console with safe title: ${title} (original: ${originalTitle})`);
+        Logger.mcpVerbose(`Full command: ${fullCommand}`);
+
+        // SOLUTION: Use a completely different approach
+        // Instead of relying on the complex start command syntax, create a batch file
+        const tempBatchContent = `@echo off
+title ${originalTitle}
+cd /d "${workingDir}"
+${fullCommand}`;
+
+        const os = require('os');
+        const path = require('path');
+        const fs = require('fs');
+        
+        const tempBatchPath = path.join(os.tmpdir(), `launcher_${Date.now()}.bat`);
+        fs.writeFileSync(tempBatchPath, tempBatchContent, 'utf8');
+
+        Logger.mcpVerbose(`Created temporary batch file: ${tempBatchPath}`);
+
+        // Launch the batch file in a new console window - much more reliable
+        const startArgs = [
+            "/c",
+            "start",
+            `"${title}"`, // Simple safe title
+            tempBatchPath
+        ];
+
+        Logger.mcpVerbose(`Simplified Windows start args: ${JSON.stringify(startArgs)}`);
+
+        const consoleProcess = spawn("cmd.exe", startArgs, {
+            detached: true,
+            stdio: "ignore",
+            cwd: workingDir,
+            env: { ...process.env, ...options.env },
+            shell: false,
+        });
+
+        if (!consoleProcess.pid) {
+            // Clean up temp batch file if process failed
+            try {
+                fs.unlinkSync(tempBatchPath);
+            } catch {}
+            throw new Error("Failed to spawn Windows console process");
+        }
+
+        // Clean up temp batch file after a delay (process should have started by then)
+        setTimeout(() => {
+            try {
+                fs.unlinkSync(tempBatchPath);
+                Logger.mcpVerbose(`Cleaned up temporary batch file: ${tempBatchPath}`);
+            } catch (error) {
+                Logger.mcpVerbose(`Could not clean up batch file: ${error}`);
             }
-        );
+        }, 5000);
 
         consoleProcess.unref();
+        
+        Logger.info(`Windows console launched with PID: ${consoleProcess.pid}`);
         return consoleProcess;
     }
 
@@ -652,7 +702,7 @@ const originalCwd = process.cwd();
 
 console.log('🚀 Starting Custom UI: ${customClassName}');
 console.log('📁 Original working directory:', originalCwd);
-console.log('📦 Loading custom class from:', '${resolvedCustomClassPath}');
+console.log('📦 Loading custom class from:', ${JSON.stringify(resolvedCustomClassPath)});
 console.log('📂 Is TypeScript file:', ${isTypeScript});
 
 try {
@@ -670,8 +720,8 @@ try {
     ${requirePrefix}
     
     // Load the custom UI class
-    const customModule = require('${resolvedCustomClassPath}');
-    const CustomUIClass = customModule.default || customModule['${customClassName}'] || customModule[Object.keys(customModule)[0]] || customModule;
+    const customModule = require(${JSON.stringify(resolvedCustomClassPath)});
+    const CustomUIClass = customModule.default || customModule[${JSON.stringify(customClassName)}] || customModule[Object.keys(customModule)[0]] || customModule;
     
     if (typeof CustomUIClass !== 'function') {
         const availableExports = Object.keys(customModule).join(', ');
@@ -683,7 +733,7 @@ try {
         process.exit(1);
     }
     
-    console.log('✅ Successfully loaded custom UI class:', CustomUIClass.name || '${customClassName}');
+    console.log('✅ Successfully loaded custom UI class:', CustomUIClass.name || ${JSON.stringify(customClassName)});
     
     // Mock runtime and adapter for independent execution
     const mockRuntime = {
@@ -773,7 +823,7 @@ try {
     
     if (error.code === 'MODULE_NOT_FOUND') {
         console.error('💡 Module resolution tips:');
-        console.error('   - Make sure the file exists at: ${resolvedCustomClassPath}');
+        console.error('   - Make sure the file exists at:', ${JSON.stringify(resolvedCustomClassPath)});
         console.error('   - Check if the file has proper exports (module.exports or export default)');
         console.error('   - For TypeScript files, ensure tsx or ts-node is available');
         console.error('   - Verify the working directory is correct:', originalCwd);

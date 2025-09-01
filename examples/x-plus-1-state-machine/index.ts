@@ -5,7 +5,7 @@
  * with the X+1 inductive pattern game.
  */
 
-import { XPlus1GameConsole } from './ConsoleGamificationUI';
+import { DEPRECATEDXPlus1GameConsole } from './ConsoleGamificationUI';
 import { logger } from '../../src/utils/logger';
 
 /**
@@ -16,7 +16,7 @@ async function main() {
     console.log('🎮 Initializing X+1 Inductive Pattern Game...');
     
   // Create and start the console game (async factory)
-  const game = await XPlus1GameConsole.create();
+  const game = await DEPRECATEDXPlus1GameConsole.create();
   await game.start();
     
   } catch (error) {
@@ -47,4 +47,4 @@ if (require.main === module) {
   main();
 }
 
-export { main, XPlus1GameConsole };
+export { main, DEPRECATEDXPlus1GameConsole as XPlus1GameConsole };

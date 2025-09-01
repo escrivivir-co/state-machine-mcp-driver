@@ -89,6 +89,13 @@ export class MCPClientDriver extends EventEmitter implements IMCPDriver {
             // Validate configuration
             this.validateServerConfig(config);
 
+            const existing = this.configs.get(config.id);
+
+            if (existing) {
+                console.log("SET HERE TO OVERWRITE OR NOT CONFIG", existing.id)
+                return;
+            }
+
             // Store configuration
             this.configs.set(config.id, config);
 

@@ -110,7 +110,7 @@ export class ConsoleGamificationUI
     extends EventEmitter
     implements IConsoleReader
 {
-    private runtime: Runtime;
+    public runtime!: Runtime;
     private config: ConsoleUIConfig;
     private rl: readline.Interface;
     private currentThread?: ConversationThread;
@@ -154,7 +154,10 @@ export class ConsoleGamificationUI
 
     constructor(runtime: Runtime, config: ConsoleUIConfig) {
         super();
-        this.runtime = runtime;
+        
+        console.log("🎮 Initializing ConsoleGamificationUI...")
+        this.setRuntime(runtime);
+
         this.config = {
             userPrompt: "> ",
             enableColors: true,
@@ -177,6 +180,10 @@ export class ConsoleGamificationUI
         }
 
         this.setupEventHandlers();
+    }
+
+    setRuntime(runtime: Runtime) {
+        this.runtime = runtime;
     }
 
     /**
@@ -805,6 +812,7 @@ export class ConsoleGamificationUI
     private displayWelcome(): void {
         this.clearScreen();
 
+        this.config.gameTitle = this.config.gameTitle || 'default-game-title';
         const title = this.colorize(this.config.gameTitle, "cyan", true);
         const border = "=".repeat(this.config.gameTitle.length + 4);
 
@@ -817,6 +825,7 @@ export class ConsoleGamificationUI
         }
 
         // Display runtime info
+        this.runtime.initialize()
         const state = this.runtime.getCurrentState();
         console.log(
             this.colorize(`📍 Current State: ${state.currentStateId}`, "yellow")

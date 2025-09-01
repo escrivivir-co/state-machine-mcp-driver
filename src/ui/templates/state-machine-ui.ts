@@ -8,6 +8,7 @@ import XPlus1PostulationSystem from "@examples/x-plus-1-state-machine/XPlus1Post
 import { getBasicRuntimeConfig } from "@examples/xplus1-app/getBasicRuntimeConfig";
 import { GAME_CONFIG, MESSAGE_TEMPLATES } from "@examples/xplus1-app/xplus1-game";
 import ConsoleGamificationUI, { ConsoleUIConfig, ConsoleUIEvent } from "../ConsoleGamificationUI";
+import { DEFAULT_APP_CONFIG, getConfigOrDefault, parseMcpConfigToTransportConfig } from "@/utils/config";
 
 
 // Remote control interfaces (matching XPlus1MCPMachine)
@@ -30,9 +31,8 @@ type GamePhase = "start" | "conversation" | "decision" | "advancement" | "end";
 const POLLING_INTERVAL_MS = 1000 * 60; // Polling interval for remote commands
 
 export class StateMachineUI extends ConsoleGamificationUI {
-    private runtimeInstance: Runtime;
-    private mcpDriver: MCPDriverAdapter;
-    private chatProvider: OllamaChatProvider;
+    private mcpDriver!: MCPDriverAdapter;
+    private chatProvider!: OllamaChatProvider;
     private postulationSystem: XPlus1PostulationSystem;
 
     private gameState = {
@@ -55,6 +55,7 @@ export class StateMachineUI extends ConsoleGamificationUI {
     // Remote control properties
     private remoteControlEnabled = false;
     private commandCheckInterval: NodeJS.Timeout | null = null;
+    static config: AppConfig;
 
     private constructor(
         runtime: Runtime,
@@ -63,9 +64,14 @@ export class StateMachineUI extends ConsoleGamificationUI {
         uiConfig: ConsoleUIConfig
     ) {
         super(runtime, uiConfig);
-        this.runtimeInstance = runtime;
-        this.mcpDriver = mcp;
-        this.chatProvider = chat;
+
+        if (!runtime || !runtime.initialize) {
+            StateMachineUI.create();
+        } else {
+            this.runtime = runtime;
+            this.mcpDriver = mcp;
+            this.chatProvider = chat;
+        }
 
         // Initialize X+1 postulation system
         this.postulationSystem = new XPlus1PostulationSystem();
@@ -152,6 +158,9 @@ export class StateMachineUI extends ConsoleGamificationUI {
      * Get next remote command (placeholder for actual implementation)
      */
     private async getNextRemoteCommand(): Promise<RemoteCommand | null> {
+
+        if (!this.mcpDriver) return null;
+
         try {
             // Use the existing MCP tool to get next command
             const result = await this.mcpDriver.executeTool(
@@ -324,12 +333,12 @@ export class StateMachineUI extends ConsoleGamificationUI {
      * Synchronize local game state with XPlus1MCPMachine state
      */
     private async syncWithMCPState(): Promise<void> {
-        if (!this.mcpSyncEnabled) return;
+        if (!this.mcpDriver || !this.mcpSyncEnabled) return;
 
         try {
             // Get current state from MCP server
             const result = await this.mcpDriver.executeTool(
-                "xplus1-mcp-machine",
+                "state-machine-server",
                 "get_x_status",
                 {}
             );
@@ -360,6 +369,7 @@ export class StateMachineUI extends ConsoleGamificationUI {
      * Advance X using MCP server instead of local state
      */
     private async advanceXViaMCP(reason: string): Promise<boolean> {
+        if (!this.mcpDriver) return false;
         try {
             const result = await this.mcpDriver.executeTool(
                 "xplus1-mcp-machine",
@@ -385,6 +395,8 @@ export class StateMachineUI extends ConsoleGamificationUI {
      * Reset X using MCP server instead of local state
      */
     private async resetXViaMCP(reason: string): Promise<boolean> {
+
+        if (!this.mcpDriver) return false;
         try {
             const result = await this.mcpDriver.executeTool(
                 "xplus1-mcp-machine",
@@ -413,20 +425,13 @@ export class StateMachineUI extends ConsoleGamificationUI {
         // MCP driver and servers with native protocol support
         const mcpDriver = new MCPDriverAdapter();
 
+        this.config = DEFAULT_APP_CONFIG;
         // Configure MCP servers
-        await mcpDriver.addServer({
-            id: "xplus1-mcp-machine",
-            name: "X+1 MCP Machine",
-            url: process.env.MCP_XPLUS1_URL || "http://localhost:3001",
-            timeout: 5000,
-        });
+        const serverKey = "state-machine-server";
+        const server = getConfigOrDefault(serverKey, this.config);
+        const transportConfig = parseMcpConfigToTransportConfig(server);
+        await mcpDriver.addServer(transportConfig);
 
-        await mcpDriver.addServer({
-            id: "wiki-mcp-browser",
-            name: "Wiki MCP Browser",
-            url: process.env.MCP_WIKI_URL || "http://localhost:3002",
-            timeout: 5000,
-        });
 
         // Chat provider with MCP integration
         const ollamaUrl = process.env.OLLAMA_URL || "http://localhost:11434";
@@ -528,21 +533,27 @@ export class StateMachineUI extends ConsoleGamificationUI {
      */
     async start(): Promise<void> {
         // Initialize runtime first so base UI can show state/agents
-        await this.runtimeInstance.initialize();
+
+
+        this.initRuntime();
+
+        if (!this.mcpDriver?.executeTool) {
+            StateMachineUI.create();
+        }
 
         // Synchronize with MCP state on startup
         await this.syncWithMCPState();
 
         // Determine simulation mode from agent status and persist in state
-        const simAgent = this.runtimeInstance.getAgent("user-simulator");
+        const simAgent = this.runtime.getAgent("user-simulator");
         const simEnabled = simAgent?.status === AgentStatus.ACTIVE;
         this.gameState.simulateUser = !!simEnabled;
         try {
-            const st = this.runtimeInstance.getCurrentState();
+            const st = this.runtime.getCurrentState();
             st.gameData.flags = st.gameData.flags || {};
             st.gameData.flags["userSimulatorEnabled"] =
                 this.gameState.simulateUser;
-            await this.runtimeInstance.saveCurrentState();
+            await this.runtime.saveCurrentState();
         } catch {}
 
         // Start base console UI (welcome, input loop, threads)
@@ -579,6 +590,14 @@ export class StateMachineUI extends ConsoleGamificationUI {
             console.log("DEBUG: About to call forceDisplayPostulations...");
             await this.forceDisplayPostulations();
         }, 500);
+    }
+
+    async initRuntime() {
+
+        if (!this.runtime.getAgent || !this.runtime.initialize) {
+            this.runtime = new Runtime();
+        }
+        await this.runtime.initialize();
     }
 
     /**
@@ -676,13 +695,13 @@ export class StateMachineUI extends ConsoleGamificationUI {
     ): Promise<string> {
         try {
             // Check if we have a runtime with necessary components
-            if (!this.runtimeInstance) {
+            if (!this.runtime) {
                 console.log("⚠️  Runtime not available, using fallback");
                 return this.generateFallbackMessage(agentId, postulation);
             }
 
             // Get current game context
-            const currentState = this.runtimeInstance.getCurrentState();
+            const currentState = this.runtime.getCurrentState();
             const gameContext = {
                 currentX:
                     currentState?.gameData?.variables?.x ||
@@ -707,7 +726,7 @@ export class StateMachineUI extends ConsoleGamificationUI {
 
             // Build the actual message using integrated tools and chat
             const enhancedMessage = await integrateToolsWithChat(
-                this.runtimeInstance,
+                this.runtime,
                 {
                     agentId,
                     context: gameContext,
@@ -870,14 +889,14 @@ export class StateMachineUI extends ConsoleGamificationUI {
             const promptId = promptMap[agentId as keyof typeof promptMap];
             if (!promptId) return null;
 
-            const currentState = this.runtimeInstance.getCurrentState();
+            const currentState = this.runtime.getCurrentState();
             const result = await this.mcpDriver.getPrompt(
                 "xplus1-mcp-machine",
                 promptId,
                 {
                     state: currentState,
                     stateNode: { id: currentState?.currentStateId },
-                    agent: this.runtimeInstance.getAgent(agentId),
+                    agent: this.runtime.getAgent(agentId),
                 }
             );
 
@@ -1179,7 +1198,7 @@ export class StateMachineUI extends ConsoleGamificationUI {
 
         // Transition based on sign
         if (advance > 0) {
-            await this.runtimeInstance.transitionTo(
+            await this.runtime.transitionTo(
                 "playing",
                 "positive_advance",
                 {
@@ -1189,7 +1208,7 @@ export class StateMachineUI extends ConsoleGamificationUI {
                 }
             );
         } else {
-            await this.runtimeInstance.transitionTo(
+            await this.runtime.transitionTo(
                 "start",
                 "negative_advance",
                 {
@@ -1235,13 +1254,13 @@ export class StateMachineUI extends ConsoleGamificationUI {
 
     private updateGameStateFromTransition(data: any): void {
         // Update game state based on runtime state transitions
-        const currentState = this.runtimeInstance.getCurrentState();
+        const currentState = this.runtime.getCurrentState();
         // Additional state synchronization logic here
     }
 
     private updateSimulateModeFromState(): void {
         try {
-            const s = this.runtimeInstance.getCurrentState();
+            const s = this.runtime.getCurrentState();
             const flag = s?.gameData?.flags?.["userSimulatorEnabled"];
             if (typeof flag === "boolean") {
                 this.gameState.simulateUser = flag;
@@ -1300,7 +1319,7 @@ export class StateMachineUI extends ConsoleGamificationUI {
         console.log(`  Game phase: ${this.gameState.currentPhase}`);
         console.log(`  Total turns: ${this.gameState.turnHistory.length}`);
         console.log(
-            `  Active agents: ${this.runtimeInstance?.getAgents().length || 0}`
+            `  Active agents: ${this.runtime?.getAgents().length || 0}`
         );
         console.log(
             `  User simulator: ${
@@ -1313,10 +1332,10 @@ export class StateMachineUI extends ConsoleGamificationUI {
      */
     private async setSimulatorEnabled(enabled: boolean): Promise<void> {
         try {
-            const st = this.runtimeInstance.getCurrentState();
+            const st = this.runtime.getCurrentState();
             st.gameData.flags = st.gameData.flags || {};
             st.gameData.flags["userSimulatorEnabled"] = enabled;
-            await this.runtimeInstance.saveCurrentState();
+            await this.runtime.saveCurrentState();
             this.gameState.simulateUser = enabled;
             console.log(
                 `\n🔧 User simulator ${enabled ? "ENABLED" : "DISABLED"}`
@@ -1333,7 +1352,7 @@ export class StateMachineUI extends ConsoleGamificationUI {
         console.log("DEBUG: forceDisplayPostulations called");
         try {
             // Get available agents from runtime
-            const allAgents = this.runtimeInstance.getAgents();
+            const allAgents = this.runtime.getAgents();
             console.log(
                 "DEBUG: All agents:",
                 allAgents.map((a) => `${a.name}(${a.status})`)

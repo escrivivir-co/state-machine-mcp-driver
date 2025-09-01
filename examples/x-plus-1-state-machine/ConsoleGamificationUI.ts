@@ -48,7 +48,7 @@ type GamePhase = "start" | "conversation" | "decision" | "advancement" | "end";
  */
 const POLLING_INTERVAL_MS = 1000 * 60; // Polling interval for remote commands
 
-export class XPlus1GameConsole extends ConsoleGamificationUI {
+export class DEPRECATEDXPlus1GameConsole extends ConsoleGamificationUI {
     private runtimeInstance: Runtime;
     private mcpDriver: MCPDriverAdapter;
     private chatProvider: OllamaChatProvider;
@@ -82,7 +82,17 @@ export class XPlus1GameConsole extends ConsoleGamificationUI {
         uiConfig: ConsoleUIConfig
     ) {
         super(runtime, uiConfig);
-        this.runtimeInstance = runtime;
+
+        console.log("🎮 Initializing X+1 Game Console UI... 111");
+        if (runtime.initialize === undefined) {
+            console.log("🎮 Initializing X+1 Game Console UI... 222");
+            this.runtimeInstance = new Runtime();       
+        } else {
+            console.log("🎮 Initializing X+1 Game Console UI... 3333")
+            this.runtimeInstance = runtime;
+        }
+        console.log("🎮 Initializing X+1 Game Console UI... 444")
+            
         this.mcpDriver = mcp;
         this.chatProvider = chat;
 
@@ -428,7 +438,7 @@ export class XPlus1GameConsole extends ConsoleGamificationUI {
     /**
      * Factory to build the game console with async setup (MCP servers, runtime, chat provider)
      */
-    static async create(): Promise<XPlus1GameConsole> {
+    static async create(): Promise<DEPRECATEDXPlus1GameConsole> {
         // MCP driver and servers with native protocol support
         const mcpDriver = new MCPDriverAdapter();
 
@@ -473,7 +483,7 @@ export class XPlus1GameConsole extends ConsoleGamificationUI {
             autoSelectSingleAgent: false, // Let user choose even with single agent
         };
 
-        return new XPlus1GameConsole(
+        return new DEPRECATEDXPlus1GameConsole(
             runtime,
             mcpDriver,
             chatProvider,
@@ -547,7 +557,7 @@ export class XPlus1GameConsole extends ConsoleGamificationUI {
      */
     async start(): Promise<void> {
         // Initialize runtime first so base UI can show state/agents
-        await this.runtimeInstance.initialize();
+        await this.runtimeInstance?.initialize();
 
         // Synchronize with MCP state on startup
         await this.syncWithMCPState();
@@ -1425,4 +1435,4 @@ export class XPlus1GameConsole extends ConsoleGamificationUI {
 }
 
 // Export for Multi-UI system plugin loading
-export default XPlus1GameConsole;
+export default DEPRECATEDXPlus1GameConsole;

@@ -139,7 +139,7 @@ export class ApplicationLauncher {
             // 3. Initialize Interface Orchestrator
             console.log("🔄 Initializing Interface Orchestrator...");
             this.orchestrator = createDevelopmentOrchestrator(this.config);
-            this.orchestrator.start();
+            await this.orchestrator.start();
             console.log("✅ Interface Orchestrator initialized");
 
             // 4. ActiveHandles and Request
@@ -724,38 +724,54 @@ export class ApplicationLauncher {
         // 4. Initialize Multi-UI Manager
         console.log("🔄 Initializing Multi-UI Manager...");
 
-        if (this.mcpDriver && this.orchestrator) {
+        // Verify required dependencies
+        if (!this.mcpDriver) {
+            logger.error("MCP Driver is not initialized. Cannot launch gamification UIs.");
+            throw new Error("MCP Driver is required for gamification UIs");
+        }
+
+        if (!this.orchestrator) {
+            logger.error("Orchestrator is not initialized. Cannot launch gamification UIs.");
+            throw new Error("Orchestrator is required for gamification UIs");
+        }
+
+        if (!this.runtime) {
+            logger.error("Runtime is not initialized. Cannot launch gamification UIs.");
+            throw new Error("Runtime is required for gamification UIs");
+        }
+
+        try {
             this.multiUIManager = new MultiUIGameManager(
                 this.runtime,
                 this.mcpDriver,
                 this.orchestrator,
                 this.config
             );
-        } else {
-			logger.info("No se ha podido lanzar las UI de gamificacion, falta driver u orchestrator")
-			return;
-		}
 
-        // Setup event handlers
-        this.multiUIManager.on("allUIsReady", (data) => {
-            console.log(`🎉 All ${data.uiCount} UI instances are ready!`);
-            this.displayGameInfo(this.config, this.multiUIManager!);
-        });
+            // Setup event handlers
+            this.multiUIManager.on("allUIsReady", (data) => {
+                console.log(`🎉 All ${data.uiCount} UI instances are ready!`);
+                this.displayGameInfo(this.config, this.multiUIManager!);
+            });
 
-        this.multiUIManager.on("uiStarted", (data) => {
-            console.log(`✅ UI started: ${data.config.name} (${data.uiId})`);
-        });
+            this.multiUIManager.on("uiStarted", (data) => {
+                console.log(`✅ UI started: ${data.config.name} (${data.uiId})`);
+            });
 
-        this.multiUIManager.on("uiError", (data) => {
-            console.error(`❌ UI error in ${data.uiId}:`, data.error.message);
-        });
+            this.multiUIManager.on("uiError", (data) => {
+                console.error(`❌ UI error in ${data.uiId}:`, data.error.message);
+            });
 
-        // 5. Start Multi-UI Manager
-        console.log("🚀 Starting Multi-UI Manager...");
-        await this.multiUIManager.start();
+            // 5. Start Multi-UI Manager
+            console.log("🚀 Starting Multi-UI Manager...");
+            await this.multiUIManager.start();
 
-        console.log("\n🎮 Multi-UI Game is running!");
-        console.log("Press Ctrl+C to stop all interfaces.");
+            console.log("\n🎮 Multi-UI Game is running!");
+            console.log("Press Ctrl+C to stop all interfaces.");
+        } catch (error) {
+            logger.error("Failed to initialize or start Multi-UI Manager", error as Error);
+            throw error;
+        }
     }
     /**
      * Display game information and available interfaces

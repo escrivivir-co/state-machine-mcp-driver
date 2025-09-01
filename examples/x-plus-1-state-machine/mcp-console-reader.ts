@@ -4,19 +4,19 @@
  */
 
 import { DEPRECATED_OLD_STATE_MACHINE_SERVER } from '../../src/mcp-servers/DEPRECATED';
-import { XPlus1GameConsole } from './ConsoleGamificationUI';
+import { DEPRECATEDXPlus1GameConsole } from './ConsoleGamificationUI';
 import { logger } from '../../src/utils/logger';
 
 /**
  * Enhanced X+1 MCP Machine with Console Reading Integration
  */
 export class EnhancedXPlus1MCPMachine extends DEPRECATED_OLD_STATE_MACHINE_SERVER {
-  private consoleUI?: XPlus1GameConsole;
+  private consoleUI?: DEPRECATEDXPlus1GameConsole;
 
   /**
    * Connect to a console UI instance for reading
    */
-  connectConsoleUI(consoleUI: XPlus1GameConsole): void {
+  connectConsoleUI(consoleUI: DEPRECATEDXPlus1GameConsole): void {
     this.consoleUI = consoleUI;
     logger.info('X+1 MCP: Console UI connected for reading');
     this.setupConsoleIntegration();
@@ -306,7 +306,7 @@ export async function runConsoleReadingDemo(): Promise<void> {
 
     // Create console UI using factory pattern
     logger.info('🎮 Creating console UI...');
-    const consoleUI = await XPlus1GameConsole.create();
+    const consoleUI = await DEPRECATEDXPlus1GameConsole.create();
 
     // Connect console UI to MCP server
     logger.info('🔗 Connecting console UI to MCP server...');
