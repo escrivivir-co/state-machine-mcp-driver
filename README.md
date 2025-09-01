@@ -43,8 +43,8 @@ Here's what you'll see when you run `npm start` - a complete orchestrated startu
 
 ⚡ Phase 2: Starting MCP Service Launcher
 ------------------------------------------
-🔄 Starting MCP Service Launcher on port 3000...
-[MCP Service Launcher] 🚀 Starting MCP Service Launcher on port 3000    
+🔄 Starting MCP Service Launcher on port 3050...
+[MCP Service Launcher] 🚀 Starting MCP Service Launcher on port 3050    
 [MCP Service Launcher] ✅ MCP Service Launcher ready
 [MCP Service Launcher] 📡 Waiting for commands...
 ✅ MCP Service Launcher started (PID: 4100)
@@ -713,7 +713,7 @@ npm run launcher:x-plus-1
 ```
 
 **What happens automatically:**
-1. 🔍 **Detects running MCP servers** (ports 3000-3003)
+1. 🔍 **Detects running MCP servers** (ports 3050-3003)
 2. 📝 **Generates `.vscode/mcp.json`** with current server configuration
 3. ✅ **Overwrites existing configuration** to ensure accuracy
 4. 📋 **Displays setup instructions** for VS Code integration
@@ -727,7 +727,7 @@ The auto-generated `.vscode/mcp.json` will contain:
   "servers": {
     "mcp-service-launcher": {
       "type": "http",
-      "url": "http://localhost:3000"
+      "url": "http://localhost:3050"
     },
     "xplus1-mcp-machine": {
       "type": "http", 

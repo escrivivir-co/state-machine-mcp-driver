@@ -4,7 +4,7 @@
     "module": "commonjs",
     "lib": ["ES2020", "DOM"],
     "outDir": "./dist",
-    "rootDir": "./",
+    "rootDir": "../",
     "strict": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
@@ -24,9 +24,10 @@
       "@models/*": ["src/models/*"],
       "@drivers/*": ["src/drivers/*"],
       "@runtime/*": ["src/runtime/*"],
-	  "@ui/*": ["src/ui/*"],
+      "@alephscript/*": ["../socket-gym/ws-server/src/alephscript/*"],
+	    "@ui/*": ["src/ui/*"],
       "@utils/*": ["src/utils/*"],
-	  "@examples/*": ["examples/*"]
+	    "@examples/*": ["examples/*"]
     },
     "allowSyntheticDefaultImports": true,
     "experimentalDecorators": true,
@@ -36,7 +37,8 @@
   "include": [
     "src/**/*",
     "examples/**/*",
-    "scripts/**/*"
+    "scripts/**/*",
+    "../socket-gym/ws-server/src/alephscript/**/*"
   ],
   "exclude": [
     "node_modules",

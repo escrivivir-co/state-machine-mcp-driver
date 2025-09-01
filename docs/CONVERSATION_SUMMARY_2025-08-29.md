@@ -50,7 +50,7 @@ This document captures, as literally and exhaustively as practical, the key step
 - Observed launcher output (abridged literal excerpts):
   - "Ollama server running (version: 0.11.7)"
   - "Model gpt-oss:20b available"
-  - "MCP Service Launcher ready on port 3000"
+  - "MCP Service Launcher ready on port 3050"
   - MCP servers health check: X+1 MCP Machine and Wiki MCP Browser "healthy".
 
 - Game console output (literal excerpt):

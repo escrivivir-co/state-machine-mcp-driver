@@ -110,7 +110,7 @@ El usuario ve estas instrucciones en consola:
       "command": "npx",
       "args": ["tsx", "src/mcp-servers/MCPServiceLauncher.ts"],
       "env": {
-        "MCP_SERVER_PORT": "3000"
+        "MCP_SERVER_PORT": "3050"
       },
       "description": "MCP Service Launcher - manages and monitors other MCP servers"
     },

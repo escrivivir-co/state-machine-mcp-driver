@@ -15,7 +15,7 @@ El `MCPServiceLauncher` es un servidor MCP especializado que gestiona el lanzami
 ```
 ApplicationLauncher (scripts/launcher.ts)
     ↓
-MCPServiceLauncher (puerto 3000)
+MCPServiceLauncher (puerto 3050)
     ↓ gestiona
     ├── XPlus1MCPMachine (puerto 3001) [consola separada]
     ├── WikiMCPBrowser (puerto 3002) [consola separada]
@@ -32,7 +32,7 @@ ConsoleGamificationUI (consola principal libre)
 - ✅ Pull del modelo si es necesario
 
 ### Fase 2: MCP Service Launcher
-- 🚀 Arrancar MCPServiceLauncher en puerto 3000
+- 🚀 Arrancar MCPServiceLauncher en puerto 3050
 - 📡 Inicializar MCPDriver para comunicación
 - ⚡ Registrar el launcher como servidor MCP
 
@@ -159,7 +159,7 @@ npm run launcher:x-plus-1
       "command": "npx",
       "args": ["tsx", "src/mcp-servers/MCPServiceLauncher.ts"],
       "env": {
-        "MCP_SERVER_PORT": "3000"
+        "MCP_SERVER_PORT": "3050"
       },
       "description": "MCP Service Launcher - manages and monitors other MCP servers"
     },
@@ -335,7 +335,7 @@ OLLAMA_URL=http://localhost:11434
 OLLAMA_MODEL=GPT-OSS:20b                 # Default model (can override to llama3.2:3b)
 
 # MCP Server Ports
-MCP_SERVICE_LAUNCHER_URL=http://localhost:3000
+MCP_SERVICE_LAUNCHER_URL=http://localhost:3050
 MCP_XPLUS1_URL=http://localhost:3001
 MCP_WIKI_URL=http://localhost:3002
 ```
@@ -357,7 +357,7 @@ OLLAMA_MODEL=mistral:7b npm run launcher:x-plus-1
 
 ```typescript
 const config = {
-  mcpServiceLauncherPort: 3000,
+  mcpServiceLauncherPort: 3050,
   mcpServers: [
     {
       id: 'xplus1-mcp-machine',
@@ -624,7 +624,7 @@ describe('Integration Tests', () => {
 1. **Puerto ocupado**
    ```bash
    # Verificar puertos en uso
-   netstat -tulpn | grep :3000
+   netstat -tulpn | grep :3050
    netstat -tulpn | grep :3001
    netstat -tulpn | grep :3002
    

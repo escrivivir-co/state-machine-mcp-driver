@@ -88,7 +88,7 @@ export async function componentIntegrationExample(): Promise<void> {
 
     setTimeout(() => {
         orchestrator.app.sendStateTransition("demo", "initial", "running");
-    }, 3000);
+    }, 3050);
 
     setTimeout(() => {
         orchestrator.sys.sendError(
@@ -277,7 +277,7 @@ export async function errorHandlingExample(): Promise<void> {
 
     const orchestrator = new Orchestrator({
         enableLogging: true,
-        messageTimeout: 3000,
+        messageTimeout: 3050,
     });
 
     // Listen for orchestrator events
@@ -333,7 +333,7 @@ export async function errorHandlingExample(): Promise<void> {
             "All systems are operational",
             "success"
         );
-    }, 3000);
+    }, 3050);
 
     // Clean up
     setTimeout(async () => {

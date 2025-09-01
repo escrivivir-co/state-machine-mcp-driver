@@ -83,7 +83,7 @@ async function runFullDemo(): Promise<void> {
     // Run AI simulation in parallel
     setTimeout(() => {
       simulateAIAssistant(mcpServer);
-    }, 3000);
+    }, 3050);
 
     logger.info('🎉 Full demo is now running!');
     logger.info('📝 Try interacting with the game while the AI reads the console');

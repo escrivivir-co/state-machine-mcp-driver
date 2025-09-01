@@ -113,7 +113,7 @@ export class DevOpsServer extends BaseMCPServer {
             {
                 id: "mcp-service-launcher",
                 name: "MCP Service Launcher",
-                url: "http://localhost:3000",
+                url: "http://localhost:3050",
                 timeout: 5000,
                 maxRetries: 2,
             },

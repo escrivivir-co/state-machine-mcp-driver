@@ -18,11 +18,23 @@ import { AppChannelImpl } from "./channel/app-channel";
 import { SysChannelImpl } from "./channel/sys-channel";
 import { UIChannelImpl } from "./channel/ui-channel";
 import { createChannelAgent } from "./channel/channel-agent-factory";
+import { AlephScriptClient } from "@/clients/alephscript-client";
+
+export interface IUserDetails {
+	id?: string;
+	name?: string;
+	usuario: string;
+	sesion?: string;
+	sesiones?: string[]
+}
 
 /**
  * Main Orchestrator class that manages all communication channels
  */
 export class Orchestrator extends EventEmitter {
+
+    name = "STM_MCP_Client";
+
     // ===== Core Channels =====
     public readonly app: AppChannelImpl;
     public readonly sys: SysChannelImpl;
@@ -38,6 +50,7 @@ export class Orchestrator extends EventEmitter {
     private totalMessages = 0;
     private totalErrors = 0;
     private crossChannelRoutes = new Map<string, number>();
+    private alephClient!: AlephScriptClient;
 
     // ===== Configuration =====
     private readonly config: Required<OrchestratorConfig>;
@@ -86,6 +99,20 @@ export class Orchestrator extends EventEmitter {
             Logger.info("🎼 Orchestrator initialized with 3 channels");
         }
     }
+
+    initAlephClient() {
+        this.alephClient = new AlephScriptClient(this.name)
+		this.alephClient.initTriggersDefinition.push(() => {
+
+            const ROOM_NAME = this.name + "_ROOM";
+			this.alephClient.io.emit("CLIENT_REGISTER", { usuario:  this.alephClient.name, sesion: getHash("xS")} as IUserDetails);
+			this.alephClient.io.emit("CLIENT_SUSCRIBE", { room: ROOM_NAME });
+			this.alephClient.room("MAKE_MASTER", { features: []}, ROOM_NAME);
+
+
+		})
+    }
+
 
     // ===== Lifecycle Management =====
 
@@ -664,4 +691,12 @@ export interface OrchestratorStatistics {
     };
     crossChannelRoutes: Record<string, number>;
     config: Required<OrchestratorConfig>;
+}
+
+export function getHash(key: string) {
+
+	const l = (s: string) => s.substring(s.length - 2)
+	const a = new Date().getTime().toString()
+	const b = Math.random().toString()
+	return key + ">" + l(a) + l(b)
 }

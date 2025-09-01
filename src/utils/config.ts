@@ -128,7 +128,7 @@ function parseEnvBoolean(
  * Main application configuration
  */
 export const DEFAULT_APP_CONFIG: AppConfig = {
-    port: parseEnvNumber(process.env.PORT, 3000),
+    port: parseEnvNumber(process.env.PORT, 3050),
     nodeEnv: (process.env.NODE_ENV as AppConfig["nodeEnv"]) || "development",
 	runtime: DEFAULT_RUNTIME_CONFIG,
     logging: {

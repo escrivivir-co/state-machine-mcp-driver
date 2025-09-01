@@ -93,7 +93,7 @@ async function ensureMCPServersRunning(): Promise<void> {
         {
             name: "MCP Service Launcher",
             script: "npm run mcp:launcher",
-            port: 3000,
+            port: 3050,
         },
         { name: "X+1 MCP Machine", script: "npm run mcp:xplus1", port: 3001 },
         { name: "Wiki MCP Browser", script: "npm run mcp:wiki", port: 3002 },
@@ -124,7 +124,7 @@ async function ensureMCPServersRunning(): Promise<void> {
     }
 
     console.log("⏳ Waiting for servers to initialize...");
-    await sleep(3000); // Give servers time to start
+    await sleep(3050); // Give servers time to start
 }
 
 /**
@@ -269,7 +269,7 @@ async function main(): Promise<void> {
             async () => await runtime!.initialize(),
             {
                 maxAttempts: 8,
-                baseDelay: 3000,
+                baseDelay: 3050,
                 maxDelay: 15000,
                 backoffMultiplier: 1.3,
             },

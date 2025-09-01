@@ -429,7 +429,7 @@ export interface AppConfig {
 }
 
 export const config: AppConfig = {
-  port: parseInt(process.env.PORT || '3000'),
+  port: parseInt(process.env.PORT || '3050'),
   nodeEnv: process.env.NODE_ENV || 'development',
   mcpServers: JSON.parse(process.env.MCP_SERVERS || '[]'),
   logging: {

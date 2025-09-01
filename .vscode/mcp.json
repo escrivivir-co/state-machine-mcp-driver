@@ -2,7 +2,7 @@
   "servers": {
     "mcp-service-launcher": {
       "type": "http",
-      "url": "http://localhost:3000"
+      "url": "http://localhost:3050"
     },
     "devops-mcp-server": {
       "type": "http",

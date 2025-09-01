@@ -325,6 +325,6 @@ mcp_wikimcpbrowse_load_wikipedia_article()
 ### **Web Interfaces**
 - **Main Game**: Console interface (automatic)
 - **Web Dashboard**: http://localhost:8080 (via DevOpsServer)
-- **System Health**: http://localhost:3000/health (MCPServiceLauncher)
+- **System Health**: http://localhost:3050/health (MCPServiceLauncher)
 
 **🎯 You now have complete documentation for total AI system control!** 🤖✨

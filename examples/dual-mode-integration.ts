@@ -366,7 +366,7 @@ async function main() {
     const config: DualModeConfig = {
         enableConsole: process.env.ENABLE_CONSOLE !== "false",
         enableWeb: process.env.ENABLE_WEB !== "false",
-        webPort: parseInt(process.env.WEB_PORT || "3000"),
+        webPort: parseInt(process.env.WEB_PORT || "3050"),
         gameTitle: "X+1 Dual Mode Game",
         debugMode: process.env.DEBUG_MODE === "true",
     };

@@ -1949,7 +1949,7 @@ export default MCPLauncherServer;
  * CLI entry point - run as standalone MCP server
  */
 async function main() {
-    console.log(`🚀 Starting MCP Service Launcher on port 3000`);
+    console.log(`🚀 Starting MCP Service Launcher on port 3050`);
 
     try {
         const launcher = new MCPLauncherServer();

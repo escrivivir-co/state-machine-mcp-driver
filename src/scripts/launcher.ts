@@ -51,7 +51,7 @@ const DEFAULT_RETRY_CONFIG: RetryConfig = {
 const DEFAULT_CONFIG: LaunchConfig = {
     ollamaUrl: "http://localhost:11434",
     requiredModel: process.env.OLLAMA_MODEL || "GPT-OSS:20b",
-    mcpServiceLauncherPort: 3000,
+    mcpServiceLauncherPort: 3050,
     healthCheckTimeout: 30000,
     shutdownGracePeriod: 5000,
 };
@@ -373,7 +373,7 @@ export class ApplicationLauncher {
 
         const { cmd, args: baseArgs } = this.getTsxCommand();
 
-        console.log("🔄 Starting MCP Service Launcher on port 3000...");
+        console.log("🔄 Starting MCP Service Launcher on port 3050...");
 
         const launcherProcess = spawn(
             cmd,
@@ -711,7 +711,7 @@ export class ApplicationLauncher {
             async () => await this.runtime!.initialize(),
             {
                 maxAttempts: 8,
-                baseDelay: 3000,
+                baseDelay: 3050,
                 maxDelay: 15000,
                 backoffMultiplier: 1.3,
             },

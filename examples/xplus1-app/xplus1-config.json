@@ -5,7 +5,7 @@
 	"launcher": {
 		"ollamaUrl": "http://localhost:11434",
 		"requiredModel": "GPT-OSS:20b",
-		"mcpServiceLauncherPort": 3000,
+		"mcpServiceLauncherPort": 3050,
 		"healthCheckTimeout": 30000,
 		"shutdownGracePeriod": 5000
 	},

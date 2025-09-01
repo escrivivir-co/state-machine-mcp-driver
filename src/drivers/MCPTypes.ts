@@ -8,7 +8,7 @@ const DEFAULT_MCP_SERVER_CONFIG = [
     {
         name: "MCP Service Launcher",
         script: "npm run mcp:launcher",
-        port: 3000,
+        port: 3050,
     },
     { name: "X+1 MCP Machine", script: "npm run mcp:xplus1", port: 3001 },
     { name: "Wiki MCP Browser", script: "npm run mcp:wiki", port: 3002 },
