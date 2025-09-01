@@ -556,9 +556,9 @@ export abstract class GamificationUI extends EventEmitter {
     /**
      * Generate agent postulations
      */
-    public generateAgentPostulations(
+    public async generateAgentPostulations(
         context?: Partial<PostulationContext>
-    ): AgentPostulation[] {
+    ): Promise<AgentPostulation[]> {
         if (!this.postulationManager || !this.currentThread) {
             return [];
         }
@@ -566,7 +566,7 @@ export abstract class GamificationUI extends EventEmitter {
         const fullContext: PostulationContext = {
             messageCount: this.currentThread.messageCount,
             maxMessages: this.config.maxMessagesPerThread || 50,
-            availableAgents: this.getActiveAgents(),
+            availableAgents: await this.getActiveAgents(),
             gameState: this.runtime.getCurrentState().gameData,
             ...context,
         };
@@ -594,11 +594,11 @@ export abstract class GamificationUI extends EventEmitter {
         }
 
         const activePostulations =
-            postulations || this.generateAgentPostulations();
+            postulations || await this.generateAgentPostulations() || [];
 
         if (activePostulations.length === 0) {
             // No postulations, try greedy random selection
-            const greedySelection = this.selectGreedyRandomAgent();
+            const greedySelection = await this.selectGreedyRandomAgent();
             if (greedySelection) {
                 this.agentSelection$.next(greedySelection);
             }
@@ -660,9 +660,9 @@ export abstract class GamificationUI extends EventEmitter {
     /**
      * Get active agents
      */
-    public getActiveAgents(): Agent[] {
-        return this.runtime
-            .getAgents()
+    public async getActiveAgents(): Promise<Agent[]> {
+        return (await this.runtime
+            .getAgents() || [])
             .filter((agent) => agent.status === AgentStatus.ACTIVE);
     }
 
@@ -744,8 +744,8 @@ export abstract class GamificationUI extends EventEmitter {
         return `msg_${++this.messageIdCounter}_${Date.now()}`;
     }
 
-    protected selectGreedyRandomAgent(): AgentPostulation | null {
-        const activeAgents = this.getActiveAgents();
+    protected async selectGreedyRandomAgent(): Promise<AgentPostulation | null> {
+        const activeAgents = await this.getActiveAgents();
         if (activeAgents.length === 0) {
             return null;
         }

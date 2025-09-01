@@ -11,6 +11,7 @@ import ConsoleGamificationUI from "../ConsoleGamificationUI";
 import { ConsoleUIEvent } from "../ConsoleUIEvent";
 import { ConsoleUIConfig } from "../ConsoleUIConfig";
 import { DEFAULT_APP_CONFIG, getConfigOrDefault, parseMcpConfigToTransportConfig } from "@/utils/config";
+import { DEFAULT_AGENT_CONFIG } from "../DEFAULT_AGENT_CONFIG";
 
 
 // Remote control interfaces (matching XPlus1MCPMachine)
@@ -536,7 +537,6 @@ export class StateMachineUI extends ConsoleGamificationUI {
     async start(): Promise<void> {
         // Initialize runtime first so base UI can show state/agents
 
-
         this.initRuntime();
 
         if (!this.mcpDriver?.executeTool) {
@@ -589,7 +589,6 @@ export class StateMachineUI extends ConsoleGamificationUI {
 
         // Add small delay to ensure agents are fully loaded
         setTimeout(async () => {
-            console.log("DEBUG: About to call forceDisplayPostulations...");
             await this.forceDisplayPostulations();
         }, 500);
     }
@@ -598,6 +597,7 @@ export class StateMachineUI extends ConsoleGamificationUI {
 
         if (!this.runtime.getAgent || !this.runtime.initialize) {
             this.runtime = new Runtime();
+            this.runtime.config.agentConfigs = DEFAULT_AGENT_CONFIG;
         }
         await this.runtime.initialize();
     }
@@ -635,7 +635,7 @@ export class StateMachineUI extends ConsoleGamificationUI {
         );
 
         await this.requestAgentSelection(
-            this.generateAgentPostulations(context)
+            await this.generateAgentPostulations(context)
         );
     }
 
@@ -974,7 +974,7 @@ export class StateMachineUI extends ConsoleGamificationUI {
     /**
      * Override greedy random selection to use X+1 specific logic
      */
-    protected selectGreedyRandomAgent(): AgentPostulation | null {
+    protected async selectGreedyRandomAgent(): Promise<AgentPostulation | null> {
         const context = {
             messageCount: this.gameState.messageCount,
             maxMessages: GAME_CONFIG.MAX_MESSAGES_THREAD,
@@ -988,7 +988,7 @@ export class StateMachineUI extends ConsoleGamificationUI {
 
         const suggestedAgentId =
             this.postulationSystem.getSuggestedAgent(context);
-        const agent = this.getActiveAgents().find(
+        const agent = (await this.getActiveAgents() || []).find(
             (a) => a.id === suggestedAgentId
         );
 
@@ -1312,7 +1312,7 @@ export class StateMachineUI extends ConsoleGamificationUI {
     /**
      * Override base status to show X+1 specific status
      */
-    protected showStatus(): void {
+    protected async showStatus(): Promise<void> {
         console.log("\n📊 Current Game Status:");
         console.log(`  X Value: ${this.gameState.x}`);
         console.log(
@@ -1321,7 +1321,7 @@ export class StateMachineUI extends ConsoleGamificationUI {
         console.log(`  Game phase: ${this.gameState.currentPhase}`);
         console.log(`  Total turns: ${this.gameState.turnHistory.length}`);
         console.log(
-            `  Active agents: ${this.runtime?.getAgents().length || 0}`
+            `  Active agents: ${(await this.runtime?.getAgents() || []).length || 0}`
         );
         console.log(
             `  User simulator: ${
@@ -1354,7 +1354,7 @@ export class StateMachineUI extends ConsoleGamificationUI {
         console.log("DEBUG: forceDisplayPostulations called");
         try {
             // Get available agents from runtime
-            const allAgents = this.runtime.getAgents();
+            const allAgents = await this.runtime.getAgents();
             console.log(
                 "DEBUG: All agents:",
                 allAgents.map((a) => `${a.name}(${a.status})`)

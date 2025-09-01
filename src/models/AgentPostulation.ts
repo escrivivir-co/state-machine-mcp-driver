@@ -5,6 +5,7 @@
  * based on their greediness levels and context.
  */
 
+import { DEFAULT_AGENT_CONFIG } from '@/ui/DEFAULT_AGENT_CONFIG';
 import { Agent } from './Agent';
 
 /**
@@ -324,7 +325,7 @@ export class AgentPostulationManager {
    * Get registered agent configurations
    */
   getAgentConfigs(): Map<string, AgentPostulationConfig> {
-    return new Map(this.agentConfigs);
+    return new Map(this.agentConfigs || DEFAULT_AGENT_CONFIG);
   }
 
   /**

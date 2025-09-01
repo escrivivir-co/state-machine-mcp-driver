@@ -582,8 +582,8 @@ export class HTML5GamificationUI extends GamificationUI {
     
     switch (phase) {
       case 'game':
-        phaseData.gameState = this.getCurrentState();
-        phaseData.agents = this.getActiveAgents().map(agent => ({
+        phaseData.gameState = await this.getCurrentState();
+        phaseData.agents = (await this.getActiveAgents()).map(agent => ({
           id: agent.id,
           name: agent.name,
           role: agent.role

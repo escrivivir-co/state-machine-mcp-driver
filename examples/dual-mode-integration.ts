@@ -162,8 +162,10 @@ class DualModeGameManager {
         }
 
         // Add agents from configuration
+        console.log("   DEPRECATED for>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> ", this.runtimeConfig.agentConfigs);
         if (this.runtimeConfig.agentConfigs) {
             this.runtimeConfig.agentConfigs.forEach((agentConfig: any) => {
+                
                 this.runtime.addAgent(agentConfig);
             });
         }

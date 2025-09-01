@@ -370,7 +370,7 @@ async function advancedRuntimeExample(): Promise<void> {
         });
 
         // List all agents and their status
-        const agents = runtime.getAgents();
+        const agents = await runtime.getAgents();
         logger.info("Agent status summary", {
             agents: agents.map((agent) => ({
                 id: agent.id,

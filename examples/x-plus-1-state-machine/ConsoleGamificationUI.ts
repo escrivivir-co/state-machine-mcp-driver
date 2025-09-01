@@ -643,7 +643,7 @@ export class DEPRECATEDXPlus1GameConsole extends ConsoleGamificationUI {
         );
 
         await this.requestAgentSelection(
-            this.generateAgentPostulations(context)
+            await this.generateAgentPostulations(context)
         );
     }
 
@@ -982,7 +982,7 @@ export class DEPRECATEDXPlus1GameConsole extends ConsoleGamificationUI {
     /**
      * Override greedy random selection to use X+1 specific logic
      */
-    protected selectGreedyRandomAgent(): AgentPostulation | null {
+    protected async selectGreedyRandomAgent(): Promise<AgentPostulation | null> {
         const context = {
             messageCount: this.gameState.messageCount,
             maxMessages: GAME_CONFIG.MAX_MESSAGES_THREAD,
@@ -996,12 +996,12 @@ export class DEPRECATEDXPlus1GameConsole extends ConsoleGamificationUI {
 
         const suggestedAgentId =
             this.postulationSystem.getSuggestedAgent(context);
-        const agent = this.getActiveAgents().find(
+        const agent = (await this.getActiveAgents() || []).find(
             (a) => a.id === suggestedAgentId
         );
 
         if (!agent) {
-            return super.selectGreedyRandomAgent();
+            return await super.selectGreedyRandomAgent();
         }
 
         // Create a postulation for the suggested agent
@@ -1320,7 +1320,7 @@ export class DEPRECATEDXPlus1GameConsole extends ConsoleGamificationUI {
     /**
      * Override base status to show X+1 specific status
      */
-    protected showStatus(): void {
+    protected async showStatus(): Promise<void> {
         console.log("\n📊 Current Game Status:");
         console.log(`  X Value: ${this.gameState.x}`);
         console.log(
@@ -1329,7 +1329,7 @@ export class DEPRECATEDXPlus1GameConsole extends ConsoleGamificationUI {
         console.log(`  Game phase: ${this.gameState.currentPhase}`);
         console.log(`  Total turns: ${this.gameState.turnHistory.length}`);
         console.log(
-            `  Active agents: ${this.runtimeInstance?.getAgents().length || 0}`
+            `  Active agents: ${(await this.runtimeInstance?.getAgents() || []).length || 0}`
         );
         console.log(
             `  User simulator: ${
@@ -1362,7 +1362,7 @@ export class DEPRECATEDXPlus1GameConsole extends ConsoleGamificationUI {
         console.log("DEBUG: forceDisplayPostulations called");
         try {
             // Get available agents from runtime
-            const allAgents = this.runtimeInstance.getAgents();
+            const allAgents = await this.runtimeInstance.getAgents();
             console.log(
                 "DEBUG: All agents:",
                 allAgents.map((a) => `${a.name}(${a.status})`)

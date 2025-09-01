@@ -279,9 +279,9 @@ export class ConsoleGamificationUI extends GamificationUI {
   /**
    * Get active agents
    */
-  getActiveAgents(): Agent[] {
-    return this.runtime
-      .getAgents()
+  async getActiveAgents(): Promise<Agent[]> {
+    return (await this.runtime
+      .getAgents() || [])
       .filter((agent) => agent.status === AgentStatus.ACTIVE);
   }
 
@@ -303,9 +303,9 @@ export class ConsoleGamificationUI extends GamificationUI {
   /**
    * Generate agent postulations for next message
    */
-  generateAgentPostulations(
-    context?: Partial<PostulationContext>
-  ): AgentPostulation[] {
+  async generateAgentPostulations(
+    context?:Partial<PostulationContext>
+  ):  Promise<AgentPostulation[]> {
     if (!this.postulationManager || !this.currentThread) {
       return [];
     }
@@ -313,7 +313,7 @@ export class ConsoleGamificationUI extends GamificationUI {
     const fullContext: PostulationContext = {
       messageCount: this.currentThread.messageCount,
       maxMessages: this.config.maxMessagesPerThread,
-      availableAgents: this.getActiveAgents(),
+      availableAgents: await this.getActiveAgents(),
       gameState: this.runtime.getCurrentState().gameData,
       ...context,
     };
@@ -461,11 +461,11 @@ export class ConsoleGamificationUI extends GamificationUI {
       return;
     }
 
-    const activePostulations = postulations || this.generateAgentPostulations();
+    const activePostulations = postulations || await this.generateAgentPostulations();
 
     if (activePostulations.length === 0) {
       // Handle no postulations - select a greedy random agent
-      const greedyAgent = this.selectGreedyRandomAgent();
+      const greedyAgent = await this.selectGreedyRandomAgent();
       if (greedyAgent) {
         this.displayMessageContent(
           "🤐 No agents are postulating this turn",
@@ -557,8 +557,8 @@ export class ConsoleGamificationUI extends GamificationUI {
   /**
    * Select a greedy random agent when no agents are postulating
    */
-  protected selectGreedyRandomAgent(): AgentPostulation | null {
-    const activeAgents = this.getActiveAgents();
+  protected async selectGreedyRandomAgent(): Promise<AgentPostulation | null> {
+    const activeAgents = await this.getActiveAgents();
     if (activeAgents.length === 0) {
       return null;
     }
@@ -684,7 +684,7 @@ export class ConsoleGamificationUI extends GamificationUI {
   /**
    * Show current status (can be overridden by subclasses)
    */
-  protected showStatus(): void {
+  protected async showStatus(): Promise<void> {
     console.log("\n📊 Current Status:");
     console.log(`  Current thread: ${this.currentThread?.id || "none"}`);
     console.log(
@@ -693,7 +693,7 @@ export class ConsoleGamificationUI extends GamificationUI {
       }`
     );
     console.log(`  Thread status: ${this.currentThread?.status || "none"}`);
-    console.log(`  Active agents: ${this.getActiveAgents().length}`);
+    console.log(`  Active agents: ${(await this.getActiveAgents() || []).length}`);
     console.log(`  Game active: ${this.isGameActive}`);
     console.log("");
   }
@@ -736,7 +736,7 @@ export class ConsoleGamificationUI extends GamificationUI {
     });
   }
 
-  private displayWelcome(): void {
+  private async displayWelcome(): Promise<void> {
     this.clearScreen();
 
     this.config.gameTitle = this.config.gameTitle || "default-game-title";
@@ -764,7 +764,7 @@ export class ConsoleGamificationUI extends GamificationUI {
       )
     );
 
-    const agents = this.getActiveAgents();
+    const agents = await this.getActiveAgents();
     console.log(
       this.colorize(
         `🤖 Active Agents: ${agents.map((a) => a.name).join(", ")}`,
@@ -879,7 +879,7 @@ export class ConsoleGamificationUI extends GamificationUI {
     });
   }
 
-  private handleDebugCommand(command: string): void {
+  private async handleDebugCommand(command: string): Promise<void> {
     const parts = command.split(" ");
     const action = parts[1];
 
@@ -897,7 +897,7 @@ export class ConsoleGamificationUI extends GamificationUI {
         this.displayDebug(`Current state: ${JSON.stringify(state, null, 2)}`);
         break;
       case "agents":
-        const agents = this.getActiveAgents();
+        const agents = await this.getActiveAgents();
         this.displayDebug(
           `Agents: ${JSON.stringify(
             agents.map((a) => ({
@@ -1486,12 +1486,12 @@ export class ConsoleGamificationUI extends GamificationUI {
   /**
    * Display game status
    */
-  displayGameStatus(): void {
+  async displayGameStatus(): Promise<void> {
     const state = this.getCurrentState();
     this.displayInfo("Current game status", {
       stateId: state.id,
       currentState: state.currentStateId,
-      agents: this.getActiveAgents().length,
+      agents: (await this.getActiveAgents() || []).length,
       thread: this.getCurrentThread()?.id,
     });
   }
