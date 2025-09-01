@@ -141,10 +141,13 @@ export class MCPClientDriver extends EventEmitter implements IMCPDriver {
             }
 
             // Store client and transport
+            console.log(
+                `MCPClientDriver: ADDING CLIENT connected to ${config.name} at ${config.url}`
+            );
             this.clients.set(config.id, client);
             this.transports.set(config.id, transport);
 
-            Logger.mcpInfo(
+            Logger.info(
                 `MCPClientDriver: Successfully connected to ${config.name} at ${config.url}`
             );
         } catch (error) {
@@ -563,7 +566,7 @@ export class MCPClientDriver extends EventEmitter implements IMCPDriver {
         const client = this.clients.get(serverId);
         if (!client) {
             throw new Error(
-                `Server with ID '${serverId}' not found or not connected`
+                `Client for with ID '${serverId}' not found or not connected`
             );
         }
         return client;

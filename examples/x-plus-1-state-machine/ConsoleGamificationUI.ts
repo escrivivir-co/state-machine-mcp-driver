@@ -50,7 +50,7 @@ const POLLING_INTERVAL_MS = 1000 * 60; // Polling interval for remote commands
 
 export class DEPRECATEDXPlus1GameConsole extends ConsoleGamificationUI {
     private runtimeInstance: Runtime;
-    private mcpDriver: MCPDriverAdapter;
+    public mcpDriver: MCPDriverAdapter;
     private chatProvider: OllamaChatProvider;
     private postulationSystem: XPlus1PostulationSystem;
 

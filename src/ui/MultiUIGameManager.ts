@@ -56,7 +56,7 @@ class ConsoleGamificationUIWrapper extends GamificationUI {
         };
 
         super(runtime, mcpAdapter, baseConfig);
-        this.consoleUI = new ConsoleGamificationUI(runtime, this.mcpAdapter, config);
+        this.consoleUI = new ConsoleGamificationUI(runtime, this.mcpDriver, config);
 
         // Forward relevant events
         this.consoleUI.on("gameStateChange", (data) => {

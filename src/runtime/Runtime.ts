@@ -162,13 +162,17 @@ export class Runtime extends EventEmitter {
    * Initialize the runtime
    */
   async initialize(): Promise<void> {
-    if (this.isInitialized) return;
+    if (this.isInitialized) {
+      console.log("Runtime is already intialized, skip!");
+      return;
+    }
 
     if (!this.config) {
       this.config = DEFAULT_RUNTIME_CONFIG;
     }
 
     if (!this.mcpDriver) {
+      console.log("Warning, mcpDriver has been reset!!");
       this.mcpDriver = new MCPDriverAdapter();
     }
 
@@ -180,6 +184,7 @@ export class Runtime extends EventEmitter {
 
       /** backmark */
       // Load the state graph
+      console.log("Runtime loadStateGraph!");
       this.stateGraph = await this.mcpDriver.loadStateGraph(
         this.config.mcpServerId,
         this.config.graphId
@@ -196,11 +201,13 @@ export class Runtime extends EventEmitter {
 
       try {
         // Load or create state
+        console.log("Runtime loadOrCreateState");
         await this.loadOrCreateState();
       } catch (error) {
         console.log("Error at loadOrCreate", error);
       }
 
+      console.log("Runtime initializeAgents");
       this.initializeAgents();
 
       // Setup auto-save if enabled
@@ -223,7 +230,7 @@ export class Runtime extends EventEmitter {
         agentCount: this.agents.size,
       });
 
-      Logger.runtime("Runtime initialized successfully");
+      Logger.info("Runtime initialized successfully");
     } catch (error) {
       const errorMessage = `Failed to initialize runtime: ${
         error instanceof Error ? error.message : "Unknown error"
@@ -236,11 +243,9 @@ export class Runtime extends EventEmitter {
   async initializeAgents() {
     try {
       // Initialize agents
-      console.log("   rt initialize loading for", this.config.agentConfigs);
       this.config.agentConfigs =
         this.config.agentConfigs || DEFAULT_AGENT_CONFIG;
 
-      console.log("   rt initialize loading for", this.config.agentConfigs);
       if (this.config.agentConfigs) {
         for (const agentConfig of this.config.agentConfigs) {
           await this.addAgent(agentConfig);
@@ -543,7 +548,6 @@ export class Runtime extends EventEmitter {
    * Get chat provider instance (if available)
    */
   getChatProvider(): DEPRECATEDChatProviderLike | undefined {
-
     if (!this.chatProvider) {
       this.chatProvider = OllamaChatProvider.createChatProvider();
     }

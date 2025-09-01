@@ -7,9 +7,9 @@ import { BaseMCPServer } from "./BaseMCPServer";
 import { BaseMCPServerConfig } from "./MCPServerConfig";
 import { z } from "zod";
 import { Logger } from "../utils/logger";
-import { DEFAULT_XPLUS1_MCP_SERVER_CONFIG } from "./DEFAULT_XPLUS1_MCP_SERVER_CONFIG";
 import DEPRECATED_OLD_STATE_MACHINE_SERVER from "./DEPRECATED";
 import { AlephScriptClient } from "@/clients/alephscript-client";
+import { DEFAULT_STATE_MACHINE_MCP_SERVER_CONFIG } from "./DEFAULT_STATE_MACHINE_MCP_SERVER_CONFIG";
 
 export interface IUserDetails {
 	id?: string;
@@ -92,7 +92,7 @@ export class MCPStateMachineServer extends BaseMCPServer {
     name = "OrfeoBot_StateMachine_MCP";
 
     constructor() {
-        const config: BaseMCPServerConfig = DEFAULT_XPLUS1_MCP_SERVER_CONFIG;
+        const config: BaseMCPServerConfig = DEFAULT_STATE_MACHINE_MCP_SERVER_CONFIG;
 
         super(config);
 

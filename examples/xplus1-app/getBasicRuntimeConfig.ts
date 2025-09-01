@@ -6,9 +6,9 @@ import { AppConfig } from "@/utils";
  * Create runtime configuration for X+1 game
  */
 
-export async function getBasicRuntimeConfig(
+export function getBasicRuntimeConfig(
 	config: AppConfig
-): Promise<RuntimeConfig> {
+): RuntimeConfig {
 	return {
 		...DEFAULT_RUNTIME_CONFIG,
 		...config?.runtime,

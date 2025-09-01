@@ -151,7 +151,7 @@ export enum GamificationUIEvent {
  */
 export abstract class GamificationUI extends EventEmitter {
     protected runtime: Runtime;
-    protected mcpAdapter: MCPDriverAdapter;
+    protected mcpDriver: MCPDriverAdapter;
     protected config: BaseGamificationUIConfig;
     protected alephScriptBot!: AlephScriptClient;
 
@@ -177,12 +177,12 @@ export abstract class GamificationUI extends EventEmitter {
 
     constructor(
         runtime: Runtime,
-        mcpAdapter: MCPDriverAdapter,
+        mcpDriver: MCPDriverAdapter,
         config: BaseGamificationUIConfig
     ) {
         super();
         this.runtime = runtime;
-        this.mcpAdapter = mcpAdapter;
+        this.mcpDriver = mcpDriver;
         this.config = {
             maxMessagesPerThread: 50,
             enablePostulations: false,
@@ -440,7 +440,7 @@ export abstract class GamificationUI extends EventEmitter {
 
     private setupMCPIntegration(): void {
         // Listen to MCP events from native driver only
-        const driver = this.mcpAdapter;
+        const driver = this.mcpDriver;
 
         // Native driver events
         if (driver && typeof driver.on === "function") {

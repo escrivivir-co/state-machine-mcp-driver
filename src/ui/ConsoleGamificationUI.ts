@@ -78,10 +78,10 @@ export class ConsoleGamificationUI extends GamificationUI {
 
   constructor(
     runtime: Runtime,
-    mcpAdapter: MCPDriverAdapter,
+    mcpDriver: MCPDriverAdapter,
     config: ConsoleUIConfig
   ) {
-    super(runtime, mcpAdapter, config);
+    super(runtime, mcpDriver, config);
 
     console.log("🎮 Initializing ConsoleGamificationUI...");
     this.setRuntime(runtime);
@@ -280,9 +280,9 @@ export class ConsoleGamificationUI extends GamificationUI {
    * Get active agents
    */
   async getActiveAgents(): Promise<Agent[]> {
-    return (await this.runtime
-      .getAgents() || [])
-      .filter((agent) => agent.status === AgentStatus.ACTIVE);
+    return ((await this.runtime.getAgents()) || []).filter(
+      (agent) => agent.status === AgentStatus.ACTIVE
+    );
   }
 
   /**
@@ -304,8 +304,8 @@ export class ConsoleGamificationUI extends GamificationUI {
    * Generate agent postulations for next message
    */
   async generateAgentPostulations(
-    context?:Partial<PostulationContext>
-  ):  Promise<AgentPostulation[]> {
+    context?: Partial<PostulationContext>
+  ): Promise<AgentPostulation[]> {
     if (!this.postulationManager || !this.currentThread) {
       return [];
     }
@@ -461,7 +461,8 @@ export class ConsoleGamificationUI extends GamificationUI {
       return;
     }
 
-    const activePostulations = postulations || await this.generateAgentPostulations();
+    const activePostulations =
+      postulations || (await this.generateAgentPostulations());
 
     if (activePostulations.length === 0) {
       // Handle no postulations - select a greedy random agent
@@ -693,7 +694,9 @@ export class ConsoleGamificationUI extends GamificationUI {
       }`
     );
     console.log(`  Thread status: ${this.currentThread?.status || "none"}`);
-    console.log(`  Active agents: ${(await this.getActiveAgents() || []).length}`);
+    console.log(
+      `  Active agents: ${((await this.getActiveAgents()) || []).length}`
+    );
     console.log(`  Game active: ${this.isGameActive}`);
     console.log("");
   }
@@ -1319,7 +1322,7 @@ export class ConsoleGamificationUI extends GamificationUI {
       this.updateDisplay(data.state);
     });
   }
-    /**
+  /**
    * Handle incoming MCP events
    */
   private handleMCPEventContent(event: MCPEvent): void {
@@ -1491,7 +1494,7 @@ export class ConsoleGamificationUI extends GamificationUI {
     this.displayInfo("Current game status", {
       stateId: state.id,
       currentState: state.currentStateId,
-      agents: (await this.getActiveAgents() || []).length,
+      agents: ((await this.getActiveAgents()) || []).length,
       thread: this.getCurrentThread()?.id,
     });
   }
