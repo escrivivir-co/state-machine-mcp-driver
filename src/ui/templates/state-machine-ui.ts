@@ -68,6 +68,8 @@ export class StateMachineUI extends ConsoleGamificationUI {
     ) {
         super(runtime, mcp, uiConfig);
 
+        this.chatProvider = chat;
+
         if (!runtime || !runtime.initialize) {
             StateMachineUI.create();
         } else {
@@ -435,22 +437,10 @@ export class StateMachineUI extends ConsoleGamificationUI {
         const transportConfig = parseMcpConfigToTransportConfig(server);
         await mcpDriver.addServer(transportConfig);
 
-
-        // Chat provider with MCP integration
-        const ollamaUrl = process.env.OLLAMA_URL || "http://localhost:11434";
-        const defaultModel = process.env.OLLAMA_MODEL || "GPT-OSS:20b";
-        const chatProvider = new OllamaChatProvider({
-            baseUrl: ollamaUrl,
-            defaultModel,
-            defaultTemperature: 0.7,
-            defaultMaxTokens: 150,
-            enableMCP: true,
-        }); // MCPDriverAdapter is not required as a second parameter
-
         const runtimeConfig = await getBasicRuntimeConfig({} as AppConfig);
-
+        const chatProvider = OllamaChatProvider.createChatProvider();
         const runtime = new Runtime(mcpDriver, runtimeConfig, chatProvider);
-
+        
         const uiConfig: ConsoleUIConfig = {
             maxMessagesPerThread: GAME_CONFIG.MAX_MESSAGES_THREAD,
             gameTitle: "X+1 Inductive Pattern Game",
@@ -462,12 +452,13 @@ export class StateMachineUI extends ConsoleGamificationUI {
             autoSelectSingleAgent: false, // Let user choose even with single agent
         };
 
-        return new StateMachineUI(
+        const machine = new StateMachineUI(
             runtime,
             mcpDriver,
             chatProvider,
             uiConfig
         );
+        return machine;
     }
 
     /**

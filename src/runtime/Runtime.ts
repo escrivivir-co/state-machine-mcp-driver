@@ -23,9 +23,10 @@ import { StateManager } from "@/state/StateManager";
 import { DEFAULT_RUNTIME_CONFIG } from "@/mcp-servers/DEFAULT_RUNTIME_CONFIG";
 import { MCPDriverAdapter } from "@/drivers";
 import { DEFAULT_AGENT_CONFIG } from "@/ui/DEFAULT_AGENT_CONFIG";
+import { OllamaChatProvider } from "@/chat-provider";
 
 // Chat provider types (supporting both strict typing and flexibility)
-export interface ChatProviderLike {
+export interface DEPRECATEDChatProviderLike {
   send?: (
     conversationId: string,
     userContent: string,
@@ -119,7 +120,7 @@ export enum RuntimeEvent {
  */
 export class Runtime extends EventEmitter {
   private mcpDriver!: IMCPDriver;
-  private chatProvider?: ChatProviderLike;
+  private chatProvider?: DEPRECATEDChatProviderLike;
   public config!: RuntimeConfig;
   private stateGraph?: StateGraph;
   private currentState?: State;
@@ -134,7 +135,7 @@ export class Runtime extends EventEmitter {
   constructor(
     mcpDriver?: IMCPDriver,
     config?: RuntimeConfig,
-    chatProvider?: ChatProviderLike
+    chatProvider?: DEPRECATEDChatProviderLike
   ) {
     super();
 
@@ -521,12 +522,6 @@ export class Runtime extends EventEmitter {
     if (this.agents.size == 0 && (this.config.agentConfigs || []).length > 0) {
       await this.initializeAgents();
     }
-
-    console.log(
-      "RUNTIME RETRIEVES AGENTES LIST",
-      this.agents.size,
-      this.config.agentConfigs
-    );
     return Array.from(this.agents.values());
   }
 
@@ -547,8 +542,19 @@ export class Runtime extends EventEmitter {
   /**
    * Get chat provider instance (if available)
    */
-  getChatProvider(): ChatProviderLike | undefined {
+  getChatProvider(): DEPRECATEDChatProviderLike | undefined {
+
+    if (!this.chatProvider) {
+      this.chatProvider = OllamaChatProvider.createChatProvider();
+    }
     return this.chatProvider;
+  }
+
+  /**
+   * Get chat provider instance (if available)
+   */
+  setChatProvider(provider: OllamaChatProvider): void {
+    this.chatProvider = provider;
   }
 
   /**
