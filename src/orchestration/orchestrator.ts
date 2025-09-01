@@ -113,6 +113,9 @@ export class Orchestrator extends EventEmitter {
 
 
 		})
+        this.alephClient.initializeSysChannelIntegration(this.getChannels());
+        this.alephClient.run();
+    
     }
 
 
@@ -316,7 +319,7 @@ export class Orchestrator extends EventEmitter {
         return {
             app: this.app,
             sys: this.sys,
-            ui: this.ui,
+            ui: this.ui
         };
     }
 

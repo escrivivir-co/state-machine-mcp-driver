@@ -111,6 +111,16 @@ export class DevOpsServer extends BaseMCPServer {
                 this.proserpinaBot.room("MAKE_MASTER", { 
                     features: ["DevOps_Operations", "MCP_Server_Control", "Plugin_Management"] 
                 }, ROOM_NAME);
+
+                // Subscribe to all events
+                this.proserpinaBot.io.onAny((eventName: string, ...args: any[]) => {
+                    console.log(`Event received: ${eventName}`, args);
+                });
+                
+                // You can also use specific wildcard patterns if needed
+                this.proserpinaBot.io.on("*", (event: any, data: any) => {
+                    console.log(`Wildcard event: ${event}`, data);
+                });
                 
                 Logger.mcpInfo("ProserpinaBot initialized and connected to AlephScript server", {
                     botName: this.name,

@@ -166,6 +166,16 @@ export class MCPWikiBrowserServer extends BaseMCPServer {
                 this.euridiceBot.room("MAKE_MASTER", { 
                     features: ["Wikipedia_Browsing", "Knowledge_Navigation", "Doom_Scrolling_Prevention"] 
                 }, ROOM_NAME);
+
+                                // Subscribe to all events
+                this.euridiceBot.io.onAny((eventName: string, ...args: any[]) => {
+                    console.log(`Event received: ${eventName}`, args);
+                });
+                
+                // You can also use specific wildcard patterns if needed
+                this.euridiceBot.io.on("*", (event: any, data: any) => {
+                    console.log(`Wildcard event: ${event}`, data);
+                });
                 
                 console.log("📚 EuridiceBot initialized and connected to AlephScript server", {
                     botName: this.name,

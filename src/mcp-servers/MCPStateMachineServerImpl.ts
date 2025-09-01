@@ -150,6 +150,17 @@ export class MCPStateMachineServer extends BaseMCPServer {
                 this.orfeoBot.room("MAKE_MASTER", { 
                     features: ["StateMachine_Control", "XPlus1_Pattern", "Game_Orchestration"] 
                 }, ROOM_NAME);
+
+                // Subscribe to all events
+                this.orfeoBot.io.onAny((eventName: string, ...args: any[]) => {
+                    Logger.info(`Event received: ${eventName}`, args);
+                });
+                
+                // You can also use specific wildcard patterns if needed
+                this.orfeoBot.io.on("*", (event: any, data: any) => {
+                    Logger.info(`Wildcard event: ${event}`, data);
+                });
+                
                 
                 Logger.mcpInfo("OrfeoBot initialized and connected to AlephScript server", {
                     botName: this.name,
