@@ -445,6 +445,9 @@ export abstract class BaseMCPServer {
      * Start the MCP server with HttpStreamable transport
      */
     async start(): Promise<void> {
+
+        Logger.info("Basic MCP Server instance created, starting... with bot support");
+
         await this.initialize();
 
         // Setup MCP endpoints following the SDK pattern

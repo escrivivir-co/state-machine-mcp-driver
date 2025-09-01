@@ -1,3 +1,20 @@
+import { AlephScriptClient } from "@/clients/alephscript-client";
+
+export interface IUserDetails {
+	id?: string;
+	name?: string;
+	usuario: string;
+	sesion?: string;
+	sesiones?: string[]
+}
+
+export function getHash(key: string) {
+	const l = (s: string) => s.substring(s.length - 2)
+	const a = new Date().getTime().toString()
+	const b = Math.random().toString()
+	return key + ">" + l(a) + l(b)
+}
+
 /**
  * Wikipedia MCP Browser Server
  * Real Wikipedia access via public API following the MCP protocol
@@ -88,6 +105,9 @@ export class MCPWikiBrowserServer extends BaseMCPServer {
         "https://en.wikipedia.org/api/rest_v1";
     private readonly WIKIPEDIA_API_OLD = "https://en.wikipedia.org/w/api.php";
     private cache: CacheConfig;
+    private euridiceBot!: AlephScriptClient;
+
+    name = "EuridiceBot_Wiki_MCP";
 
     constructor() {
         const config: BaseMCPServerConfig = DEFAULT_WIKI_MCP_SERVER_CONFIG;
@@ -122,6 +142,41 @@ export class MCPWikiBrowserServer extends BaseMCPServer {
             averageArticleTime: 0,
             dominantCategories: [],
         };
+
+        // Initialize EuridiceBot
+        this.initEuridiceBot();
+    }
+
+    /**
+     * Initialize EuridiceBot - Socket client for Wikipedia browsing operations
+     */
+    private initEuridiceBot(): void {
+        try {
+            this.euridiceBot = new AlephScriptClient(this.name);
+            
+            this.euridiceBot.initTriggersDefinition.push(() => {
+                const ROOM_NAME = this.name + "_ROOM";
+                const REGISTER_PAYLOAD = { 
+                    usuario: this.euridiceBot.name, 
+                    sesion: getHash("EuridiceBot")
+                };
+                
+                this.euridiceBot.io.emit("CLIENT_REGISTER", REGISTER_PAYLOAD as IUserDetails);
+                this.euridiceBot.io.emit("CLIENT_SUSCRIBE", { room: ROOM_NAME });
+                this.euridiceBot.room("MAKE_MASTER", { 
+                    features: ["Wikipedia_Browsing", "Knowledge_Navigation", "Doom_Scrolling_Prevention"] 
+                }, ROOM_NAME);
+                
+                console.log("📚 EuridiceBot initialized and connected to AlephScript server", {
+                    botName: this.name,
+                    room: ROOM_NAME
+                });
+            });
+
+            console.log("📖 EuridiceBot client created successfully");
+        } catch (error) {
+            console.error("❌ Failed to initialize EuridiceBot", { error });
+        }
     }
 
     /**
@@ -132,6 +187,12 @@ export class MCPWikiBrowserServer extends BaseMCPServer {
         this.setupResources();
         this.setupPrompts();
         this.initializeCache();
+        
+        // Start EuridiceBot connection
+        if (this.euridiceBot) {
+            console.log("🚀 Starting EuridiceBot connection...");
+            // The bot will auto-connect when the socket client initializes
+        }
     }
 
     /**

@@ -5,7 +5,7 @@
  * The full implementation is in src/mcp-servers/XPlus1MCPMachine.ts
  */
 
-import { MCPBasicStateMachineServer } from '../../../src/mcp-servers/XPlus1MCPMachine';
+import { DEPRECATED_OLD_STATE_MACHINE_SERVER } from '../../../src/mcp-servers/DEPRECATED';
 import { loadXPlus1Messages, type XPlus1MessagesConfig } from './config-loader';
 
 // Load configuration from JSON files
@@ -14,8 +14,8 @@ const messagesConfig: XPlus1MessagesConfig = loadXPlus1Messages();
 /**
  * Initialize and start the X+1 MCP Server for the example
  */
-export async function startXPlus1Server(): Promise<MCPBasicStateMachineServer> {
-  const server = new MCPBasicStateMachineServer();
+export async function startXPlus1Server(): Promise<DEPRECATED_OLD_STATE_MACHINE_SERVER> {
+  const server = new DEPRECATED_OLD_STATE_MACHINE_SERVER();
   
   console.log(messagesConfig.messages.server.starting);
   
@@ -33,9 +33,9 @@ export async function startXPlus1Server(): Promise<MCPBasicStateMachineServer> {
  * Mock client interface for testing
  */
 export class MockXPlus1Client {
-  private server: MCPBasicStateMachineServer;
+  private server: DEPRECATED_OLD_STATE_MACHINE_SERVER;
 
-  constructor(server: MCPBasicStateMachineServer) {
+  constructor(server: DEPRECATED_OLD_STATE_MACHINE_SERVER) {
     this.server = server;
   }
 
@@ -64,4 +64,4 @@ export class MockXPlus1Client {
   }
 }
 
-export { MCPBasicStateMachineServer as XPlus1MCPMachine };
+export { DEPRECATED_OLD_STATE_MACHINE_SERVER as XPlus1MCPMachine };

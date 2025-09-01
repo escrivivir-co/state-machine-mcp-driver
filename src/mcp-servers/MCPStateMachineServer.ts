@@ -1,5 +1,5 @@
 import { Logger } from "@/utils";
-import MCPBasicStateMachineServer from "./MCPStateMachineServerImpl";
+import DEPRECATED_OLD_STATE_MACHINE_SERVER, { MCPStateMachineServer } from "./MCPStateMachineServerImpl";
 
 /**
  * CLI entry point - run as standalone MCP server
@@ -7,8 +7,8 @@ import MCPBasicStateMachineServer from "./MCPStateMachineServerImpl";
 async function main() {
 
     try {
-        const server = new MCPBasicStateMachineServer();
-		Logger.info("MCPBasicStateMachineServer Server instance created, starting...");
+        const server = new MCPStateMachineServer();
+		Logger.info("MCPBasicStateMachineServer Server instance created, starting... with bot support. 1");
         await server.start();
 
         // Keep process alive

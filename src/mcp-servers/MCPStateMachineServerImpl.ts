@@ -8,7 +8,23 @@ import { BaseMCPServerConfig } from "./MCPServerConfig";
 import { z } from "zod";
 import { Logger } from "../utils/logger";
 import { DEFAULT_XPLUS1_MCP_SERVER_CONFIG } from "./DEFAULT_XPLUS1_MCP_SERVER_CONFIG";
-import MCPBasicStateMachineServer from "./XPlus1MCPMachine";
+import DEPRECATED_OLD_STATE_MACHINE_SERVER from "./DEPRECATED";
+import { AlephScriptClient } from "@/clients/alephscript-client";
+
+export interface IUserDetails {
+	id?: string;
+	name?: string;
+	usuario: string;
+	sesion?: string;
+	sesiones?: string[]
+}
+
+export function getHash(key: string) {
+	const l = (s: string) => s.substring(s.length - 2)
+	const a = new Date().getTime().toString()
+	const b = Math.random().toString()
+	return key + ">" + l(a) + l(b)
+}
 
 /**
  * X+1 State data structure
@@ -71,11 +87,16 @@ export class MCPStateMachineServer extends BaseMCPServer {
     private gameState: SharedGameState;
     private commandQueue: RemoteCommand[] = [];
     private eventListeners: Set<(event: any) => void> = new Set();
+    private orfeoBot!: AlephScriptClient;
+
+    name = "OrfeoBot_StateMachine_MCP";
 
     constructor() {
         const config: BaseMCPServerConfig = DEFAULT_XPLUS1_MCP_SERVER_CONFIG;
 
         super(config);
+
+        Logger.info("MCPStateMachineServer Server instance created, starting... with bot support. 1");
 
         // Initialize X+1 state
         this.state = {
@@ -85,6 +106,8 @@ export class MCPStateMachineServer extends BaseMCPServer {
             advancementHistory: [],
             sessionStart: Date.now(),
         };
+
+        Logger.info("MCPStateMachineServer Server instance created, starting... with bot support. 2");
 
         // Initialize shared game state for remote control
         this.gameState = {
@@ -96,6 +119,48 @@ export class MCPStateMachineServer extends BaseMCPServer {
             isWaitingForRemote: false,
             simulatorMode: false,
         };
+
+        Logger.info("MCPStateMachineServer Server instance created, starting... with bot support. 3");
+
+        // Initialize OrfeoBot
+        Logger.info("MCPStateMachineServer Server instance created, initOrfeoBot.");
+        this.initOrfeoBot();
+    }
+
+    /**
+     * Initialize OrfeoBot - Socket client for State Machine operations
+     */
+    private initOrfeoBot(): void {
+        try {
+
+            Logger.info("MCPStateMachineServer Server instance created, initOrfeoBot. 1");
+            this.orfeoBot = new AlephScriptClient(this.name);
+            
+            this.orfeoBot.initTriggersDefinition.push(() => {
+
+                Logger.info("MCPStateMachineServer OrfeoBot. ASYNC TRIGGER");
+                const ROOM_NAME = this.name + "_ROOM";
+                const REGISTER_PAYLOAD = { 
+                    usuario: this.orfeoBot.name, 
+                    sesion: getHash("OrfeoBot")
+                };
+                
+                this.orfeoBot.io.emit("CLIENT_REGISTER", REGISTER_PAYLOAD as IUserDetails);
+                this.orfeoBot.io.emit("CLIENT_SUSCRIBE", { room: ROOM_NAME });
+                this.orfeoBot.room("MAKE_MASTER", { 
+                    features: ["StateMachine_Control", "XPlus1_Pattern", "Game_Orchestration"] 
+                }, ROOM_NAME);
+                
+                Logger.mcpInfo("OrfeoBot initialized and connected to AlephScript server", {
+                    botName: this.name,
+                    room: ROOM_NAME
+                });
+            });
+
+            Logger.info("OrfeoBot client created successfully");
+        } catch (error) {
+            Logger.mcpError("Failed to initialize OrfeoBot", { error });
+        }
     }
 
     /**
@@ -105,6 +170,13 @@ export class MCPStateMachineServer extends BaseMCPServer {
         this.setupTools();
         this.setupResources();
         this.setupPrompts();
+        
+        // Start OrfeoBot connection to AlephScript server
+        if (this.orfeoBot) {
+            Logger.mcpInfo("Starting OrfeoBot connection...");
+            // The bot will connect when its triggers are executed
+            // This happens automatically when the AlephScript client connects
+        }
     }
 
     // === REMOTE CONTROL EVENT METHODS ===
@@ -2003,4 +2075,4 @@ Reset Count: ${this.state.resetCount}
     }
 }
 
-export default MCPBasicStateMachineServer;
+export default DEPRECATED_OLD_STATE_MACHINE_SERVER;

@@ -5,7 +5,23 @@ import { ContentManager, CRUDToolsManager, CoreComponentsManager } from "./manag
 import { DEFAULT_DEVOPS_MCP_SERVER_CONFIG } from "./DEFAULT_DEVOPS_MCP_SERVER_CONFIG";
 import { BaseMCPServerConfig } from "./MCPServerConfig";
 import { DevOpsPluginManager, PluginContext, XPlus1ControlPlugin } from "./plugins";
+import { AlephScriptClient } from "@/clients/alephscript-client";
 import { z } from "zod";
+
+export interface IUserDetails {
+	id?: string;
+	name?: string;
+	usuario: string;
+	sesion?: string;
+	sesiones?: string[]
+}
+
+export function getHash(key: string) {
+	const l = (s: string) => s.substring(s.length - 2)
+	const a = new Date().getTime().toString()
+	const b = Math.random().toString()
+	return key + ">" + l(a) + l(b)
+}
 
 /**
  * DevOps MCP Server
@@ -15,11 +31,14 @@ import { z } from "zod";
 export class DevOpsServer extends BaseMCPServer {
     private mcpAdapter?: MCPDriverAdapter;
     private pluginManager?: DevOpsPluginManager;
+    private proserpinaBot!: AlephScriptClient;
 
     // Manager architecture for better code organization (NEW)
     private contentManager?: ContentManager;
     private crudToolsManager?: CRUDToolsManager;
     private coreComponentsManager?: CoreComponentsManager;
+
+    name = "ProserpinaBot_DevOps_MCP";
 
     constructor() {
         const config: BaseMCPServerConfig = DEFAULT_DEVOPS_MCP_SERVER_CONFIG;
@@ -28,6 +47,9 @@ export class DevOpsServer extends BaseMCPServer {
 
         // Initialize manager architecture for better code organization
         this.initializeManagers();
+
+        // Initialize ProserpinaBot
+        this.initProserpinaBot();
 
         // Initialize MCP adapter for connecting to other servers
         // this.initializeMCPAdapter();
@@ -67,6 +89,38 @@ export class DevOpsServer extends BaseMCPServer {
             this.contentManager = undefined;
             this.crudToolsManager = undefined;
             this.coreComponentsManager = undefined;
+        }
+    }
+
+    /**
+     * Initialize ProserpinaBot - Socket client for DevOps operations
+     */
+    private initProserpinaBot(): void {
+        try {
+            this.proserpinaBot = new AlephScriptClient(this.name);
+            
+            this.proserpinaBot.initTriggersDefinition.push(() => {
+                const ROOM_NAME = this.name + "_ROOM";
+                const REGISTER_PAYLOAD = { 
+                    usuario: this.proserpinaBot.name, 
+                    sesion: getHash("ProserpinaBot")
+                };
+                
+                this.proserpinaBot.io.emit("CLIENT_REGISTER", REGISTER_PAYLOAD as IUserDetails);
+                this.proserpinaBot.io.emit("CLIENT_SUSCRIBE", { room: ROOM_NAME });
+                this.proserpinaBot.room("MAKE_MASTER", { 
+                    features: ["DevOps_Operations", "MCP_Server_Control", "Plugin_Management"] 
+                }, ROOM_NAME);
+                
+                Logger.mcpInfo("ProserpinaBot initialized and connected to AlephScript server", {
+                    botName: this.name,
+                    room: ROOM_NAME
+                });
+            });
+
+            Logger.mcpInfo("ProserpinaBot client created successfully");
+        } catch (error) {
+            Logger.mcpError("Failed to initialize ProserpinaBot", { error });
         }
     }
 
@@ -411,8 +465,17 @@ Por favor, abre el navegador simple de VS Code para acceder a la consola web del
 
         this.initializeDefaultContent();
         this.setupTools();
+        
         // Initialize plugin system after core tools are setup
         this.initializePluginSystem();
+        
+        // Start ProserpinaBot connection to AlephScript server
+        if (this.proserpinaBot) {
+            Logger.mcpInfo("Starting ProserpinaBot connection...");
+            // The bot will connect when its triggers are executed
+            // This happens automatically when the AlephScript client connects
+        }
+        
         // Note: Plugins are initialized during registration; avoid double init
     }
 

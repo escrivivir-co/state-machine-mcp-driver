@@ -58,7 +58,7 @@ interface SharedGameState {
  * X+1 MCP Machine Server
  * Handles the X+1 inductive pattern logic via MCP protocol
  */
-export class MCPBasicStateMachineServer extends BaseMCPServer {
+export class DEPRECATED_OLD_STATE_MACHINE_SERVER extends BaseMCPServer {
   private state: XPlusOneState;
   private gameState: SharedGameState;
   private commandQueue: RemoteCommand[] = [];
@@ -1617,7 +1617,7 @@ Reset Count: ${this.state.resetCount}
   }
 }
 
-export default MCPBasicStateMachineServer;
+export default DEPRECATED_OLD_STATE_MACHINE_SERVER;
 
 /**
  * CLI entry point - run as standalone MCP server
@@ -1626,7 +1626,7 @@ async function main() {
   console.log(`🎮 Starting X+1 MCP Machine on port 3001`);
   
   try {
-    const server = new MCPBasicStateMachineServer();
+    const server = new DEPRECATED_OLD_STATE_MACHINE_SERVER();
     await server.start();
     
     // Keep process alive
