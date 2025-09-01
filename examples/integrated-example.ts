@@ -72,7 +72,7 @@ async function main() {
         // 4. Connect UI
         console.log("🖥️  Setting up Console UI...");
 
-        const ui = new ConsoleGamificationUI(runtime, {
+        const ui = new ConsoleGamificationUI(runtime, mcpAdapter, {
             maxMessagesPerThread: 100,
             gameTitle: "Multi-Interface Demo",
             welcomeMessage: "Welcome to the integrated demo!",

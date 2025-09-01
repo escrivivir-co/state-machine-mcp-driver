@@ -14,10 +14,7 @@ export {
 
 // Console UI
 export { 
-  ConsoleGamificationUI, 
-  ConsoleUIConfig, 
-  ConversationMessage, 
-  ConsoleUIEvent 
+  ConsoleGamificationUI 
 } from './ConsoleGamificationUI';
 
 // HTML5 Web UI

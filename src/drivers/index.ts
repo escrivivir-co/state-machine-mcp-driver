@@ -7,6 +7,7 @@
 export { MCPClientDriver } from './MCPClientDriver';
 export { MCPDriverAdapter } from './MCPDriverAdapter';
 export { IMCPDriver } from './IMCPDriver';
+export { MCPEvent } from './MCPEvent';
 
 // MCP Types exports
 export {
@@ -20,7 +21,6 @@ export {
   MCPPromptResponse,
   MCPHealthResponse,
   MCPStats,
-  MCPEvent,
   MCPEventType,
   MCPError,
   MCPErrorType,

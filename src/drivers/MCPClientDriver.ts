@@ -23,6 +23,7 @@ import { IMCPDriver, MCPServerTransportConfig } from "./IMCPDriver";
 import { MCPToolResponse } from "./MCPTypes";
 import { logger, Logger } from "../utils/logger";
 import { EventEmitter } from "events";
+import { MCPEvent } from "./MCPEvent";
 
 export interface MCPResource {
     mimeType: string;
@@ -30,18 +31,6 @@ export interface MCPResource {
     text: string;
     value: any;
 }
-/**
- * Native MCP Client Driver using official SDK
- * Implements IMCPDriver interface for Runtime compatibility
- */
-export interface MCPEvent {
-    type: "tool" | "resource" | "prompt" | "state" | "health" | "error";
-    action: string;
-    serverId: string;
-    data: any;
-    timestamp: number;
-}
-
 export class MCPClient extends Client {
     name: string | undefined = "notset";
 }

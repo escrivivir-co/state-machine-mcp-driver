@@ -210,22 +210,6 @@ export enum MCPEventType {
 }
 
 /**
- * Event data for MCP operations
- */
-export interface MCPEvent {
-    /** Type of event */
-    type: MCPEventType;
-    /** Server ID this event relates to */
-    serverId: string;
-    /** Timestamp when event occurred */
-    timestamp: number;
-    /** Event-specific data */
-    data?: any;
-    /** Error information if applicable */
-    error?: string;
-}
-
-/**
  * Error types that can occur in MCP operations
  */
 export enum MCPErrorType {

@@ -7,7 +7,9 @@ import { AppConfig } from "@/utils";
 import XPlus1PostulationSystem from "@examples/x-plus-1-state-machine/XPlus1PostulationSystem";
 import { getBasicRuntimeConfig } from "@examples/xplus1-app/getBasicRuntimeConfig";
 import { GAME_CONFIG, MESSAGE_TEMPLATES } from "@examples/xplus1-app/xplus1-game";
-import ConsoleGamificationUI, { ConsoleUIConfig, ConsoleUIEvent } from "../ConsoleGamificationUI";
+import ConsoleGamificationUI from "../ConsoleGamificationUI";
+import { ConsoleUIEvent } from "../ConsoleUIEvent";
+import { ConsoleUIConfig } from "../ConsoleUIConfig";
 import { DEFAULT_APP_CONFIG, getConfigOrDefault, parseMcpConfigToTransportConfig } from "@/utils/config";
 
 
@@ -63,7 +65,7 @@ export class StateMachineUI extends ConsoleGamificationUI {
         chat: OllamaChatProvider,
         uiConfig: ConsoleUIConfig
     ) {
-        super(runtime, uiConfig);
+        super(runtime, mcp, uiConfig);
 
         if (!runtime || !runtime.initialize) {
             StateMachineUI.create();
@@ -1019,7 +1021,7 @@ export class StateMachineUI extends ConsoleGamificationUI {
     }
 
     // Minimal user input handler for the example; extend as needed
-    private async onUserInput(input: string): Promise<void> {
+    async onUserInput(input: string): Promise<void> {
         if (!this.gameState.isActive) {
             return;
         }

@@ -22,7 +22,7 @@ import {
 
 import { Runtime } from "../runtime/Runtime";
 import { MCPDriverAdapter } from "../drivers/MCPDriverAdapter";
-import { MCPEvent, MCPEventType } from "../drivers/MCPTypes";
+import { MCPEventType } from "../drivers/MCPTypes";
 import { Logger } from "../utils/logger";
 import { Agent, AgentStatus, AgentRole } from "../models";
 import {
@@ -31,6 +31,18 @@ import {
     PostulationContext,
     AgentGreediness,
 } from "../models/AgentPostulation";
+import { MCPEvent } from "@/drivers";
+import { AlephScriptClient } from "@/clients/alephscript-client";
+
+/**
+ * Generate a hash for session identification
+ */
+function getHash(key: string): string {
+    const l = (s: string) => s.substring(s.length - 2);
+    const a = new Date().getTime().toString();
+    const b = Math.random().toString();
+    return key + ">" + l(a) + l(b);
+}
 
 /**
  * Base configuration for all gamification UIs
@@ -141,6 +153,7 @@ export abstract class GamificationUI extends EventEmitter {
     protected runtime: Runtime;
     protected mcpAdapter: MCPDriverAdapter;
     protected config: BaseGamificationUIConfig;
+    protected alephScriptBot!: AlephScriptClient;
 
     // ===== RxJS Reactive Streams =====
     protected destroy$ = new Subject<void>();
@@ -181,6 +194,9 @@ export abstract class GamificationUI extends EventEmitter {
         this.setupRxJSStreams();
         this.setupMCPIntegration();
         this.setupRuntimeIntegration();
+
+        // Initialize AlephScript bot for UI interactions
+        this.initAlephScriptBot();
 
         if (this.config.enablePostulations) {
             this.postulationManager = new AgentPostulationManager();
@@ -224,6 +240,134 @@ export abstract class GamificationUI extends EventEmitter {
      * Update UI phase display
      */
     abstract updatePhaseDisplay(phase: UIPhase): Promise<void>;
+
+    // ===== AlephScript Integration =====
+
+    /**
+     * Initialize AlephScriptBot - Socket client for UI operations
+     */
+    private initAlephScriptBot(): void {
+        try {
+            this.alephScriptBot = new AlephScriptClient(`${this.config.gameTitle}_UI`);
+            
+            this.alephScriptBot.initTriggersDefinition.push(() => {
+                const ROOM_NAME = this.alephScriptBot.name + "_ROOM";
+                const REGISTER_PAYLOAD = { 
+                    usuario: this.alephScriptBot.name, 
+                    sesion: getHash("GamificationUI")
+                };
+                
+                this.alephScriptBot.io.emit("CLIENT_REGISTER", REGISTER_PAYLOAD);
+                this.alephScriptBot.io.emit("CLIENT_SUSCRIBE", { room: ROOM_NAME });
+                this.alephScriptBot.room("MAKE_MASTER", { 
+                    features: ["UI_Operations", "Game_Interface", "User_Interaction"] 
+                }, ROOM_NAME);
+
+                // Subscribe to UI-specific events
+                this.alephScriptBot.io.on('user-input', (data: any) => {
+                    console.log(`🎮 UI received user input:`, data);
+                    if (data.input) {
+                        this.sendUserInput(data.input);
+                    }
+                });
+
+                this.alephScriptBot.io.on('phase-change', (data: any) => {
+                    console.log(`🎮 UI phase change requested:`, data);
+                    if (data.phase) {
+                        this.changePhase(data.phase);
+                    }
+                });
+
+                this.alephScriptBot.io.on('agent-selection', (data: any) => {
+                    console.log(`🎮 UI agent selection requested:`, data);
+                    if (typeof data.index === 'number') {
+                        this.selectAgent(data.index);
+                    }
+                });
+
+                this.alephScriptBot.io.on('system-message', (data: any) => {
+                    console.log(`🎮 UI system message:`, data);
+                    if (data.content) {
+                        this.sendSystemMessage(data.content, data.metadata);
+                    }
+                });
+
+                this.alephScriptBot.io.on('ui-command', (data: any) => {
+                    console.log(`🎮 UI command received:`, data);
+                    this.handleUICommand(data);
+                });
+
+                // Subscribe to all events for debugging
+                this.alephScriptBot.io.onAny((eventName: string, ...args: any[]) => {
+                    if (this.config.debugMode) {
+                        console.log(`🎮 UI Event received: ${eventName}`, args);
+                    }
+                });
+                
+                Logger.info(`${this.config.gameTitle} UI AlephScriptBot initialized and connected`, {
+                    botName: this.alephScriptBot.name,
+                    room: ROOM_NAME
+                });
+            });
+
+            Logger.info(`${this.config.gameTitle} UI AlephScriptBot client created successfully`);
+        } catch (error) {
+            Logger.error(`Failed to initialize ${this.config.gameTitle} UI AlephScriptBot`, error as Error);
+        }
+    }
+
+    /**
+     * Handle UI-specific commands from AlephScript
+     */
+    private async handleUICommand(data: any): Promise<void> {
+        try {
+            switch (data.command) {
+                case 'start':
+                    await this.start();
+                    break;
+                case 'stop':
+                    await this.stop();
+                    break;
+                case 'generate-postulations':
+                    this.generateAgentPostulations(data.context);
+                    break;
+                case 'request-agent-selection':
+                    await this.requestAgentSelection(data.postulations);
+                    break;
+                case 'new-thread':
+                    this.startNewThread();
+                    break;
+                case 'complete-thread':
+                    this.completeCurrentThread();
+                    break;
+                default:
+                    Logger.warn(`Unknown UI command: ${data.command}`);
+            }
+        } catch (error) {
+            Logger.error(`Error handling UI command: ${data.command}`, error as Error);
+        }
+    }
+
+    /**
+     * Send UI event to AlephScript server
+     */
+    protected sendUIEvent(eventName: string, data: any): void {
+        try {
+            if (this.alephScriptBot && this.alephScriptBot.io) {
+                this.alephScriptBot.io.emit(eventName, {
+                    ui: this.config.gameTitle,
+                    timestamp: Date.now(),
+                    ...data
+                });
+                
+                if (this.config.debugMode) {
+                    console.log(`🎮 UI Event sent: ${eventName}`, data);
+                }
+            }
+        } catch (error) {
+            Logger.error(`Error sending UI event: ${eventName}`, error as Error);
+        }
+    }
 
     // ===== RxJS Reactive Streams Setup =====
 
@@ -347,6 +491,13 @@ export abstract class GamificationUI extends EventEmitter {
      */
     public sendUserInput(input: string): void {
         this.userInput$.next(input);
+        
+        // Notify AlephScript about user input
+        this.sendUIEvent('ui-user-input', {
+            input: input,
+            threadId: this.currentThread?.id,
+            phase: this.currentPhase
+        });
     }
 
     /**
@@ -528,6 +679,12 @@ export abstract class GamificationUI extends EventEmitter {
     public changePhase(phase: UIPhase): void {
         this.currentPhase = phase;
         this.currentPhase$.next(phase);
+        
+        // Notify AlephScript about phase change
+        this.sendUIEvent('ui-phase-changed', {
+            phase: phase,
+            previousPhase: this.currentPhase
+        });
     }
 
     // ===== Protected Helper Methods =====
@@ -564,6 +721,12 @@ export abstract class GamificationUI extends EventEmitter {
         this.currentThread$.next(this.currentThread);
         this.emit(GamificationUIEvent.THREAD_STARTED, {
             thread: this.currentThread,
+        });
+
+        // Notify AlephScript about new thread
+        this.sendUIEvent('ui-thread-started', {
+            threadId: this.currentThread.id,
+            startTime: this.currentThread.startTime
         });
     }
 
@@ -778,9 +941,43 @@ export abstract class GamificationUI extends EventEmitter {
     // ===== Cleanup =====
 
     /**
+     * Start AlephScript connection
+     */
+    protected async startAlephScriptConnection(): Promise<void> {
+        try {
+            if (this.alephScriptBot) {
+                // The connection is initiated when triggers are defined
+                // This method can be called by subclasses when they start
+                this.sendUIEvent('ui-started', {
+                    title: this.config.gameTitle,
+                    timestamp: Date.now()
+                });
+                Logger.info(`${this.config.gameTitle} UI AlephScript connection initiated`);
+            }
+        } catch (error) {
+            Logger.error(`Error starting AlephScript connection for ${this.config.gameTitle} UI`, error as Error);
+        }
+    }
+
+    /**
      * Cleanup resources
      */
     public async destroy(): Promise<void> {
+        // Notify AlephScript about UI shutdown
+        this.sendUIEvent('ui-shutdown', {
+            title: this.config.gameTitle,
+            timestamp: Date.now()
+        });
+
+        // Cleanup AlephScript connection
+        try {
+            if (this.alephScriptBot && this.alephScriptBot.io) {
+                this.alephScriptBot.io.disconnect();
+            }
+        } catch (error) {
+            Logger.error(`Error disconnecting AlephScript for ${this.config.gameTitle} UI`, error as Error);
+        }
+
         this.destroy$.next();
         this.destroy$.complete();
 

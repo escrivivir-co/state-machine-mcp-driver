@@ -178,7 +178,7 @@ class DualModeGameManager {
     }
 
     private async setupConsoleUI(): Promise<void> {
-        this.consoleUI = new ConsoleGamificationUI(this.runtime, {
+        this.consoleUI = new ConsoleGamificationUI(this.runtime, this.mcpAdapter, {
             gameTitle: this.config.gameTitle,
             maxMessagesPerThread: 50,
             debugMode: this.config.debugMode,

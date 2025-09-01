@@ -9,17 +9,10 @@ import path from 'path';
 import { 
   Observable, 
   Subject, 
-  BehaviorSubject,
-  timer,
-  fromEvent
-} from 'rxjs';
+  timer} from 'rxjs';
 import { 
-  map, 
   filter, 
   tap, 
-  catchError, 
-  shareReplay, 
-  distinctUntilChanged,
   throttleTime,
   takeUntil
 } from 'rxjs/operators';

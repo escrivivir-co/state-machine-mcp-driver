@@ -4,1575 +4,1499 @@
  */
 
 import * as readline from "readline";
-import { EventEmitter } from "events";
 import { Runtime, RuntimeEvent } from "../runtime/Runtime";
 import { Agent, AgentRole, AgentStatus } from "../models/Agent";
 import {
-    AgentPostulation,
-    AgentPostulationManager,
-    PostulationContext,
-    AgentGreediness,
+  AgentPostulation,
+  AgentPostulationManager,
+  PostulationContext,
+  AgentGreediness,
 } from "../models/AgentPostulation";
 import { State } from "../models/State";
 import { logger, Logger } from "../utils/logger";
 import {
-    IConsoleReader,
-    ConsoleOutput,
-    PromptState,
-    UIInteractionState,
-    UIStatus,
-    ConsoleReadingCapabilities,
-    PromptOption,
-    ConsoleStateChangeEvent,
+  ConsoleOutput,
+  PromptState,
+  UIInteractionState,
+  UIStatus,
+  ConsoleReadingCapabilities,
+  PromptOption,
+  ConsoleStateChangeEvent,
 } from "./IConsoleReader";
-import { MCPEvent } from "../drivers/MCPClientDriver";
+import { MCPEvent } from "@/drivers";
 import { ChannelConsumer } from "@/orchestration/channel/deprecated-channel-consumer";
-
-/**
- * Configuration for console UI
- */
-export interface ConsoleUIConfig {
-    /** Maximum messages per conversation thread */
-    maxMessagesPerThread: number;
-    /** Game title to display */
-    gameTitle: string;
-    /** Welcome message */
-    welcomeMessage?: string;
-    /** Enable debug mode */
-    debugMode?: boolean;
-    /** Prompt prefix for user input */
-    userPrompt?: string;
-    /** Colors enabled */
-    enableColors?: boolean;
-    /** Enable agent postulation system */
-    enablePostulations?: boolean;
-    /** Auto-select agents when only one postulates */
-    autoSelectSingleAgent?: boolean;
-    /** Auto-start the first conversation turn */
-    autoStart?: boolean;
-}
-
-/**
- * Message in the conversation thread
- */
-export interface ConversationMessage {
-    /** Message ID */
-    id: string;
-    /** Who sent the message */
-    sender: "user" | "agent" | "system";
-    /** Agent ID if sender is agent */
-    agentId?: string;
-    /** Agent name for display */
-    agentName?: string;
-    /** Message content */
-    content: string;
-    /** Message timestamp */
-    timestamp: number;
-    /** Message metadata */
-    metadata?: Record<string, any>;
-}
-
-/**
- * Current conversation thread state
- */
-export interface ConversationThread {
-    /** Thread ID */
-    id: string;
-    /** Messages in thread */
-    messages: ConversationMessage[];
-    /** Current message count */
-    messageCount: number;
-    /** Thread start time */
-    startTime: number;
-    /** Thread status */
-    status: "active" | "completed" | "aborted";
-}
-
-/**
- * Console UI Events
- */
-export enum ConsoleUIEvent {
-    USER_INPUT = "userInput",
-    AGENT_MESSAGE = "agentMessage",
-    THREAD_STARTED = "threadStarted",
-    THREAD_COMPLETED = "threadCompleted",
-    GAME_EXIT = "gameExit",
-    DEBUG_MESSAGE = "debugMessage",
-    AGENT_SELECTION_REQUESTED = "agentSelectionRequested",
-    AGENT_SELECTED = "agentSelected",
-    POSTULATIONS_GENERATED = "postulationsGenerated",
-}
+import GamificationUI, { GameMessage, UIPhase } from "./GamificationUI";
+import { MCPDriverAdapter } from "@/drivers";
+import { ConsoleUIConfig } from "./ConsoleUIConfig";
+import { ConversationMessage } from "./ConversationMessage";
+import { ConversationThread } from "./ConversationThread";
+import { ConsoleUIEvent } from "./ConsoleUIEvent";
 
 /**
  * Reusable Console Gamification UI
  */
-export class ConsoleGamificationUI
-    extends EventEmitter
-    implements IConsoleReader
-{
-    public runtime!: Runtime;
-    private config: ConsoleUIConfig;
-    private rl: readline.Interface;
-    private currentThread?: ConversationThread;
-    private isGameActive = false;
-    private messageIdCounter = 0;
-    private postulationManager?: AgentPostulationManager;
-    private pendingPostulations: AgentPostulation[] = [];
-    private awaitingAgentSelection = false;
-    private gameCommands: Map<string, (input: string) => Promise<void>> =
-        new Map();
+export class ConsoleGamificationUI extends GamificationUI {
+  public runtime!: Runtime;
+  config: ConsoleUIConfig;
+  private rl: readline.Interface;
+  private isGameActive = false;
+  messageIdCounter = 0;
+  postulationManager?: AgentPostulationManager;
+  pendingPostulations: AgentPostulation[] = [];
+  awaitingAgentSelection = false;
+  gameCommands: Map<string, (input: string) => Promise<void>> = new Map();
 
-    // === Console Reading State ===
-    private currentConsoleOutput: string[] = [];
-    private currentPromptText = "";
-    private currentPromptOptions: PromptOption[] = [];
-    private currentUIPhase: UIInteractionState["phase"] = "startup";
-    private isWaitingForInput = false;
-    private inputType: PromptState["inputType"] = "text";
-    private lastUserAction?: string;
-    private pendingActions: string[] = [];
-    private availableCommands: string[] = [];
-    private consoleChangeListeners: Set<(status: UIStatus) => void> = new Set();
+  // === Console Reading State ===
+  private currentConsoleOutput: string[] = [];
+  private currentPromptText = "";
+  private currentPromptOptions: PromptOption[] = [];
+  private currentUIPhase: UIInteractionState["phase"] = "startup";
+  private isWaitingForInput = false;
+  private inputType: PromptState["inputType"] = "text";
+  private lastUserAction?: string;
+  private pendingActions: string[] = [];
+  private availableCommands: string[] = [];
+  private consoleChangeListeners: Set<(status: UIStatus) => void> = new Set();
 
-    // Color codes for console output
-    private colors = {
-        reset: "\x1b[0m",
-        bright: "\x1b[1m",
-        dim: "\x1b[2m",
-        red: "\x1b[31m",
-        green: "\x1b[32m",
-        yellow: "\x1b[33m",
-        blue: "\x1b[34m",
-        magenta: "\x1b[35m",
-        cyan: "\x1b[36m",
-        white: "\x1b[37m",
+  // Color codes for console output
+  private colors = {
+    reset: "\x1b[0m",
+    bright: "\x1b[1m",
+    dim: "\x1b[2m",
+    red: "\x1b[31m",
+    green: "\x1b[32m",
+    yellow: "\x1b[33m",
+    blue: "\x1b[34m",
+    magenta: "\x1b[35m",
+    cyan: "\x1b[36m",
+    white: "\x1b[37m",
+  };
+
+  private orchestrator?: ChannelConsumer;
+  private mcpEventLog: MCPEvent[] = [];
+  private maxEventLogSize = 100;
+
+  constructor(
+    runtime: Runtime,
+    mcpAdapter: MCPDriverAdapter,
+    config: ConsoleUIConfig
+  ) {
+    super(runtime, mcpAdapter, config);
+
+    console.log("🎮 Initializing ConsoleGamificationUI...");
+    this.setRuntime(runtime);
+
+    this.config = {
+      userPrompt: "> ",
+      enableColors: true,
+      debugMode: false,
+      enablePostulations: false,
+      autoSelectSingleAgent: true,
+      ...config,
     };
 
-    private orchestrator?: ChannelConsumer;
-    private mcpEventLog: MCPEvent[] = [];
-    private maxEventLogSize = 100;
+    // Create readline interface
+    this.rl = readline.createInterface({
+      input: process.stdin,
+      output: process.stdout,
+      prompt: this.config.userPrompt,
+    });
 
-    constructor(runtime: Runtime, config: ConsoleUIConfig) {
-        super();
-        
-        console.log("🎮 Initializing ConsoleGamificationUI...")
-        this.setRuntime(runtime);
-
-        this.config = {
-            userPrompt: "> ",
-            enableColors: true,
-            debugMode: false,
-            enablePostulations: false,
-            autoSelectSingleAgent: true,
-            ...config,
-        };
-
-        // Create readline interface
-        this.rl = readline.createInterface({
-            input: process.stdin,
-            output: process.stdout,
-            prompt: this.config.userPrompt,
-        });
-
-        // Initialize postulation manager if enabled
-        if (this.config.enablePostulations) {
-            this.postulationManager = new AgentPostulationManager();
-        }
-
-        this.setupEventHandlers();
+    // Initialize postulation manager if enabled
+    if (this.config.enablePostulations) {
+      this.postulationManager = new AgentPostulationManager();
     }
 
-    setRuntime(runtime: Runtime) {
-        this.runtime = runtime;
+    this.setupEventHandlers();
+  }
+
+  setRuntime(runtime: Runtime) {
+    this.runtime = runtime;
+  }
+
+  /**
+   * Start the game UI
+   */
+  async start(): Promise<void> {
+    try {
+      this.isGameActive = true;
+      this.updateUIPhase("startup");
+
+      // Display welcome
+      this.displayWelcome();
+
+      // Initialize runtime if not already done
+      if (!this.runtime.getCurrentState) {
+        await this.runtime.initialize();
+      }
+
+      // Start first conversation turn if autoStart is enabled
+      if (this.config.autoStart !== false) {
+        // Add a small delay to ensure everything is initialized
+        setTimeout(async () => {
+          if (this.config.enablePostulations) {
+            await this.requestAgentSelection();
+          }
+        }, 100);
+      }
+
+      // Start input loop
+      this.startInputLoop();
+
+      // Update to menu phase after startup
+      this.updateUIPhase("menu");
+
+      Logger.mcpVerbose("Console UI started successfully");
+    } catch (error) {
+      logger.error("Failed to start console UI", error as Error);
+      throw error;
+    }
+  }
+
+  /**
+   * Stop the game UI
+   */
+  async stop(): Promise<void> {
+    try {
+      this.isGameActive = false;
+
+      if (this.currentThread && this.currentThread.status === "active") {
+        this.currentThread.status = "aborted";
+        this.emit(ConsoleUIEvent.THREAD_COMPLETED, this.currentThread);
+      }
+
+      this.rl.close();
+      await this.runtime.shutdown();
+
+      this.displayMessage({
+        content: "🎮 Game ended. Thanks for playing!",
+        type: "system",
+        id: "STOP",
+        timestamp: 0,
+      });
+
+      logger.info("Console UI stopped");
+    } catch (error) {
+      logger.error("Error stopping console UI", error as Error);
+      throw error;
+    }
+  }
+
+  async displayNotification(
+    title: string,
+    message: string,
+    type?: "info" | "success" | "warning" | "error"
+  ): Promise<void> {
+    this.displayNotificationContent(title, { message, type });
+  }
+
+  /**
+   * Send a message from an agent
+   */
+  async sendAgentMessage(
+    agentId: string,
+    content: string,
+    metadata?: Record<string, any>
+  ): Promise<void> {
+    if (!this.currentThread || this.currentThread.status !== "active") {
+      throw new Error("No active conversation thread");
     }
 
-    /**
-     * Start the game UI
-     */
-    async start(): Promise<void> {
-        try {
-            this.isGameActive = true;
-            this.updateUIPhase("startup");
-
-            // Display welcome
-            this.displayWelcome();
-
-            // Initialize runtime if not already done
-            if (!this.runtime.getCurrentState) {
-                await this.runtime.initialize();
-            }
-
-            // Start first conversation turn if autoStart is enabled
-            if (this.config.autoStart !== false) {
-                // Add a small delay to ensure everything is initialized
-                setTimeout(async () => {
-                    if (this.config.enablePostulations) {
-                        await this.requestAgentSelection();
-                    }
-                }, 100);
-            }
-
-            // Start input loop
-            this.startInputLoop();
-
-            // Update to menu phase after startup
-            this.updateUIPhase("menu");
-
-            Logger.mcpVerbose("Console UI started successfully");
-        } catch (error) {
-            logger.error("Failed to start console UI", error as Error);
-            throw error;
-        }
+    const agent = this.runtime.getAgent(agentId);
+    if (!agent) {
+      throw new Error(`Agent not found: ${agentId}`);
     }
 
-    /**
-     * Stop the game UI
-     */
-    async stop(): Promise<void> {
-        try {
-            this.isGameActive = false;
-
-            if (this.currentThread && this.currentThread.status === "active") {
-                this.currentThread.status = "aborted";
-                this.emit(ConsoleUIEvent.THREAD_COMPLETED, this.currentThread);
-            }
-
-            this.rl.close();
-            await this.runtime.shutdown();
-
-            this.displayMessage("🎮 Game ended. Thanks for playing!", "system");
-
-            logger.info("Console UI stopped");
-        } catch (error) {
-            logger.error("Error stopping console UI", error as Error);
-            throw error;
-        }
+    // Check thread limits
+    if (this.currentThread.messageCount >= this.config.maxMessagesPerThread) {
+      await this.completeCurrentThread();
+      return;
     }
 
-    /**
-     * Send a message from an agent
-     */
-    async sendAgentMessage(
-        agentId: string,
-        content: string,
-        metadata?: Record<string, any>
-    ): Promise<void> {
-        if (!this.currentThread || this.currentThread.status !== "active") {
-            throw new Error("No active conversation thread");
-        }
+    const message: ConversationMessage = {
+      id: this.generateMessageId(),
+      sender: "agent",
+      agentId: agent.id,
+      agentName: agent.name,
+      content,
+      timestamp: Date.now(),
+      metadata,
+      type: "game",
+    };
 
-        const agent = this.runtime.getAgent(agentId);
-        if (!agent) {
-            throw new Error(`Agent not found: ${agentId}`);
-        }
+    this.addMessageToThread(message);
+    this.displayAgentMessage(agent, content, metadata);
 
-        // Check thread limits
-        if (
-            this.currentThread.messageCount >= this.config.maxMessagesPerThread
-        ) {
-            await this.completeCurrentThread();
-            return;
-        }
+    this.emit(ConsoleUIEvent.AGENT_MESSAGE, { agent, message });
+  }
 
-        const message: ConversationMessage = {
-            id: this.generateMessageId(),
-            sender: "agent",
-            agentId: agent.id,
-            agentName: agent.name,
-            content,
-            timestamp: Date.now(),
-            metadata,
-        };
-
-        this.addMessageToThread(message);
-        this.displayAgentMessage(agent, content, metadata);
-
-        this.emit(ConsoleUIEvent.AGENT_MESSAGE, { agent, message });
+  /**
+   * Send agent message with postulation context (enhanced version)
+   */
+  async sendAgentMessageWithPostulation(
+    agentId: string,
+    content: string,
+    postulation?: AgentPostulation,
+    autoSelected = false
+  ): Promise<void> {
+    // Show selection info if not auto-selected
+    if (
+      postulation &&
+      !autoSelected &&
+      !postulation.metadata?.greedyRandomSelection
+    ) {
+      console.log(`\n🎯 You selected: ${postulation.agent.name}`);
+      console.log(`📝 Reason: ${postulation.reason}\n`);
+    } else if (postulation?.metadata?.greedyRandomSelection) {
+      console.log(`\n🎲 Randomly selected: ${postulation.agent.name}`);
+      console.log(`📝 Reason: ${postulation.reason}\n`);
     }
 
-    /**
-     * Send agent message with postulation context (enhanced version)
-     */
-    async sendAgentMessageWithPostulation(
-        agentId: string,
-        content: string,
-        postulation?: AgentPostulation,
-        autoSelected = false
-    ): Promise<void> {
-        // Show selection info if not auto-selected
-        if (
-            postulation &&
-            !autoSelected &&
-            !postulation.metadata?.greedyRandomSelection
-        ) {
-            console.log(`\n🎯 You selected: ${postulation.agent.name}`);
-            console.log(`📝 Reason: ${postulation.reason}\n`);
-        } else if (postulation?.metadata?.greedyRandomSelection) {
-            console.log(`\n🎲 Randomly selected: ${postulation.agent.name}`);
-            console.log(`📝 Reason: ${postulation.reason}\n`);
-        }
+    // Send the message with postulation metadata
+    const metadata = {
+      postulation: postulation
+        ? {
+            reason: postulation.reason,
+            priority: postulation.priority,
+            greediness: postulation.greediness,
+            autoSelected,
+            forcedSelection:
+              postulation.metadata?.forcedGreedySelection || false,
+          }
+        : undefined,
+    };
 
-        // Send the message with postulation metadata
-        const metadata = {
-            postulation: postulation
-                ? {
-                      reason: postulation.reason,
-                      priority: postulation.priority,
-                      greediness: postulation.greediness,
-                      autoSelected,
-                      forcedSelection:
-                          postulation.metadata?.forcedGreedySelection || false,
-                  }
-                : undefined,
-        };
+    await this.sendAgentMessage(agentId, content, metadata);
+  }
 
-        await this.sendAgentMessage(agentId, content, metadata);
+  /**
+   * Get current thread status
+   */
+  getCurrentThread(): ConversationThread | undefined {
+    return this.currentThread as unknown as ConversationThread;
+  }
+
+  /**
+   * Get active agents
+   */
+  getActiveAgents(): Agent[] {
+    return this.runtime
+      .getAgents()
+      .filter((agent) => agent.status === AgentStatus.ACTIVE);
+  }
+
+  /**
+   * Get current game state
+   */
+  getCurrentState(): State {
+    return this.runtime.getCurrentState();
+  }
+
+  /**
+   * Set the postulation manager (for games that use agent postulations)
+   */
+  setPostulationManager(manager: AgentPostulationManager): void {
+    this.postulationManager = manager;
+    this.config.enablePostulations = true;
+  }
+
+  /**
+   * Generate agent postulations for next message
+   */
+  generateAgentPostulations(
+    context?: Partial<PostulationContext>
+  ): AgentPostulation[] {
+    if (!this.postulationManager || !this.currentThread) {
+      return [];
     }
 
-    /**
-     * Get current thread status
-     */
-    getCurrentThread(): ConversationThread | undefined {
-        return this.currentThread;
+    const fullContext: PostulationContext = {
+      messageCount: this.currentThread.messageCount,
+      maxMessages: this.config.maxMessagesPerThread,
+      availableAgents: this.getActiveAgents(),
+      gameState: this.runtime.getCurrentState().gameData,
+      ...context,
+    };
+
+    const postulations =
+      this.postulationManager.generatePostulations(fullContext);
+    this.pendingPostulations = postulations;
+
+    // Automatically display postulation info if debug mode or when many postulations
+    if (this.config.debugMode || postulations.length > 1) {
+      this.displayPostulationInfo(postulations);
     }
 
-    /**
-     * Get active agents
-     */
-    getActiveAgents(): Agent[] {
-        return this.runtime
-            .getAgents()
-            .filter((agent) => agent.status === AgentStatus.ACTIVE);
+    this.emit(ConsoleUIEvent.POSTULATIONS_GENERATED, {
+      postulations,
+      context: fullContext,
+    });
+
+    return postulations;
+  }
+
+  /**
+   * Display agent postulations to user for selection
+   */
+  async displayAgentPostulations(
+    postulations: AgentPostulation[]
+  ): Promise<void> {
+    if (postulations.length === 0) {
+      this.displayMessage({
+        content: "📝 No agents are postulating for the next message",
+        type: "system",
+        id: "STOP",
+        timestamp: 0,
+      });
+      return;
     }
 
-    /**
-     * Get current game state
-     */
-    getCurrentState(): State {
-        return this.runtime.getCurrentState();
+    console.log("\n🎭 Agents postulating for next message:");
+    this.updateConsoleOutput("\n🎭 Agents postulating for next message:");
+
+    postulations.forEach((postulation, index) => {
+      const priorityStars = "⭐".repeat(
+        Math.min(5, Math.max(1, postulation.priority))
+      );
+      const greediness = this.formatGreediness(postulation.greediness);
+      const agentName = this.colorize(
+        postulation.agent.name,
+        this.getAgentRoleColor(postulation.agent.role),
+        true
+      );
+
+      const agentLine = `  ${index + 1}. ${agentName} ${this.colorize(
+        `(${priorityStars})`,
+        "yellow"
+      )} - ${postulation.reason}`;
+      console.log(agentLine);
+      this.updateConsoleOutput(agentLine);
+
+      if (this.config.debugMode) {
+        const debugLine = `     ${this.colorize(
+          `[${greediness}, weight: ${postulation.weight.toFixed(1)}]`,
+          "dim"
+        )}`;
+        console.log(debugLine);
+        this.updateConsoleOutput(debugLine);
+      }
+    });
+
+    const promptText = `Choose agent (1-${postulations.length}) or type your own message:`;
+    console.log(`\n${this.colorize(promptText, "cyan")}`);
+
+    // Update prompt state with agent options
+    const agentOptions: PromptOption[] = postulations.map(
+      (postulation, index) => ({
+        key: (index + 1).toString(),
+        description: `${postulation.agent.name} - ${postulation.reason}`,
+        enabled: true,
+        metadata: {
+          agentId: postulation.agent.id,
+          agentName: postulation.agent.name,
+          priority: postulation.priority,
+          greediness: postulation.greediness,
+        },
+      })
+    );
+
+    // Add option for custom message
+    agentOptions.push({
+      key: "text",
+      description: "Type your own message",
+      enabled: true,
+      metadata: { type: "custom_message" },
+    });
+
+    this.updateCurrentPrompt(promptText, agentOptions, "selection");
+  }
+
+  /**
+   * Display information about generated postulations (debug/info)
+   * Can be overridden by subclasses for custom display
+   */
+  protected displayPostulationInfo(postulations: AgentPostulation[]): void {
+    if (postulations.length === 0) {
+      console.log("\n🤐 No agents are postulating this turn");
+      console.log("🎲 A greedy random agent will be selected...");
+      return;
     }
 
-    /**
-     * Set the postulation manager (for games that use agent postulations)
-     */
-    setPostulationManager(manager: AgentPostulationManager): void {
-        this.postulationManager = manager;
-        this.config.enablePostulations = true;
+    console.log(`\n📊 ${postulations.length} agent(s) postulating:`);
+    postulations.forEach((p, i) => {
+      const priority = "⭐".repeat(
+        Math.min(3, Math.max(1, Math.floor(p.priority / 2)))
+      );
+      let agentInfo = `  ${i + 1}. ${p.agent.name} ${priority} - ${p.reason}`;
+
+      // Add special indicators
+      if (p.metadata?.forcedGreedySelection) {
+        agentInfo += " 🎯";
+      }
+      if (p.metadata?.greedyRandomSelection) {
+        agentInfo += " 🎲";
+      }
+
+      console.log(agentInfo);
+    });
+
+    // Show helpful info about forced selections
+    const forcedSelections = postulations.filter(
+      (p) => p.metadata?.forcedGreedySelection
+    );
+    if (forcedSelections.length > 0) {
+      console.log(
+        `\n🎯 ${forcedSelections.length} greedy agent(s) forced to ensure options available`
+      );
+    }
+  }
+
+  /**
+   * Request agent selection from user
+   */
+  async requestAgentSelection(
+    postulations?: AgentPostulation[]
+  ): Promise<void> {
+    if (!this.config.enablePostulations) {
+      return;
     }
 
-    /**
-     * Generate agent postulations for next message
-     */
-    generateAgentPostulations(
-        context?: Partial<PostulationContext>
-    ): AgentPostulation[] {
-        if (!this.postulationManager || !this.currentThread) {
-            return [];
-        }
+    const activePostulations = postulations || this.generateAgentPostulations();
 
-        const fullContext: PostulationContext = {
-            messageCount: this.currentThread.messageCount,
-            maxMessages: this.config.maxMessagesPerThread,
-            availableAgents: this.getActiveAgents(),
-            gameState: this.runtime.getCurrentState().gameData,
-            ...context,
-        };
-
-        const postulations =
-            this.postulationManager.generatePostulations(fullContext);
-        this.pendingPostulations = postulations;
-
-        // Automatically display postulation info if debug mode or when many postulations
-        if (this.config.debugMode || postulations.length > 1) {
-            this.displayPostulationInfo(postulations);
-        }
-
-        this.emit(ConsoleUIEvent.POSTULATIONS_GENERATED, {
-            postulations,
-            context: fullContext,
-        });
-
-        return postulations;
-    }
-
-    /**
-     * Display agent postulations to user for selection
-     */
-    displayAgentPostulations(postulations: AgentPostulation[]): void {
-        if (postulations.length === 0) {
-            this.displayMessage(
-                "📝 No agents are postulating for the next message",
-                "system"
-            );
-            return;
-        }
-
-        console.log("\n🎭 Agents postulating for next message:");
-        this.updateConsoleOutput("\n🎭 Agents postulating for next message:");
-
-        postulations.forEach((postulation, index) => {
-            const priorityStars = "⭐".repeat(
-                Math.min(5, Math.max(1, postulation.priority))
-            );
-            const greediness = this.formatGreediness(postulation.greediness);
-            const agentName = this.colorize(
-                postulation.agent.name,
-                this.getAgentRoleColor(postulation.agent.role),
-                true
-            );
-
-            const agentLine = `  ${index + 1}. ${agentName} ${this.colorize(
-                `(${priorityStars})`,
-                "yellow"
-            )} - ${postulation.reason}`;
-            console.log(agentLine);
-            this.updateConsoleOutput(agentLine);
-
-            if (this.config.debugMode) {
-                const debugLine = `     ${this.colorize(
-                    `[${greediness}, weight: ${postulation.weight.toFixed(1)}]`,
-                    "dim"
-                )}`;
-                console.log(debugLine);
-                this.updateConsoleOutput(debugLine);
-            }
-        });
-
-        const promptText = `Choose agent (1-${postulations.length}) or type your own message:`;
-        console.log(`\n${this.colorize(promptText, "cyan")}`);
-
-        // Update prompt state with agent options
-        const agentOptions: PromptOption[] = postulations.map(
-            (postulation, index) => ({
-                key: (index + 1).toString(),
-                description: `${postulation.agent.name} - ${postulation.reason}`,
-                enabled: true,
-                metadata: {
-                    agentId: postulation.agent.id,
-                    agentName: postulation.agent.name,
-                    priority: postulation.priority,
-                    greediness: postulation.greediness,
-                },
-            })
+    if (activePostulations.length === 0) {
+      // Handle no postulations - select a greedy random agent
+      const greedyAgent = this.selectGreedyRandomAgent();
+      if (greedyAgent) {
+        this.displayMessageContent(
+          "🤐 No agents are postulating this turn",
+          "system"
         );
-
-        // Add option for custom message
-        agentOptions.push({
-            key: "text",
-            description: "Type your own message",
-            enabled: true,
-            metadata: { type: "custom_message" },
-        });
-
-        this.updateCurrentPrompt(promptText, agentOptions, "selection");
-    }
-
-    /**
-     * Display information about generated postulations (debug/info)
-     * Can be overridden by subclasses for custom display
-     */
-    protected displayPostulationInfo(postulations: AgentPostulation[]): void {
-        if (postulations.length === 0) {
-            console.log("\n🤐 No agents are postulating this turn");
-            console.log("🎲 A greedy random agent will be selected...");
-            return;
-        }
-
-        console.log(`\n📊 ${postulations.length} agent(s) postulating:`);
-        postulations.forEach((p, i) => {
-            const priority = "⭐".repeat(
-                Math.min(3, Math.max(1, Math.floor(p.priority / 2)))
-            );
-            let agentInfo = `  ${i + 1}. ${p.agent.name} ${priority} - ${
-                p.reason
-            }`;
-
-            // Add special indicators
-            if (p.metadata?.forcedGreedySelection) {
-                agentInfo += " 🎯";
-            }
-            if (p.metadata?.greedyRandomSelection) {
-                agentInfo += " 🎲";
-            }
-
-            console.log(agentInfo);
-        });
-
-        // Show helpful info about forced selections
-        const forcedSelections = postulations.filter(
-            (p) => p.metadata?.forcedGreedySelection
-        );
-        if (forcedSelections.length > 0) {
-            console.log(
-                `\n🎯 ${forcedSelections.length} greedy agent(s) forced to ensure options available`
-            );
-        }
-    }
-
-    /**
-     * Request agent selection from user
-     */
-    async requestAgentSelection(
-        postulations?: AgentPostulation[]
-    ): Promise<void> {
-        if (!this.config.enablePostulations) {
-            return;
-        }
-
-        const activePostulations =
-            postulations || this.generateAgentPostulations();
-
-        if (activePostulations.length === 0) {
-            // Handle no postulations - select a greedy random agent
-            const greedyAgent = this.selectGreedyRandomAgent();
-            if (greedyAgent) {
-                this.displayMessage(
-                    "🤐 No agents are postulating this turn",
-                    "system"
-                );
-                this.displayMessage(
-                    `🎲 Selecting greedy random agent: ${greedyAgent.agent.name}`,
-                    "system"
-                );
-                this.emit(ConsoleUIEvent.AGENT_SELECTED, {
-                    postulation: greedyAgent,
-                    autoSelected: true,
-                });
-            }
-            return;
-        }
-
-        // Auto-select if only one agent and auto-select is enabled
-        if (
-            activePostulations.length === 1 &&
-            this.config.autoSelectSingleAgent
-        ) {
-            const selected = activePostulations[0];
-            this.displayMessage(
-                `🤖 ${selected.agent.name} is the only agent postulating`,
-                "system"
-            );
-            this.emit(ConsoleUIEvent.AGENT_SELECTED, {
-                postulation: selected,
-                autoSelected: true,
-            });
-            return;
-        }
-
-        this.awaitingAgentSelection = true;
-        this.displayAgentPostulations(activePostulations);
-
-        this.emit(ConsoleUIEvent.AGENT_SELECTION_REQUESTED, {
-            postulations: activePostulations,
-        });
-    }
-
-    /**
-     * Handle agent selection from user input
-     */
-    handleAgentSelection(input: string): boolean {
-        if (
-            !this.awaitingAgentSelection ||
-            this.pendingPostulations.length === 0
-        ) {
-            return false;
-        }
-
-        const selection = parseInt(input.trim());
-
-        if (
-            isNaN(selection) ||
-            selection < 1 ||
-            selection > this.pendingPostulations.length
-        ) {
-            return false; // Not a valid agent selection
-        }
-
-        const selectedPostulation = this.pendingPostulations[selection - 1];
-        this.awaitingAgentSelection = false;
-        this.pendingPostulations = [];
-
-        this.displayMessage(
-            `🎯 Selected: ${selectedPostulation.agent.name}`,
-            "system"
+        this.displayMessageContent(
+          `🎲 Selecting greedy random agent: ${greedyAgent.agent.name}`,
+          "system"
         );
         this.emit(ConsoleUIEvent.AGENT_SELECTED, {
-            postulation: selectedPostulation,
-            autoSelected: false,
+          postulation: greedyAgent,
+          autoSelected: true,
         });
-
-        return true;
+      }
+      return;
     }
 
-    /**
-     * Check if currently awaiting agent selection
-     */
-    isAwaitingAgentSelection(): boolean {
-        return this.awaitingAgentSelection;
+    // Auto-select if only one agent and auto-select is enabled
+    if (activePostulations.length === 1 && this.config.autoSelectSingleAgent) {
+      const selected = activePostulations[0];
+      this.displayMessageContent(
+        `🤖 ${selected.agent.name} is the only agent postulating`,
+        "system"
+      );
+      this.emit(ConsoleUIEvent.AGENT_SELECTED, {
+        postulation: selected,
+        autoSelected: true,
+      });
+      return;
     }
 
-    /**
-     * Cancel pending agent selection
-     */
-    cancelAgentSelection(): void {
-        this.awaitingAgentSelection = false;
-        this.pendingPostulations = [];
+    this.awaitingAgentSelection = true;
+    this.displayAgentPostulations(activePostulations);
+
+    this.emit(ConsoleUIEvent.AGENT_SELECTION_REQUESTED, {
+      postulations: activePostulations,
+    });
+  }
+
+  /**
+   * Handle agent selection from user input
+   */
+  handleAgentSelection(input: string): boolean {
+    if (!this.awaitingAgentSelection || this.pendingPostulations.length === 0) {
+      return false;
     }
 
-    /**
-     * Select a greedy random agent when no agents are postulating
-     */
-    protected selectGreedyRandomAgent(): AgentPostulation | null {
-        const activeAgents = this.getActiveAgents();
-        if (activeAgents.length === 0) {
-            return null;
-        }
+    const selection = parseInt(input.trim());
 
-        // IMPROVED: Prioritize greedy agents more intelligently
-        const greedyAgents = activeAgents.filter((agent) => {
-            const config = this.postulationManager
-                ?.getAgentConfigs()
-                .get(agent.id);
-            return config?.greediness === AgentGreediness.VERY_GREEDY;
-        });
-
-        const neutralAgents = activeAgents.filter((agent) => {
-            const config = this.postulationManager
-                ?.getAgentConfigs()
-                .get(agent.id);
-            return config?.greediness === AgentGreediness.NEUTRAL;
-        });
-
-        // Selection priority: Very Greedy > Neutral > Any Available
-        let selectedAgents = greedyAgents;
-        let greedyType = "very greedy";
-
-        if (selectedAgents.length === 0) {
-            selectedAgents = neutralAgents;
-            greedyType = "moderately greedy";
-        }
-
-        if (selectedAgents.length === 0) {
-            selectedAgents = activeAgents;
-            greedyType = "any available";
-        }
-
-        const randomAgent =
-            selectedAgents[Math.floor(Math.random() * selectedAgents.length)];
-
-        // Create a postulation with appropriate greediness
-        return {
-            agent: randomAgent,
-            greediness: greedyAgents.includes(randomAgent)
-                ? AgentGreediness.VERY_GREEDY
-                : AgentGreediness.NEUTRAL,
-            reason: `selected randomly from ${greedyType} agents when no postulations occurred`,
-            priority: 1,
-            weight: 1.0,
-            metadata: {
-                greedyRandomSelection: true,
-                selectedFromPool: greedyType,
-                poolSize: selectedAgents.length,
-            },
-        };
+    if (
+      isNaN(selection) ||
+      selection < 1 ||
+      selection > this.pendingPostulations.length
+    ) {
+      return false; // Not a valid agent selection
     }
 
-    /**
-     * Check if thread has capacity for more messages
-     */
-    hasThreadCapacity(): boolean {
-        return this.currentThread
-            ? this.currentThread.messageCount < this.config.maxMessagesPerThread
-            : false;
+    const selectedPostulation = this.pendingPostulations[selection - 1];
+    this.awaitingAgentSelection = false;
+    this.pendingPostulations = [];
+
+    this.displayMessageContent(
+      `🎯 Selected: ${selectedPostulation.agent.name}`,
+      "system"
+    );
+    this.emit(ConsoleUIEvent.AGENT_SELECTED, {
+      postulation: selectedPostulation,
+      autoSelected: false,
+    });
+
+    return true;
+  }
+
+  /**
+   * Check if currently awaiting agent selection
+   */
+  isAwaitingAgentSelection(): boolean {
+    return this.awaitingAgentSelection;
+  }
+
+  /**
+   * Cancel pending agent selection
+   */
+  cancelAgentSelection(): void {
+    this.awaitingAgentSelection = false;
+    this.pendingPostulations = [];
+  }
+
+  /**
+   * Select a greedy random agent when no agents are postulating
+   */
+  protected selectGreedyRandomAgent(): AgentPostulation | null {
+    const activeAgents = this.getActiveAgents();
+    if (activeAgents.length === 0) {
+      return null;
     }
 
-    /**
-     * Force complete current thread
-     */
-    async completeCurrentThread(): Promise<void> {
-        if (this.currentThread && this.currentThread.status === "active") {
-            this.currentThread.status = "completed";
-            this.emit(ConsoleUIEvent.THREAD_COMPLETED, this.currentThread);
+    // IMPROVED: Prioritize greedy agents more intelligently
+    const greedyAgents = activeAgents.filter((agent) => {
+      const config = this.postulationManager?.getAgentConfigs().get(agent.id);
+      return config?.greediness === AgentGreediness.VERY_GREEDY;
+    });
 
-            this.displayMessage(
-                `\n📋 Thread completed (${this.currentThread.messageCount}/${this.config.maxMessagesPerThread} messages)`,
-                "system"
-            );
+    const neutralAgents = activeAgents.filter((agent) => {
+      const config = this.postulationManager?.getAgentConfigs().get(agent.id);
+      return config?.greediness === AgentGreediness.NEUTRAL;
+    });
 
-            // Start new thread
-            await this.startNewThread();
-        }
+    // Selection priority: Very Greedy > Neutral > Any Available
+    let selectedAgents = greedyAgents;
+    let greedyType = "very greedy";
+
+    if (selectedAgents.length === 0) {
+      selectedAgents = neutralAgents;
+      greedyType = "moderately greedy";
     }
 
-    /**
-     * Register a game command that can be executed by user input
-     */
-    protected registerGameCommand(
-        command: string,
-        handler: (input: string) => Promise<void>
-    ): void {
-        this.gameCommands.set(command.toLowerCase(), handler);
+    if (selectedAgents.length === 0) {
+      selectedAgents = activeAgents;
+      greedyType = "any available";
     }
 
-    /**
-     * Check if input matches a registered game command
-     */
-    protected async handleGameCommand(input: string): Promise<boolean> {
-        const parts = input.toLowerCase().split(" ");
-        const command = parts[0];
+    const randomAgent =
+      selectedAgents[Math.floor(Math.random() * selectedAgents.length)];
 
-        const handler = this.gameCommands.get(command);
-        if (handler) {
-            await handler(input);
-            return true;
-        }
+    // Create a postulation with appropriate greediness
+    return {
+      agent: randomAgent,
+      greediness: greedyAgents.includes(randomAgent)
+        ? AgentGreediness.VERY_GREEDY
+        : AgentGreediness.NEUTRAL,
+      reason: `selected randomly from ${greedyType} agents when no postulations occurred`,
+      priority: 1,
+      weight: 1.0,
+      metadata: {
+        greedyRandomSelection: true,
+        selectedFromPool: greedyType,
+        poolSize: selectedAgents.length,
+      },
+    };
+  }
 
-        return false;
+  /**
+   * Check if thread has capacity for more messages
+   */
+  hasThreadCapacity(): boolean {
+    return this.currentThread
+      ? this.currentThread.messageCount < this.config.maxMessagesPerThread
+      : false;
+  }
+
+  /**
+   * Force complete current thread
+   */
+  async completeCurrentThread(): Promise<void> {
+    if (this.currentThread && this.currentThread.status === "active") {
+      this.currentThread.status = "completed";
+      this.emit(ConsoleUIEvent.THREAD_COMPLETED, this.currentThread);
+
+      this.displayMessageContent(
+        `\n📋 Thread completed (${this.currentThread.messageCount}/${this.config.maxMessagesPerThread} messages)`,
+        "system"
+      );
+
+      // Start new thread
+      await this.startNewThread();
+    }
+  }
+
+  /**
+   * Register a game command that can be executed by user input
+   */
+  protected registerGameCommand(
+    command: string,
+    handler: (input: string) => Promise<void>
+  ): void {
+    this.gameCommands.set(command.toLowerCase(), handler);
+  }
+
+  /**
+   * Check if input matches a registered game command
+   */
+  protected async handleGameCommand(input: string): Promise<boolean> {
+    const parts = input.toLowerCase().split(" ");
+    const command = parts[0];
+
+    const handler = this.gameCommands.get(command);
+    if (handler) {
+      await handler(input);
+      return true;
     }
 
-    /**
-     * Show help for available commands (can be overridden by subclasses)
-     */
-    protected showHelp(): void {
-        console.log("\n📖 Available Commands:");
-        console.log("  help     - Show this help message");
-        console.log("  status   - Show current game status");
-        console.log("  exit     - Exit the game");
-        console.log(
-            "  /debug   - Debug commands (on, off, state, agents, stats)"
-        );
+    return false;
+  }
 
-        if (this.gameCommands.size > 0) {
-            console.log("\n🎮 Game-specific commands:");
-            for (const command of this.gameCommands.keys()) {
-                console.log(`  ${command}    - Game-specific command`);
-            }
-        }
+  /**
+   * Show help for available commands (can be overridden by subclasses)
+   */
+  protected showHelp(): void {
+    console.log("\n📖 Available Commands:");
+    console.log("  help     - Show this help message");
+    console.log("  status   - Show current game status");
+    console.log("  exit     - Exit the game");
+    console.log("  /debug   - Debug commands (on, off, state, agents, stats)");
 
-        console.log("");
+    if (this.gameCommands.size > 0) {
+      console.log("\n🎮 Game-specific commands:");
+      for (const command of this.gameCommands.keys()) {
+        console.log(`  ${command}    - Game-specific command`);
+      }
     }
 
-    /**
-     * Show current status (can be overridden by subclasses)
-     */
-    protected showStatus(): void {
-        console.log("\n📊 Current Status:");
-        console.log(`  Current thread: ${this.currentThread?.id || "none"}`);
-        console.log(
-            `  Messages: ${this.currentThread?.messageCount || 0}/${
-                this.config.maxMessagesPerThread
-            }`
-        );
-        console.log(`  Thread status: ${this.currentThread?.status || "none"}`);
-        console.log(`  Active agents: ${this.getActiveAgents().length}`);
-        console.log(`  Game active: ${this.isGameActive}`);
-        console.log("");
+    console.log("");
+  }
+
+  /**
+   * Show current status (can be overridden by subclasses)
+   */
+  protected showStatus(): void {
+    console.log("\n📊 Current Status:");
+    console.log(`  Current thread: ${this.currentThread?.id || "none"}`);
+    console.log(
+      `  Messages: ${this.currentThread?.messageCount || 0}/${
+        this.config.maxMessagesPerThread
+      }`
+    );
+    console.log(`  Thread status: ${this.currentThread?.status || "none"}`);
+    console.log(`  Active agents: ${this.getActiveAgents().length}`);
+    console.log(`  Game active: ${this.isGameActive}`);
+    console.log("");
+  }
+
+  // Private methods
+
+  private setupEventHandlers(): void {
+    // Runtime events
+    this.runtime.on(RuntimeEvent.STATE_TRANSITION, (data) => {
+      this.displayMessageContent(
+        `🔄 State changed: ${data.from} → ${data.to}`,
+        "system"
+      );
+      if (this.config.debugMode) {
+        this.displayDebug(`Transition trigger: ${data.trigger}`);
+      }
+    });
+
+    this.runtime.on(RuntimeEvent.AGENT_ADDED, (data) => {
+      this.displayMessageContent(
+        `🤖 ${data.agent.name} joined the game`,
+        "system"
+      );
+    });
+
+    this.runtime.on(RuntimeEvent.ACTION_EXECUTED, (data) => {
+      if (this.config.debugMode) {
+        this.displayDebug(`Action: ${data.action.type} by ${data.agent.name}`);
+      }
+    });
+
+    this.runtime.on(RuntimeEvent.ERROR_OCCURRED, (data) => {
+      this.displayMessageContent(`❌ Error: ${data.error}`, "system");
+    });
+
+    // Handle process exit
+    process.on("SIGINT", async () => {
+      await this.stop();
+      process.exit(0);
+    });
+  }
+
+  private displayWelcome(): void {
+    this.clearScreen();
+
+    this.config.gameTitle = this.config.gameTitle || "default-game-title";
+    const title = this.colorize(this.config.gameTitle, "cyan", true);
+    const border = "=".repeat(this.config.gameTitle.length + 4);
+
+    console.log(this.colorize(border, "cyan"));
+    console.log(this.colorize(`  ${title}  `, "cyan"));
+    console.log(this.colorize(border, "cyan"));
+
+    if (this.config.welcomeMessage) {
+      console.log(`\n${this.config.welcomeMessage}\n`);
     }
 
-    // Private methods
+    // Display runtime info
+    this.runtime.initialize();
+    const state = this.runtime.getCurrentState();
+    console.log(
+      this.colorize(`📍 Current State: ${state.currentStateId}`, "yellow")
+    );
+    console.log(
+      this.colorize(
+        `🎯 Max Messages per Thread: ${this.config.maxMessagesPerThread}`,
+        "yellow"
+      )
+    );
 
-    private setupEventHandlers(): void {
-        // Runtime events
-        this.runtime.on(RuntimeEvent.STATE_TRANSITION, (data) => {
-            this.displayMessage(
-                `🔄 State changed: ${data.from} → ${data.to}`,
-                "system"
-            );
-            if (this.config.debugMode) {
-                this.displayDebug(`Transition trigger: ${data.trigger}`);
-            }
-        });
+    const agents = this.getActiveAgents();
+    console.log(
+      this.colorize(
+        `🤖 Active Agents: ${agents.map((a) => a.name).join(", ")}`,
+        "yellow"
+      )
+    );
 
-        this.runtime.on(RuntimeEvent.AGENT_ADDED, (data) => {
-            this.displayMessage(
-                `🤖 ${data.agent.name} joined the game`,
-                "system"
-            );
-        });
+    console.log("\n" + this.colorize('Type "exit" to quit the game\n', "dim"));
+  }
 
-        this.runtime.on(RuntimeEvent.ACTION_EXECUTED, (data) => {
-            if (this.config.debugMode) {
-                this.displayDebug(
-                    `Action: ${data.action.type} by ${data.agent.name}`
-                );
-            }
-        });
+  protected async startNewThread(): Promise<void> {
+    this.currentThread = {
+      id: `thread-${Date.now()}`,
+      messages: [],
+      messageCount: 0,
+      startTime: Date.now(),
+      status: "active",
+    };
 
-        this.runtime.on(RuntimeEvent.ERROR_OCCURRED, (data) => {
-            this.displayMessage(`❌ Error: ${data.error}`, "system");
-        });
+    this.emit(ConsoleUIEvent.THREAD_STARTED, this.currentThread);
+    this.displayMessageContent(
+      `\n🎬 New conversation thread started (${this.currentThread.id})`,
+      "system"
+    );
+  }
 
-        // Handle process exit
-        process.on("SIGINT", async () => {
-            await this.stop();
-            process.exit(0);
-        });
-    }
+  private startInputLoop(): void {
+    this.rl.prompt();
 
-    private displayWelcome(): void {
-        this.clearScreen();
+    this.rl.on("line", async (input: string) => {
+      const trimmedInput = input.trim();
 
-        this.config.gameTitle = this.config.gameTitle || 'default-game-title';
-        const title = this.colorize(this.config.gameTitle, "cyan", true);
-        const border = "=".repeat(this.config.gameTitle.length + 4);
-
-        console.log(this.colorize(border, "cyan"));
-        console.log(this.colorize(`  ${title}  `, "cyan"));
-        console.log(this.colorize(border, "cyan"));
-
-        if (this.config.welcomeMessage) {
-            console.log(`\n${this.config.welcomeMessage}\n`);
-        }
-
-        // Display runtime info
-        this.runtime.initialize()
-        const state = this.runtime.getCurrentState();
-        console.log(
-            this.colorize(`📍 Current State: ${state.currentStateId}`, "yellow")
-        );
-        console.log(
-            this.colorize(
-                `🎯 Max Messages per Thread: ${this.config.maxMessagesPerThread}`,
-                "yellow"
-            )
-        );
-
-        const agents = this.getActiveAgents();
-        console.log(
-            this.colorize(
-                `🤖 Active Agents: ${agents.map((a) => a.name).join(", ")}`,
-                "yellow"
-            )
-        );
-
-        console.log(
-            "\n" + this.colorize('Type "exit" to quit the game\n', "dim")
-        );
-    }
-
-    protected async startNewThread(): Promise<void> {
-        this.currentThread = {
-            id: `thread-${Date.now()}`,
-            messages: [],
-            messageCount: 0,
-            startTime: Date.now(),
-            status: "active",
-        };
-
-        this.emit(ConsoleUIEvent.THREAD_STARTED, this.currentThread);
-        this.displayMessage(
-            `\n🎬 New conversation thread started (${this.currentThread.id})`,
-            "system"
-        );
-    }
-
-    private startInputLoop(): void {
+      if (!trimmedInput) {
         this.rl.prompt();
+        return;
+      }
 
-        this.rl.on("line", async (input: string) => {
-            const trimmedInput = input.trim();
+      // Handle exit command
+      if (trimmedInput.toLowerCase() === "exit") {
+        await this.stop();
+        return;
+      }
 
-            if (!trimmedInput) {
-                this.rl.prompt();
-                return;
+      // Handle debug commands
+      if (trimmedInput.startsWith("/debug")) {
+        this.handleDebugCommand(trimmedInput);
+        this.rl.prompt();
+        return;
+      }
+
+      // Process user input
+      await this.handleUserInput(trimmedInput);
+      this.rl.prompt();
+    });
+
+    this.rl.on("close", async () => {
+      await this.stop();
+    });
+  }
+
+  private async handleUserInput(input: string): Promise<void> {
+    // Record user action
+    this.recordUserAction(input);
+
+    if (!this.currentThread || this.currentThread.status !== "active") {
+      this.displayMessageContent("❌ No active conversation thread", "system");
+      return;
+    }
+
+    // Check if we're awaiting agent selection
+    if (this.awaitingAgentSelection && this.handleAgentSelection(input)) {
+      return; // Agent selection was handled
+    }
+
+    const trimmedInput = input.trim().toLowerCase();
+
+    // Handle built-in commands
+    if (trimmedInput === "help") {
+      this.showHelp();
+      return;
+    }
+    if (trimmedInput === "status") {
+      this.showStatus();
+      return;
+    }
+
+    // Try game-specific commands
+    if (await this.handleGameCommand(input)) {
+      return; // Command was handled
+    }
+
+    // Check thread capacity
+    if (this.currentThread.messageCount >= this.config.maxMessagesPerThread) {
+      await this.completeCurrentThread();
+      return;
+    }
+
+    // Add user message to thread
+    const message: ConversationMessage = {
+      id: this.generateMessageId(),
+      sender: "user",
+      content: input,
+      timestamp: Date.now(),
+      type: "system",
+    };
+
+    this.addMessageToThread(message);
+    this.emit(ConsoleUIEvent.USER_INPUT, {
+      input,
+      message,
+      thread: this.currentThread,
+    });
+  }
+
+  private handleDebugCommand(command: string): void {
+    const parts = command.split(" ");
+    const action = parts[1];
+
+    switch (action) {
+      case "on":
+        this.config.debugMode = true;
+        this.displayMessageContent("🔧 Debug mode enabled", "system");
+        break;
+      case "off":
+        this.config.debugMode = false;
+        this.displayMessageContent("🔧 Debug mode disabled", "system");
+        break;
+      case "state":
+        const state = this.runtime.getCurrentState();
+        this.displayDebug(`Current state: ${JSON.stringify(state, null, 2)}`);
+        break;
+      case "agents":
+        const agents = this.getActiveAgents();
+        this.displayDebug(
+          `Agents: ${JSON.stringify(
+            agents.map((a) => ({
+              id: a.id,
+              name: a.name,
+              role: a.role,
+            })),
+            null,
+            2
+          )}`
+        );
+        break;
+      case "stats":
+        const stats = this.runtime.getStatistics();
+        this.displayDebug(`Stats: ${JSON.stringify(stats, null, 2)}`);
+        break;
+      case "verbose":
+        Logger.enableVerbose();
+        this.displayMessageContent("🔊 Verbose logging enabled", "system");
+        break;
+      case "quiet":
+        Logger.enableQuiet();
+        this.displayMessageContent("🔇 Quiet logging enabled", "system");
+        break;
+      case "normal":
+        Logger.normalMode();
+        this.displayMessageContent("🔧 Normal logging mode enabled", "system");
+        break;
+      case "logmode":
+        const currentMode = Logger.getMode();
+        this.displayMessageContent(
+          `📊 Current logging mode: ${currentMode}`,
+          "system"
+        );
+        break;
+      default:
+        this.displayMessageContent(
+          "🔧 Debug commands: on, off, state, agents, stats, verbose, quiet, normal, logmode",
+          "system"
+        );
+    }
+  }
+
+  addMessageToThread(message: ConversationMessage): void {
+    if (this.currentThread) {
+      this.currentThread.messages.push(message);
+      this.currentThread.messageCount++;
+    }
+  }
+
+  displayAgentMessage(
+    agent: Agent,
+    content: string,
+    metadata?: Record<string, any>
+  ): void {
+    const roleColor = this.getAgentRoleColor(agent.role);
+    const agentName = this.colorize(`${agent.name}:`, roleColor, true);
+    const messageContent = this.colorize(content, roleColor);
+
+    // Add postulation indicators if available
+    let indicators = "";
+    if (metadata?.postulation) {
+      if (metadata.postulation.forcedSelection) {
+        indicators += " 🎯";
+      }
+      if (metadata.postulation.autoSelected) {
+        indicators += " 🤖";
+      }
+    }
+
+    console.log(`\n${agentName}${indicators} ${messageContent}`);
+  }
+
+  async displayMessageContent(content: string, type: string): Promise<void> {
+    const message: ConversationMessage = {
+      content: "🎮 Game ended. Thanks for playing!",
+      type: "system",
+      id: "DISPLAY",
+      timestamp: 0,
+      sender: "user",
+    };
+    return await this.displayMessage(message);
+  }
+
+  async displayMessage(message: GameMessage): Promise<void> {
+    let color: keyof typeof this.colors = "white";
+    let prefix = "";
+
+    switch (message.type) {
+      case "system":
+        color = "cyan";
+        prefix = "📢 ";
+        break;
+      case "error":
+        color = "red";
+        prefix = "❌ ";
+        break;
+      case "user":
+        color = "green";
+        prefix = "👤 ";
+        break;
+    }
+
+    const formattedMessage = `${prefix}${message.content}`;
+    console.log(this.colorize(formattedMessage, color));
+
+    // Update console state
+    this.updateConsoleOutput(formattedMessage);
+  }
+
+  displayDebug(content: string): void {
+    if (this.config.debugMode) {
+      console.log(this.colorize(`🔧 DEBUG: ${content}`, "dim"));
+    }
+  }
+
+  getAgentRoleColor(role: AgentRole): keyof typeof this.colors {
+    switch (role) {
+      case AgentRole.NARRATOR:
+        return "magenta";
+      case AgentRole.GUIDE:
+        return "blue";
+      case AgentRole.PLAYER:
+        return "green";
+      case AgentRole.SYSTEM:
+        return "yellow";
+      default:
+        return "white";
+    }
+  }
+
+  colorize(
+    text: string,
+    color: keyof typeof this.colors,
+    bright = false
+  ): string {
+    if (!this.config.enableColors) {
+      return text;
+    }
+
+    const colorCode = this.colors[color];
+    const brightCode = bright ? this.colors.bright : "";
+    return `${brightCode}${colorCode}${text}${this.colors.reset}`;
+  }
+
+  clearScreen(): void {
+    console.clear();
+  }
+
+  generateMessageId(): string {
+    return `msg-${++this.messageIdCounter}-${Date.now()}`;
+  }
+
+  private formatGreediness(greediness: string): string {
+    switch (greediness) {
+      case "very_greedy":
+        return "Very Greedy";
+      case "satisfied":
+        return "Satisfied";
+      case "neutral":
+        return "Neutral";
+      case "passive":
+        return "Passive";
+      default:
+        return greediness;
+    }
+  }
+
+  // === IConsoleReader Implementation ===
+
+  /**
+   * Get the current console output
+   */
+  async getCurrentOutput(): Promise<ConsoleOutput> {
+    return {
+      fullText: this.currentConsoleOutput.join("\n"),
+      lastLines: this.currentConsoleOutput.slice(-10), // Last 10 lines
+      timestamp: Date.now(),
+      isActive: this.isGameActive,
+    };
+  }
+
+  /**
+   * Get the current prompt and available options
+   */
+  async getCurrentPrompt(): Promise<PromptState> {
+    return {
+      promptText: this.currentPromptText,
+      availableOptions: this.currentPromptOptions,
+      isWaitingForInput: this.isWaitingForInput,
+      inputType: this.inputType,
+      context: this.currentUIPhase,
+    };
+  }
+
+  /**
+   * Get the current UI interaction state
+   */
+  async getInteractionState(): Promise<UIInteractionState> {
+    return {
+      phase: this.currentUIPhase,
+      lastUserAction: this.lastUserAction,
+      pendingActions: [...this.pendingActions],
+      availableCommands: [...this.availableCommands],
+      isResponsive: this.isGameActive && !this.awaitingAgentSelection,
+      interactionContext: {
+        currentThread: this.currentThread?.id,
+        messageCount: this.currentThread?.messageCount || 0,
+        maxMessages: this.config.maxMessagesPerThread,
+        pendingPostulations: this.pendingPostulations.length,
+        awaitingAgentSelection: this.awaitingAgentSelection,
+      },
+    };
+  }
+
+  /**
+   * Get complete UI status
+   */
+  async getUIStatus(): Promise<UIStatus> {
+    const [console, prompt, interaction] = await Promise.all([
+      this.getCurrentOutput(),
+      this.getCurrentPrompt(),
+      this.getInteractionState(),
+    ]);
+
+    return {
+      console,
+      prompt,
+      interaction,
+      timestamp: Date.now(),
+    };
+  }
+
+  /**
+   * Get console reading capabilities
+   */
+  getCapabilities(): ConsoleReadingCapabilities {
+    return {
+      canReadOutput: true,
+      canReadPrompt: true,
+      canReadInteraction: true,
+      canStream: true,
+      metadata: {
+        maxOutputLines: 10,
+        supportsColors: this.config.enableColors,
+        supportsPostulations: this.config.enablePostulations,
+        debugMode: this.config.debugMode,
+      },
+    };
+  }
+
+  /**
+   * Start streaming console state changes
+   */
+  startStreaming(callback: (status: UIStatus) => void): () => void {
+    this.consoleChangeListeners.add(callback);
+
+    // Send initial status
+    this.getUIStatus()
+      .then(callback)
+      .catch((err) => {
+        logger.error("ConsoleUI: Error sending initial status", {
+          error: err,
+        });
+      });
+
+    // Return cleanup function
+    return () => {
+      this.consoleChangeListeners.delete(callback);
+    };
+  }
+
+  /**
+   * Check if console is ready for reading
+   */
+  isReady(): boolean {
+    return this.isGameActive;
+  }
+
+  // === Console State Management ===
+
+  /**
+   * Update console output and notify listeners
+   */
+  updateConsoleOutput(newLine: string): void {
+    this.currentConsoleOutput.push(newLine);
+
+    // Keep only last 100 lines to prevent memory issues
+    if (this.currentConsoleOutput.length > 100) {
+      this.currentConsoleOutput = this.currentConsoleOutput.slice(-100);
+    }
+
+    this.notifyStateChange("output_changed", { newLine });
+  }
+
+  /**
+   * Update current prompt and notify listeners
+   */
+  updateCurrentPrompt(
+    text: string,
+    options: PromptOption[] = [],
+    inputType: PromptState["inputType"] = "text"
+  ): void {
+    this.currentPromptText = text;
+    this.currentPromptOptions = options;
+    this.inputType = inputType;
+    this.isWaitingForInput = true;
+
+    this.notifyStateChange("prompt_changed", { text, options, inputType });
+  }
+
+  /**
+   * Update UI phase and notify listeners
+   */
+  updateUIPhase(phase: UIInteractionState["phase"], context?: any): void {
+    this.currentUIPhase = phase;
+
+    // Update available commands based on phase
+    this.updateAvailableCommands(phase);
+
+    this.notifyStateChange("interaction_changed", { phase, context });
+  }
+
+  /**
+   * Update available commands based on current phase
+   */
+  private updateAvailableCommands(phase: UIInteractionState["phase"]): void {
+    this.availableCommands = [];
+
+    switch (phase) {
+      case "startup":
+        this.availableCommands = ["start", "help", "quit"];
+        break;
+      case "menu":
+        this.availableCommands = ["1", "2", "3", "help", "quit"];
+        break;
+      case "conversation":
+        this.availableCommands = ["message", "help", "quit"];
+        if (this.pendingPostulations.length > 0) {
+          this.availableCommands.push("select");
+        }
+        break;
+      case "decision":
+        this.availableCommands = ["yes", "no", "help"];
+        break;
+      case "waiting":
+        this.availableCommands = ["help", "status"];
+        break;
+    }
+
+    if (this.config.debugMode) {
+      this.availableCommands.push("debug");
+    }
+  }
+
+  /**
+   * Record user action
+   */
+  private recordUserAction(action: string): void {
+    this.lastUserAction = action;
+    this.isWaitingForInput = false;
+
+    this.notifyStateChange("interaction_changed", {
+      lastUserAction: action,
+    });
+  }
+
+  /**
+   * Notify state change listeners
+   */
+  private notifyStateChange(
+    type: ConsoleStateChangeEvent["type"],
+    data: any
+  ): void {
+    const event: ConsoleStateChangeEvent = {
+      type,
+      data,
+      timestamp: Date.now(),
+    };
+
+    // Emit to EventEmitter listeners
+    this.emit("consoleStateChanged", event);
+
+    // Notify streaming listeners with full status
+    if (this.consoleChangeListeners.size > 0) {
+      this.getUIStatus()
+        .then((status) => {
+          this.consoleChangeListeners.forEach((listener) => {
+            try {
+              listener(status);
+            } catch (error) {
+              logger.error("ConsoleUI: Error in state change listener", {
+                error,
+              });
             }
-
-            // Handle exit command
-            if (trimmedInput.toLowerCase() === "exit") {
-                await this.stop();
-                return;
-            }
-
-            // Handle debug commands
-            if (trimmedInput.startsWith("/debug")) {
-                this.handleDebugCommand(trimmedInput);
-                this.rl.prompt();
-                return;
-            }
-
-            // Process user input
-            await this.handleUserInput(trimmedInput);
-            this.rl.prompt();
-        });
-
-        this.rl.on("close", async () => {
-            await this.stop();
+          });
+        })
+        .catch((err) => {
+          logger.error("ConsoleUI: Error getting UI status for listeners", {
+            error: err,
+          });
         });
     }
+  }
 
-    private async handleUserInput(input: string): Promise<void> {
-        // Record user action
-        this.recordUserAction(input);
+  /**
+   * Connect to orchestrator for coordinated updates
+   */
+  connectOrchestrator(orchestrator: ChannelConsumer): void {
+    this.orchestrator = orchestrator;
 
-        if (!this.currentThread || this.currentThread.status !== "active") {
-            this.displayMessage("❌ No active conversation thread", "system");
-            return;
-        }
+    // Subscribe to MCP events
+    orchestrator.on("mcp:event", (event: MCPEvent) => {
+      this.handleMCPEventContent(event);
+    });
 
-        // Check if we're awaiting agent selection
-        if (this.awaitingAgentSelection && this.handleAgentSelection(input)) {
-            return; // Agent selection was handled
-        }
-
-        const trimmedInput = input.trim().toLowerCase();
-
-        // Handle built-in commands
-        if (trimmedInput === "help") {
-            this.showHelp();
-            return;
-        }
-        if (trimmedInput === "status") {
-            this.showStatus();
-            return;
-        }
-
-        // Try game-specific commands
-        if (await this.handleGameCommand(input)) {
-            return; // Command was handled
-        }
-
-        // Check thread capacity
-        if (
-            this.currentThread.messageCount >= this.config.maxMessagesPerThread
-        ) {
-            await this.completeCurrentThread();
-            return;
-        }
-
-        // Add user message to thread
-        const message: ConversationMessage = {
-            id: this.generateMessageId(),
-            sender: "user",
-            content: input,
-            timestamp: Date.now(),
-        };
-
-        this.addMessageToThread(message);
-        this.emit(ConsoleUIEvent.USER_INPUT, {
-            input,
-            message,
-            thread: this.currentThread,
-        });
-    }
-
-    private handleDebugCommand(command: string): void {
-        const parts = command.split(" ");
-        const action = parts[1];
-
-        switch (action) {
-            case "on":
-                this.config.debugMode = true;
-                this.displayMessage("🔧 Debug mode enabled", "system");
-                break;
-            case "off":
-                this.config.debugMode = false;
-                this.displayMessage("🔧 Debug mode disabled", "system");
-                break;
-            case "state":
-                const state = this.runtime.getCurrentState();
-                this.displayDebug(
-                    `Current state: ${JSON.stringify(state, null, 2)}`
-                );
-                break;
-            case "agents":
-                const agents = this.getActiveAgents();
-                this.displayDebug(
-                    `Agents: ${JSON.stringify(
-                        agents.map((a) => ({
-                            id: a.id,
-                            name: a.name,
-                            role: a.role,
-                        })),
-                        null,
-                        2
-                    )}`
-                );
-                break;
-            case "stats":
-                const stats = this.runtime.getStatistics();
-                this.displayDebug(`Stats: ${JSON.stringify(stats, null, 2)}`);
-                break;
-            case "verbose":
-                Logger.enableVerbose();
-                this.displayMessage("🔊 Verbose logging enabled", "system");
-                break;
-            case "quiet":
-                Logger.enableQuiet();
-                this.displayMessage("🔇 Quiet logging enabled", "system");
-                break;
-            case "normal":
-                Logger.normalMode();
-                this.displayMessage("🔧 Normal logging mode enabled", "system");
-                break;
-            case "logmode":
-                const currentMode = Logger.getMode();
-                this.displayMessage(
-                    `📊 Current logging mode: ${currentMode}`,
-                    "system"
-                );
-                break;
-            default:
-                this.displayMessage(
-                    "🔧 Debug commands: on, off, state, agents, stats, verbose, quiet, normal, logmode",
-                    "system"
-                );
-        }
-    }
-
-    private addMessageToThread(message: ConversationMessage): void {
-        if (this.currentThread) {
-            this.currentThread.messages.push(message);
-            this.currentThread.messageCount++;
-        }
-    }
-
-    private displayAgentMessage(
-        agent: Agent,
-        content: string,
-        metadata?: Record<string, any>
-    ): void {
-        const roleColor = this.getAgentRoleColor(agent.role);
-        const agentName = this.colorize(`${agent.name}:`, roleColor, true);
-        const messageContent = this.colorize(content, roleColor);
-
-        // Add postulation indicators if available
-        let indicators = "";
-        if (metadata?.postulation) {
-            if (metadata.postulation.forcedSelection) {
-                indicators += " 🎯";
-            }
-            if (metadata.postulation.autoSelected) {
-                indicators += " 🤖";
-            }
-        }
-
-        console.log(`\n${agentName}${indicators} ${messageContent}`);
-    }
-
-    private displayMessage(
-        content: string,
-        type: "system" | "user" | "error" = "system"
-    ): void {
-        let color: keyof typeof this.colors = "white";
-        let prefix = "";
-
-        switch (type) {
-            case "system":
-                color = "cyan";
-                prefix = "📢 ";
-                break;
-            case "error":
-                color = "red";
-                prefix = "❌ ";
-                break;
-            case "user":
-                color = "green";
-                prefix = "👤 ";
-                break;
-        }
-
-        const formattedMessage = `${prefix}${content}`;
-        console.log(this.colorize(formattedMessage, color));
-
-        // Update console state
-        this.updateConsoleOutput(formattedMessage);
-    }
-
-    private displayDebug(content: string): void {
-        if (this.config.debugMode) {
-            console.log(this.colorize(`🔧 DEBUG: ${content}`, "dim"));
-        }
-    }
-
-    private getAgentRoleColor(role: AgentRole): keyof typeof this.colors {
-        switch (role) {
-            case AgentRole.NARRATOR:
-                return "magenta";
-            case AgentRole.GUIDE:
-                return "blue";
-            case AgentRole.PLAYER:
-                return "green";
-            case AgentRole.SYSTEM:
-                return "yellow";
-            default:
-                return "white";
-        }
-    }
-
-    private colorize(
-        text: string,
-        color: keyof typeof this.colors,
-        bright = false
-    ): string {
-        if (!this.config.enableColors) {
-            return text;
-        }
-
-        const colorCode = this.colors[color];
-        const brightCode = bright ? this.colors.bright : "";
-        return `${brightCode}${colorCode}${text}${this.colors.reset}`;
-    }
-
-    private clearScreen(): void {
-        console.clear();
-    }
-
-    private generateMessageId(): string {
-        return `msg-${++this.messageIdCounter}-${Date.now()}`;
-    }
-
-    private formatGreediness(greediness: string): string {
-        switch (greediness) {
-            case "very_greedy":
-                return "Very Greedy";
-            case "satisfied":
-                return "Satisfied";
-            case "neutral":
-                return "Neutral";
-            case "passive":
-                return "Passive";
-            default:
-                return greediness;
-        }
-    }
-
-    // === IConsoleReader Implementation ===
-
+    // Subscribe to state updates
+    orchestrator.on("state:updated", (data) => {
+      this.updateDisplay(data.state);
+    });
+  }
     /**
-     * Get the current console output
-     */
-    async getCurrentOutput(): Promise<ConsoleOutput> {
-        return {
-            fullText: this.currentConsoleOutput.join("\n"),
-            lastLines: this.currentConsoleOutput.slice(-10), // Last 10 lines
-            timestamp: Date.now(),
-            isActive: this.isGameActive,
-        };
+   * Handle incoming MCP events
+   */
+  private handleMCPEventContent(event: MCPEvent): void {
+    // Log event
+    this.mcpEventLog.push(event);
+    if (this.mcpEventLog.length > this.maxEventLogSize) {
+      this.mcpEventLog.shift();
     }
 
-    /**
-     * Get the current prompt and available options
-     */
-    async getCurrentPrompt(): Promise<PromptState> {
-        return {
-            promptText: this.currentPromptText,
-            availableOptions: this.currentPromptOptions,
-            isWaitingForInput: this.isWaitingForInput,
-            inputType: this.inputType,
-            context: this.currentUIPhase,
-        };
+    // Display based on event type
+    switch (event.type) {
+      case "tool":
+        this.displayToolEvent(event);
+        break;
+      case "state":
+        this.displayStateEvent(event);
+        break;
+      case "health":
+        this.displayHealthEvent(event);
+        break;
+      case "error":
+        this.displayError(`MCP Error: ${event.action}`, event.data);
+        break;
     }
+  }
 
-    /**
-     * Get the current UI interaction state
-     */
-    async getInteractionState(): Promise<UIInteractionState> {
-        return {
-            phase: this.currentUIPhase,
-            lastUserAction: this.lastUserAction,
-            pendingActions: [...this.pendingActions],
-            availableCommands: [...this.availableCommands],
-            isResponsive: this.isGameActive && !this.awaitingAgentSelection,
-            interactionContext: {
-                currentThread: this.currentThread?.id,
-                messageCount: this.currentThread?.messageCount || 0,
-                maxMessages: this.config.maxMessagesPerThread,
-                pendingPostulations: this.pendingPostulations.length,
-                awaitingAgentSelection: this.awaitingAgentSelection,
-            },
-        };
+  /**
+   * Display tool execution event
+   */
+  displayToolEvent(event: MCPEvent): void {
+    const icon = event.action === "executed" ? "⚡" : "⏳";
+    this.displayInfo(
+      `${icon} Tool ${event.action}: ${event.data.toolName}`,
+      event.data.result
+    );
+  }
+
+  /**
+   * Display state change event
+   */
+  displayStateEvent(event: MCPEvent): void {
+    if (event.action === "synced") {
+      this.displaySuccess("✅ State synchronized");
+    } else if (event.action === "notification") {
+      this.displayNotification("📬 Server notification", event.data);
     }
+  }
 
-    /**
-     * Get complete UI status
-     */
-    async getUIStatus(): Promise<UIStatus> {
-        const [console, prompt, interaction] = await Promise.all([
-            this.getCurrentOutput(),
-            this.getCurrentPrompt(),
-            this.getInteractionState(),
-        ]);
+  /**
+   * Display health status event
+   */
+  displayHealthEvent(event: MCPEvent): void {
+    const icon = event.data.status === "connected" ? "🟢" : "🔴";
+    this.displayInfo(`${icon} Server ${event.serverId}: ${event.data.status}`);
+  }
 
-        return {
-            console,
-            prompt,
-            interaction,
-            timestamp: Date.now(),
-        };
-    }
+  /**
+   * Get MCP event history
+   */
+  getMCPEventHistory(): MCPEvent[] {
+    return [...this.mcpEventLog];
+  }
 
-    /**
-     * Get console reading capabilities
-     */
-    getCapabilities(): ConsoleReadingCapabilities {
-        return {
-            canReadOutput: true,
-            canReadPrompt: true,
-            canReadInteraction: true,
-            canStream: true,
-            metadata: {
-                maxOutputLines: 10,
-                supportsColors: this.config.enableColors,
-                supportsPostulations: this.config.enablePostulations,
-                debugMode: this.config.debugMode,
-            },
-        };
-    }
+  // ===== UI Helper Methods for Orchestrator Integration =====
 
-    /**
-     * Start streaming console state changes
-     */
-    startStreaming(callback: (status: UIStatus) => void): () => void {
-        this.consoleChangeListeners.add(callback);
+  /**
+   * Display informational message
+   */
+  displayInfo(message: string, data?: any): void {
+    this.displayMessageContent(
+      `ℹ️  ${message}${data ? `: ${JSON.stringify(data)}` : ""}`,
+      "system"
+    );
+  }
 
-        // Send initial status
-        this.getUIStatus()
-            .then(callback)
-            .catch((err) => {
-                logger.error("ConsoleUI: Error sending initial status", {
-                    error: err,
-                });
-            });
+  /**
+   * Display success message
+   */
+  displaySuccess(message: string): void {
+    this.displayMessageContent(`✅ ${message}`, "system");
+  }
 
-        // Return cleanup function
-        return () => {
-            this.consoleChangeListeners.delete(callback);
-        };
-    }
+  /**
+   * Display error message
+   */
+  displayError(message: string, error?: any): void {
+    this.displayMessageContent(
+      `❌ ${message}${error ? `: ${JSON.stringify(error)}` : ""}`,
+      "error"
+    );
+  }
 
-    /**
-     * Check if console is ready for reading
-     */
-    isReady(): boolean {
-        return this.isGameActive;
-    }
+  /**
+   * Display notification message
+   */
+  displayNotificationContent(title: string, data?: any): void {
+    this.displayMessageContent(
+      `📬 ${title}${data ? `: ${JSON.stringify(data)}` : ""}`,
+      "system"
+    );
+  }
 
-    // === Console State Management ===
+  /**
+   * Update UI state display
+   */
+  updateState(state: any): void {
+    // Update internal state and refresh display
+    this.displayInfo("State updated", {
+      stateId: state.id,
+      stateName: state.name,
+    });
+  }
 
-    /**
-     * Update console output and notify listeners
-     */
-    private updateConsoleOutput(newLine: string): void {
-        this.currentConsoleOutput.push(newLine);
+  /**
+   * Update display based on state
+   */
+  updateDisplay(state: any): void {
+    this.updateState(state);
+  }
 
-        // Keep only last 100 lines to prevent memory issues
-        if (this.currentConsoleOutput.length > 100) {
-            this.currentConsoleOutput = this.currentConsoleOutput.slice(-100);
-        }
+  /**
+   * Display tool execution result
+   */
+  displayToolResult(result: {
+    tool: string;
+    result: any;
+    executionTime?: number;
+  }): void {
+    this.displayInfo(`Tool executed: ${result.tool}`, {
+      result: result.result,
+      time: result.executionTime,
+    });
+  }
 
-        this.notifyStateChange("output_changed", { newLine });
-    }
+  /**
+   * Display health status
+   */
+  displayHealthStatus(status: {
+    serverId: string;
+    healthy: boolean;
+    message: string;
+  }): void {
+    const icon = status.healthy ? "🟢" : "🔴";
+    this.displayMessageContent(`${icon} ${status.message}`, "system");
+  }
 
-    /**
-     * Update current prompt and notify listeners
-     */
-    private updateCurrentPrompt(
-        text: string,
-        options: PromptOption[] = [],
-        inputType: PromptState["inputType"] = "text"
-    ): void {
-        this.currentPromptText = text;
-        this.currentPromptOptions = options;
-        this.inputType = inputType;
-        this.isWaitingForInput = true;
+  /**
+   * Display action result
+   */
+  displayActionResult(result: {
+    action: string;
+    result: any;
+    success: boolean;
+  }): void {
+    const icon = result.success ? "✅" : "❌";
+    this.displayMessageContent(
+      `${icon} Action ${result.action}: ${
+        result.success ? "Success" : "Failed"
+      }`,
+      "system"
+    );
+  }
 
-        this.notifyStateChange("prompt_changed", { text, options, inputType });
-    }
+  /**
+   * Display game status
+   */
+  displayGameStatus(): void {
+    const state = this.getCurrentState();
+    this.displayInfo("Current game status", {
+      stateId: state.id,
+      currentState: state.currentStateId,
+      agents: this.getActiveAgents().length,
+      thread: this.getCurrentThread()?.id,
+    });
+  }
 
-    /**
-     * Update UI phase and notify listeners
-     */
-    private updateUIPhase(
-        phase: UIInteractionState["phase"],
-        context?: any
-    ): void {
-        this.currentUIPhase = phase;
-
-        // Update available commands based on phase
-        this.updateAvailableCommands(phase);
-
-        this.notifyStateChange("interaction_changed", { phase, context });
-    }
-
-    /**
-     * Update available commands based on current phase
-     */
-    private updateAvailableCommands(phase: UIInteractionState["phase"]): void {
-        this.availableCommands = [];
-
-        switch (phase) {
-            case "startup":
-                this.availableCommands = ["start", "help", "quit"];
-                break;
-            case "menu":
-                this.availableCommands = ["1", "2", "3", "help", "quit"];
-                break;
-            case "conversation":
-                this.availableCommands = ["message", "help", "quit"];
-                if (this.pendingPostulations.length > 0) {
-                    this.availableCommands.push("select");
-                }
-                break;
-            case "decision":
-                this.availableCommands = ["yes", "no", "help"];
-                break;
-            case "waiting":
-                this.availableCommands = ["help", "status"];
-                break;
-        }
-
-        if (this.config.debugMode) {
-            this.availableCommands.push("debug");
-        }
-    }
-
-    /**
-     * Record user action
-     */
-    private recordUserAction(action: string): void {
-        this.lastUserAction = action;
-        this.isWaitingForInput = false;
-
-        this.notifyStateChange("interaction_changed", {
-            lastUserAction: action,
-        });
-    }
-
-    /**
-     * Notify state change listeners
-     */
-    private notifyStateChange(
-        type: ConsoleStateChangeEvent["type"],
-        data: any
-    ): void {
-        const event: ConsoleStateChangeEvent = {
-            type,
-            data,
-            timestamp: Date.now(),
-        };
-
-        // Emit to EventEmitter listeners
-        this.emit("consoleStateChanged", event);
-
-        // Notify streaming listeners with full status
-        if (this.consoleChangeListeners.size > 0) {
-            this.getUIStatus()
-                .then((status) => {
-                    this.consoleChangeListeners.forEach((listener) => {
-                        try {
-                            listener(status);
-                        } catch (error) {
-                            logger.error(
-                                "ConsoleUI: Error in state change listener",
-                                { error }
-                            );
-                        }
-                    });
-                })
-                .catch((err) => {
-                    logger.error(
-                        "ConsoleUI: Error getting UI status for listeners",
-                        { error: err }
-                    );
-                });
-        }
-    }
-
-    /**
-     * Connect to orchestrator for coordinated updates
-     */
-    connectOrchestrator(orchestrator: ChannelConsumer): void {
-        this.orchestrator = orchestrator;
-
-        // Subscribe to MCP events
-        orchestrator.on("mcp:event", (event: MCPEvent) => {
-            this.handleMCPEvent(event);
-        });
-
-        // Subscribe to state updates
-        orchestrator.on("state:updated", (data) => {
-            this.updateDisplay(data.state);
-        });
-    }
-
-    /**
-     * Handle incoming MCP events
-     */
-    private handleMCPEvent(event: MCPEvent): void {
-        // Log event
-        this.mcpEventLog.push(event);
-        if (this.mcpEventLog.length > this.maxEventLogSize) {
-            this.mcpEventLog.shift();
-        }
-
-        // Display based on event type
-        switch (event.type) {
-            case "tool":
-                this.displayToolEvent(event);
-                break;
-            case "state":
-                this.displayStateEvent(event);
-                break;
-            case "health":
-                this.displayHealthEvent(event);
-                break;
-            case "error":
-                this.displayError(`MCP Error: ${event.action}`, event.data);
-                break;
-        }
-    }
-
-    /**
-     * Display tool execution event
-     */
-    private displayToolEvent(event: MCPEvent): void {
-        const icon = event.action === "executed" ? "⚡" : "⏳";
-        this.displayInfo(
-            `${icon} Tool ${event.action}: ${event.data.toolName}`,
-            event.data.result
-        );
-    }
-
-    /**
-     * Display state change event
-     */
-    private displayStateEvent(event: MCPEvent): void {
-        if (event.action === "synced") {
-            this.displaySuccess("✅ State synchronized");
-        } else if (event.action === "notification") {
-            this.displayNotification("📬 Server notification", event.data);
-        }
-    }
-
-    /**
-     * Display health status event
-     */
-    private displayHealthEvent(event: MCPEvent): void {
-        const icon = event.data.status === "connected" ? "🟢" : "🔴";
-        this.displayInfo(
-            `${icon} Server ${event.serverId}: ${event.data.status}`
-        );
-    }
-
-    /**
-     * Get MCP event history
-     */
-    getMCPEventHistory(): MCPEvent[] {
-        return [...this.mcpEventLog];
-    }
-
-    // ===== UI Helper Methods for Orchestrator Integration =====
-
-    /**
-     * Display informational message
-     */
-    displayInfo(message: string, data?: any): void {
-        this.displayMessage(
-            `ℹ️  ${message}${data ? `: ${JSON.stringify(data)}` : ""}`,
-            "system"
-        );
-    }
-
-    /**
-     * Display success message
-     */
-    displaySuccess(message: string): void {
-        this.displayMessage(`✅ ${message}`, "system");
-    }
-
-    /**
-     * Display error message
-     */
-    displayError(message: string, error?: any): void {
-        this.displayMessage(
-            `❌ ${message}${error ? `: ${JSON.stringify(error)}` : ""}`,
-            "error"
-        );
-    }
-
-    /**
-     * Display notification message
-     */
-    displayNotification(title: string, data?: any): void {
-        this.displayMessage(
-            `📬 ${title}${data ? `: ${JSON.stringify(data)}` : ""}`,
-            "system"
-        );
-    }
-
-    /**
-     * Update UI state display
-     */
-    updateState(state: any): void {
-        // Update internal state and refresh display
-        this.displayInfo("State updated", {
-            stateId: state.id,
-            stateName: state.name,
-        });
-    }
-
-    /**
-     * Update display based on state
-     */
-    updateDisplay(state: any): void {
-        this.updateState(state);
-    }
-
-    /**
-     * Display tool execution result
-     */
-    displayToolResult(result: {
-        tool: string;
-        result: any;
-        executionTime?: number;
-    }): void {
-        this.displayInfo(`Tool executed: ${result.tool}`, {
-            result: result.result,
-            time: result.executionTime,
-        });
-    }
-
-    /**
-     * Display health status
-     */
-    displayHealthStatus(status: {
-        serverId: string;
-        healthy: boolean;
-        message: string;
-    }): void {
-        const icon = status.healthy ? "🟢" : "🔴";
-        this.displayMessage(`${icon} ${status.message}`, "system");
-    }
-
-    /**
-     * Display action result
-     */
-    displayActionResult(result: {
-        action: string;
-        result: any;
-        success: boolean;
-    }): void {
-        const icon = result.success ? "✅" : "❌";
-        this.displayMessage(
-            `${icon} Action ${result.action}: ${
-                result.success ? "Success" : "Failed"
-            }`,
-            "system"
-        );
-    }
-
-    /**
-     * Display game status
-     */
-    displayGameStatus(): void {
-        const state = this.getCurrentState();
-        this.displayInfo("Current game status", {
-            stateId: state.id,
-            currentState: state.currentStateId,
-            agents: this.getActiveAgents().length,
-            thread: this.getCurrentThread()?.id,
-        });
-    }
+  async updatePhaseDisplay(phase: UIPhase): Promise<void> {}
 }
 
 /**

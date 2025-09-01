@@ -5,9 +5,7 @@
  * postulation system for agent selection.
  */
 import {
-    ConsoleGamificationUI,
-    ConsoleUIConfig,
-    ConsoleUIEvent,
+    ConsoleGamificationUI
 } from "../../src/ui";
 import { Runtime } from "../../src/runtime/Runtime";
 import { MCPDriverAdapter } from "../../src/drivers/MCPDriverAdapter";
@@ -28,6 +26,8 @@ import { OllamaChatProvider } from "../../src/chat-provider/OllamaChatProvider";
 import { XPlus1PostulationSystem } from "./XPlus1PostulationSystem";
 import { getBasicRuntimeConfig } from "./xplus1-game";
 import { AppConfig } from "@/utils";
+import { ConsoleUIConfig } from "@/ui/ConsoleUIConfig";
+import { ConsoleUIEvent } from "@/ui/ConsoleUIEvent";
 
 // Remote control interfaces (matching XPlus1MCPMachine)
 interface RemoteCommand {
@@ -81,7 +81,7 @@ export class DEPRECATEDXPlus1GameConsole extends ConsoleGamificationUI {
         chat: OllamaChatProvider,
         uiConfig: ConsoleUIConfig
     ) {
-        super(runtime, uiConfig);
+        super(runtime, mcp, uiConfig);
 
         console.log("🎮 Initializing X+1 Game Console UI... 111");
         if (runtime.initialize === undefined) {
@@ -1029,7 +1029,7 @@ export class DEPRECATEDXPlus1GameConsole extends ConsoleGamificationUI {
     }
 
     // Minimal user input handler for the example; extend as needed
-    private async onUserInput(input: string): Promise<void> {
+    async onUserInput(input: string): Promise<void> {
         if (!this.gameState.isActive) {
             return;
         }

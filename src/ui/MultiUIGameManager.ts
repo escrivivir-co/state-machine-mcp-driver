@@ -19,8 +19,8 @@ import {
 } from "../ui/GamificationUI";
 import {
     ConsoleGamificationUI,
-    ConsoleUIConfig,
 } from "../ui/ConsoleGamificationUI";
+import { ConsoleUIConfig } from "./ConsoleUIConfig";
 import {
     HTML5GamificationUI,
     HTML5GameUIConfig,
@@ -56,7 +56,7 @@ class ConsoleGamificationUIWrapper extends GamificationUI {
         };
 
         super(runtime, mcpAdapter, baseConfig);
-        this.consoleUI = new ConsoleGamificationUI(runtime, config);
+        this.consoleUI = new ConsoleGamificationUI(runtime, this.mcpAdapter, config);
 
         // Forward relevant events
         this.consoleUI.on("gameStateChange", (data) => {
