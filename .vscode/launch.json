@@ -55,14 +55,14 @@
       "outputCapture": "std"
     },
     {
-      "name": "Debug npm start (nvm path)",
+      "name": "WIN START 2",
       "type": "node",
       "request": "launch",
       "runtimeExecutable": "C:\\Users\\secre\\.nvm\\versions\\node\\v20.16.0\\bin\\node.exe",
       "runtimeArgs": ["--require", "tsx/cjs"],
-      "program": "${workspaceFolder}/examples/multi-ui-launcher.ts",
+      "program": "${workspaceFolder}/examples/xplus1-app/xplus1-app.ts",
       "args": [
-        "examples/configs/x-plus-1-multi-ui.json"
+        "examples/xplus1-app/xplus1-config.json"
       ],
       "cwd": "${workspaceFolder}",
       "env": {

@@ -94,6 +94,7 @@ export class Orchestrator extends EventEmitter {
         this.setupChannelIntegration();
         this.setupErrorHandling();
         this.setupStatistics();
+        this.initAlephClient();
 
         if (this.config.enableLogging) {
             Logger.info("🎼 Orchestrator initialized with 3 channels");
@@ -105,7 +106,8 @@ export class Orchestrator extends EventEmitter {
 		this.alephClient.initTriggersDefinition.push(() => {
 
             const ROOM_NAME = this.name + "_ROOM";
-			this.alephClient.io.emit("CLIENT_REGISTER", { usuario:  this.alephClient.name, sesion: getHash("xS")} as IUserDetails);
+            const REGISTER_PAYLOAD = { usuario:  this.alephClient.name, sesion: getHash("xS")};
+			this.alephClient.io.emit("CLIENT_REGISTER", REGISTER_PAYLOAD as IUserDetails);
 			this.alephClient.io.emit("CLIENT_SUSCRIBE", { room: ROOM_NAME });
 			this.alephClient.room("MAKE_MASTER", { features: []}, ROOM_NAME);
 
