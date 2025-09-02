@@ -1,6 +1,6 @@
 import { Logger } from "@/utils";
 import { ChannelAgent as ChannelAgent, IOrchestratorChannels, SysMessage } from "../types";
-
+import { SYS_CHANNEL_INTERVAL_MS } from "./SYS_CHANNEL_INTERVAL_MS";
 
 /**
  * Example System Monitor Component
@@ -55,7 +55,7 @@ export class SysChannelAgent implements ChannelAgent {
 	private startMonitoring(): void {
 		this.monitoringInterval = setInterval(() => {
 			this.performHealthChecks();
-		}, 10000); // Every 10 seconds
+		}, SYS_CHANNEL_INTERVAL_MS); // Every 10 seconds
 	}
 
 	private performHealthChecks(): void {

@@ -171,14 +171,14 @@
 			"config": {
 				"gameTitle": "X+1 Game - 3D Visual",
 				"port": 9090,
-				"staticDir": "../threejs-gamify-ui/dist/threegamification-ui",
+				"staticDir": "../threejs-gamify-ui/dist/public",
 				"corsOrigin": "*",
 				"enablePostulations": true,
 				"autoSelectSingleAgent": false,
 				"maxMessagesPerThread": 50,
 				"debugMode": true,
 				"welcomeMessage": "Welcome to X+1 3D Experience",
-				"autoBuild": true,
+				"autoBuild": false,
 				"autoOpenBrowser": true,
 				"angularProjectPath": "../threejs-gamify-ui"
 			}
@@ -187,7 +187,7 @@
 			"id": "unity-3d",
 			"name": "Unity 3D Interface",
 			"type": "unity",
-			"enabled": true,
+			"enabled": false,
 			"config": {
 				"gameTitle": "X+1 Game - Unity 3D",
 				"port": 9080,

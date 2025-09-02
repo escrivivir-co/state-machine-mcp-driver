@@ -1,0 +1,398 @@
+import express from "express";
+import path from "path";
+import { createServer } from "http";
+import { Subject } from "rxjs";
+import { spawn, ChildProcess } from "child_process";
+import { fileURLToPath } from "url";
+
+import { GamificationUI, BaseGamificationUIConfig, GameMessage, UIPhase, GamificationUIEvent } from "./GamificationUI";
+import { MCPDriverAdapter } from "@/drivers/MCPDriverAdapter";
+import { Runtime } from "@/runtime/Runtime";
+import { Agent, AgentRole } from "@/models/Agent";
+import { AgentPostulation } from "@/models/AgentPostulation";
+import { Logger } from "@/utils/logger";
+import { IOrchestratorChannels } from "@/orchestration/types";
+import { AlephScriptClient } from "@/clients/alephscript-client";
+
+export interface ThreeJSGameUIConfig extends BaseGamificationUIConfig {
+  port: number;
+  corsOrigin?: string;
+  /** Auto-open browser */
+  autoOpenBrowser?: boolean;
+  /** Use embedded library instead of external build */
+  useEmbeddedLibrary?: boolean;
+}
+
+export class ThreeJSGamificationUILibrary extends GamificationUI {
+    private cfg: ThreeJSGameUIConfig;
+    private app!: express.Application;
+    private server!: ReturnType<typeof createServer>;
+    private isServerRunning = false;
+
+    // AlephScript integration
+    private orchestratorChannels?: IOrchestratorChannels;
+    private proserpinaBot!: AlephScriptClient;
+    private connectedClients: Set<string> = new Set();
+    
+    // Browser management
+    private browserProcess?: ChildProcess;
+
+    constructor(runtime: Runtime, mcp: MCPDriverAdapter, config: ThreeJSGameUIConfig) {
+        super(runtime, mcp, config);
+        this.cfg = {
+            autoOpenBrowser: true,
+            useEmbeddedLibrary: true,
+            ...config
+        };
+    }
+
+    async displayMessage(message: GameMessage): Promise<void> {
+        Logger.info("📨 Displaying game message:", message);
+        
+        this.broadcastToClients("game_message", {
+            id: message.id,
+            sender: message.from,
+            content: message.content,
+            timestamp: message.timestamp,
+            type: message.type || "chat",
+            metadata: message.metadata
+        });
+
+        // Emit UI event for orchestrator
+        this.emit(GamificationUIEvent.MESSAGE_DISPLAYED, message);
+    }
+
+    async displayAgentPostulations(postulations: AgentPostulation[]): Promise<void> {
+        Logger.info(`🤖 Displaying ${postulations.length} agent postulations`);
+        
+        const postulationData = postulations.map(p => ({
+            id: p.id,
+            agentId: p.agent.id,
+            agentName: p.agent.name,
+            agentRole: p.agent.role,
+            reasoning: p.reasoning,
+            timestamp: p.timestamp,
+            status: p.status || "pending"
+        }));
+
+        this.broadcastToClients("agent_postulations", {
+            postulations: postulationData,
+            count: postulations.length,
+            timestamp: Date.now()
+        });
+
+        // Emit UI event
+        this.emit(GamificationUIEvent.POSTULATIONS_UPDATED, postulations);
+    }
+
+    async displayNotification(
+        title: string, 
+        message: string, 
+        type: "info" | "success" | "warning" | "error" = "info"
+    ): Promise<void> {
+        Logger.info(`🔔 Displaying notification: ${title} - ${message} (${type})`);
+        
+        const notification = {
+            id: `notif_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+            title,
+            message,
+            type,
+            timestamp: Date.now(),
+            duration: type === "error" ? 5000 : 3000
+        };
+
+        this.broadcastToClients("notification", notification);
+
+        // Also send to orchestrator if connected
+        if (this.orchestratorChannels) {
+            this.orchestratorChannels.ui.next({
+                type: "notification",
+                source: "threejs",
+                payload: notification,
+                timestamp: Date.now()
+            });
+        }
+    }
+
+    async updatePhaseDisplay(phase: UIPhase): Promise<void> {
+        Logger.info(`🎮 Updating phase display to: ${phase}`);
+        
+        const phaseData = {
+            phase,
+            previousPhase: this.currentPhase,
+            timestamp: Date.now(),
+            gameTitle: this.config.gameTitle
+        };
+
+        this.broadcastToClients("phase_change", phaseData);
+        
+        // Update internal state
+        this.changePhase(phase);
+
+        // Emit phase change event
+        this.emit(GamificationUIEvent.PHASE_CHANGED, { from: this.currentPhase, to: phase });
+    }
+
+    // Orchestrator channels connection
+    public connectOrchestrator(channels: IOrchestratorChannels): void {
+        this.orchestratorChannels = channels;
+
+        // Forward UI bus -> ThreeJS clients via AlephScript
+        channels.ui.subscribe((msg) => {
+            try {
+                switch (msg.type) {
+                    case "display_update":
+                        this.broadcastToClients("state_display", { 
+                            level: msg.payload?.displayType || "info", 
+                            message: msg.payload?.message || msg.payload, 
+                            ts: Date.now() 
+                        });
+                        break;
+                    case "notification":
+                        this.broadcastToClients("notification", { 
+                            title: msg.payload?.title || "Info", 
+                            message: msg.payload?.message || "", 
+                            type: msg.payload?.displayType || "info" 
+                        });
+                        break;
+                    case "phase_change":
+                        this.broadcastToClients("phase_change", { 
+                            phase: msg.payload?.phase || msg.payload, 
+                            timestamp: Date.now() 
+                        });
+                        break;
+                    default:
+                        this.broadcastToClients("ui_event", msg);
+                }
+            } catch (e) {
+                Logger.warn("ThreeJS UI broadcast failed for ui message", e as Error);
+            }
+        });
+
+        // Forward SYS messages selectively
+        channels.sys.filter("info").subscribe((msg) => {
+            this.broadcastToClients("sys_info", msg);
+        });
+    }
+
+    async start(): Promise<void> {
+        Logger.info("🎮 Starting ThreeJS Gamification UI Library...");
+
+        // Setup Express server with embedded Angular app
+        this.app = express();
+        this.app.use(express.json());
+        this.setupExpressRoutes();
+
+        this.server = createServer(this.app);
+
+        await new Promise<void>((resolve, reject) => {
+            this.server.listen(this.cfg.port, () => {
+                this.isServerRunning = true;
+                Logger.info(`🎮 ThreeJSGamificationUI Library server listening on :${this.cfg.port}`);
+                Logger.info(`🌐 Access at: http://localhost:${this.cfg.port}`);
+                this.emit(GamificationUIEvent.GAME_STARTED, { port: this.cfg.port });
+                this.changePhase("menu");
+                resolve();
+            });
+            this.server.on("error", reject);
+        });
+
+        // Initialize AlephScript client
+        this.proserpinaBot = new AlephScriptClient(
+            `ThreeJSUI_${this.config.gameTitle}`,
+            "http://localhost:8090",
+            "/runtime",
+            true
+        );
+
+        // Setup AlephScript event handlers
+        this.setupAlephScriptHandlers();
+        
+        // Connect to orchestrator if available
+        if (this.orchestratorChannels) {
+            this.proserpinaBot.initializeSysChannelIntegration(this.orchestratorChannels);
+        }
+
+        // Initialize base UI AlephScript integration
+        this.initAlephScriptBot(this.proserpinaBot);
+
+        // Auto-open browser if enabled
+        if (this.cfg.autoOpenBrowser) {
+            await this.openBrowser();
+        }
+    }
+
+    async stop(): Promise<void> {
+        if (!this.isServerRunning) return;
+        
+        // Close browser process
+        if (this.browserProcess && !this.browserProcess.killed) {
+            this.browserProcess.kill();
+            this.browserProcess = undefined;
+        }
+        
+        // Disconnect AlephScript client
+        if (this.proserpinaBot) {
+            this.proserpinaBot.disconnect();
+        }
+        
+        await new Promise<void>((resolve) => {
+            this.server.close(() => {
+                this.isServerRunning = false;
+                this.emit(GamificationUIEvent.GAME_STOPPED, {});
+                Logger.info("🛑 ThreeJS Gamification UI Library stopped");
+                resolve();
+            });
+        });
+    }
+
+    // === Express Routes Setup ===
+    
+    private setupExpressRoutes(): void {
+        // CORS headers
+        this.app.use((req, res, next) => {
+            res.header("Access-Control-Allow-Origin", this.cfg.corsOrigin || "*");
+            res.header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept");
+            res.header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
+            next();
+        });
+
+        // Serve the embedded Angular application
+        this.app.get("/", (req, res) => {
+            res.send(this.generateAngularHTML());
+        });
+
+        // Serve static assets from node_modules (AlephScript client, etc.)
+        this.app.use("/assets", express.static(path.join(__dirname, "../../public")));
+
+        // API endpoints for frontend integration
+        this.setupAPIRoutes();
+    }
+
+    private generateAngularHTML(): string {
+        return `
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>${this.config.gameTitle}</title>
+    <base href="/">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="icon" type="image/x-icon" href="favicon.ico">
+    <style>
+        body { margin: 0; padding: 0; overflow: hidden; background: #1a1a1a; color: white; font-family: Arial, sans-serif; }
+        .loading { display: flex; justify-content: center; align-items: center; height: 100vh; }
+        .spinner { border: 3px solid #f3f3f3; border-top: 3px solid #3498db; border-radius: 50%; width: 40px; height: 40px; animation: spin 2s linear infinite; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    </style>
+</head>
+<body>
+    <div id="app">
+        <div class="loading">
+            <div class="spinner"></div>
+        </div>
+    </div>
+    
+    <script src="/assets/alephscript-client-native.js"></script>
+    <script>
+        // Initialize ThreeJS UI using the native AlephScript client
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('🎮 Initializing ThreeJS UI Library...');
+            
+            // Configuration for the ThreeJS UI
+            const config = {
+                gameTitle: "${this.config.gameTitle}",
+                serverUrl: "http://localhost:${this.cfg.port}",
+                alephScriptUrl: "ws://localhost:8090",
+                debugMode: ${this.config.debugMode || false}
+            };
+            
+            // Initialize AlephScript connection with native client
+            const alephClient = createAlephScriptClient(
+                'threejs-library',
+                'threejs-ui-component',
+                'http://localhost:8090',
+                true
+            );
+            
+            alephClient.on('connected', () => {
+                console.log('✅ AlephScript native client connected!');
+                document.getElementById('app').innerHTML = \`
+                    <div style="padding: 20px; text-align: center;">
+                        <h1>🎮 \${config.gameTitle}</h1>
+                        <p style="color: #00ff00;">✅ AlephScript Connected</p>
+                        <p>ThreeJS UI Library Integration Ready</p>
+                        <button onclick="testAlephScript()" style="padding: 10px 20px; margin: 5px; background: #3498db; color: white; border: none; border-radius: 4px; cursor: pointer;">Test AlephScript</button>
+                        <button onclick="initializeThreeJS()" style="padding: 10px 20px; margin: 5px; background: #27ae60; color: white; border: none; border-radius: 4px; cursor: pointer;">Initialize ThreeJS Scene</button>
+                    </div>
+                \`;
+            });
+            
+            alephClient.on('disconnected', () => {
+                console.log('❌ AlephScript disconnected');
+            });
+            
+            alephClient.on('message', (data) => {
+                console.log('📨 Received message:', data);
+            });
+            
+            // Global functions for UI interaction
+            window.testAlephScript = () => {
+                alephClient.sendMessage({
+                    type: 'test',
+                    message: 'Hello from ThreeJS Native Client!',
+                    timestamp: Date.now()
+                });
+                console.log('📤 Test message sent via native AlephScript');
+            };
+            
+            window.initializeThreeJS = () => {
+                console.log('🎮 Initializing ThreeJS scene...');
+                // TODO: Here we would initialize the actual @escrivivir/threejs-ui-lib component
+                alert('🎮 ThreeJS Scene Ready!\\n\\nNext steps:\\n1. Load Three.js library\\n2. Initialize @escrivivir/threejs-ui-lib\\n3. Create 3D scene with bots');
+            };
+            
+            // Start connection
+            alephClient.connect();
+            
+            console.log('ThreeJS UI config:', config);
+        });
+    </script>
+</body>
+</html>
+        `;
+    }
+
+    private setupAPIRoutes(): void {
+        // Health check endpoint
+        this.app.get("/api/health", (req, res) => {
+            res.json({
+                status: "ok",
+                ui: "threejs-library",
+                timestamp: new Date().toISOString(),
+                connections: this.connectedClients.size
+            });
+        });
+
+        // Configuration endpoint
+        this.app.get("/api/config", (req, res) => {
+            res.json({
+                gameTitle: this.config.gameTitle,
+                alephScriptUrl: "ws://localhost:8090",
+                debugMode: this.config.debugMode || false
+            });
+        });
+    }
+
+    // === AlephScript Event Handlers ===
+    
+    private setupAlephScriptHandlers(): void {
+        this.proserpinaBot.on("client_connected", (data: any) => {
+            const clientId = data.clientId || data.id;
+            this.connectedClients.add(clientId);
+            Logger.info(`📱 ThreeJS client connected: ${clientId} (${this.connectedClients.size} total)`);
+        });
+
+        this.proserpinaBot.on("client_disconnected", (data: any) => {
+            const clientId = data.clientId || data.id;
+            this.connectedClients.delete(clientId);

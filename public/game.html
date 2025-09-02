@@ -467,12 +467,16 @@
                     <button class="action-button" onclick="loadAgents()">Load Agents</button>
                 </div>
             </div>
-        </div>
     </div>
 
+    <!-- Socket.IO CDN -->
+    <script src="https://cdn.socket.io/4.8.1/socket.io.min.js"></script>
+    <!-- AlephScript Frontend Client -->
+    <script src="/alephscript-client.js"></script>
+    
     <script>
         // Global state
-        let eventSource = null;
+        let alephClient = null;
         let gameState = {
             x: 0,
             currentState: 'start',
@@ -484,13 +488,13 @@
 
         // Initialize the game interface
         function initializeGame() {
-            console.log('Initializing X+1 Game Web Interface...');
+            console.log('Initializing X+1 Game Web Interface with AlephScript...');
             
             // Setup event listeners
             setupEventListeners();
             
-            // Connect to SSE
-            connectToEventStream();
+            // Connect to AlephScript
+            connectToAlephScript();
             
             // Load initial state
             loadInitialState();
@@ -515,38 +519,88 @@
             messageInput.focus();
         }
 
-        // Connect to Server-Sent Events
-        function connectToEventStream() {
-            if (eventSource) {
-                eventSource.close();
+        // Connect to AlephScript server
+        function connectToAlephScript() {
+            if (alephClient) {
+                alephClient.disconnect();
             }
 
-            eventSource = new EventSource('/events');
+            // Create AlephScript client
+            alephClient = createAlephScriptClient(
+                'html5',
+                'web-interface',
+                'http://localhost:3000',
+                { debug: true }
+            );
             
-            eventSource.onopen = function() {
-                console.log('Connected to event stream');
+            // Setup AlephScript event handlers
+            setupAlephScriptHandlers();
+            
+            // Connect
+            alephClient.connect();
+        }
+
+        // Setup AlephScript event handlers
+        function setupAlephScriptHandlers() {
+            // Connection events
+            alephClient.on('connected', (data) => {
+                console.log('🔌 Connected to AlephScript server', data);
                 updateConnectionStatus(true);
-            };
-
-            eventSource.onmessage = function(event) {
-                try {
-                    const data = JSON.parse(event.data);
-                    handleServerEvent(data);
-                } catch (error) {
-                    console.error('Error parsing server event:', error);
-                }
-            };
-
-            eventSource.onerror = function(error) {
-                console.error('EventSource error:', error);
-                updateConnectionStatus(false);
                 
-                // Attempt to reconnect after 3 seconds
-                setTimeout(() => {
-                    console.log('Attempting to reconnect...');
-                    connectToEventStream();
-                }, 3050);
-            };
+                // Request initial game state
+                alephClient.requestGameState();
+            });
+
+            alephClient.on('disconnected', () => {
+                console.log('🔌 Disconnected from AlephScript server');
+                updateConnectionStatus(false);
+            });
+
+            alephClient.on('connection_error', (data) => {
+                console.error('❌ AlephScript connection error:', data);
+                updateConnectionStatus(false);
+            });
+
+            // Game events
+            alephClient.on('message', (data) => {
+                console.log('📨 Received message:', data);
+                handleGameMessage(data);
+            });
+
+            alephClient.on('agent_message', (data) => {
+                console.log('🤖 Received agent message:', data);
+                handleAgentMessage(data);
+            });
+
+            alephClient.on('system_message', (data) => {
+                console.log('🔧 Received system message:', data);
+                handleSystemMessage(data);
+            });
+
+            alephClient.on('agent_postulations', (data) => {
+                console.log('🎭 Received agent postulations:', data);
+                displayAgentPostulations(data.postulations);
+            });
+
+            alephClient.on('game_state_update', (data) => {
+                console.log('📊 Game state update:', data);
+                updateGameState(data);
+            });
+
+            alephClient.on('phase_change', (data) => {
+                console.log('🔄 Phase change:', data);
+                updatePhase(data.phase);
+            });
+
+            alephClient.on('notification', (data) => {
+                console.log('📢 Notification:', data);
+                showNotification(data.title, data.message, data.type);
+            });
+
+            alephClient.on('heartbeat', (data) => {
+                console.log('💓 Heartbeat from server');
+                // Client automatically responds to heartbeat
+            });
         }
 
         // Handle server events
@@ -713,7 +767,7 @@
             document.getElementById('xValue').textContent = x;
         }
 
-        // Send message
+        // Send message via AlephScript
         async function sendMessage() {
             const input = document.getElementById('messageInput');
             const message = input.value.trim();
@@ -721,25 +775,27 @@
             if (!message) return;
             
             try {
-                const response = await fetch('/api/message', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({
-                        message: message,
-                        sender: 'User'
-                    })
+                // Send via AlephScript instead of fetch
+                alephClient.sendUserInput(message, {
+                    timestamp: Date.now(),
+                    source: 'html5-web-ui'
                 });
                 
-                if (response.ok) {
-                    input.value = '';
-                    input.focus();
-                } else {
-                    console.error('Failed to send message');
-                }
+                // Clear input and refocus
+                input.value = '';
+                input.focus();
+                
+                // Add message to local display immediately
+                addMessageToDisplay({
+                    id: 'user_' + Date.now(),
+                    type: 'user',
+                    content: message,
+                    timestamp: Date.now()
+                });
+                
             } catch (error) {
-                console.error('Error sending message:', error);
+                console.error('Error sending message via AlephScript:', error);
+                showNotification('Error', 'Failed to send message', 'error');
             }
         }
 
@@ -815,62 +871,48 @@
         /**
          * Select an agent by index
          */
+        /**
+         * Select an agent by index via AlephScript
+         */
         async function selectAgent(agentIndex) {
-            if (!gameState.currentClientId) {
-                console.error('No client ID available');
-                return;
-            }
-
             try {
-                const response = await fetch('/api/select-agent', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({
-                        agentIndex: agentIndex,
-                        clientId: gameState.currentClientId
-                    })
-                });
-
-                const result = await response.json();
-                if (result.success) {
-                    console.log('Agent selected successfully:', result.selectedAgent);
-                } else {
-                    console.error('Failed to select agent:', result.error);
+                // Send agent selection via AlephScript
+                alephClient.selectAgent(agentIndex, `User selected agent at index ${agentIndex}`);
+                
+                console.log('Agent selection sent via AlephScript:', agentIndex);
+                
+                // Hide agent postulations UI
+                const postulationsContainer = document.getElementById('agentPostulations');
+                if (postulationsContainer) {
+                    postulationsContainer.style.display = 'none';
                 }
+                
+                // Show feedback
+                showNotification('Agent Selected', `Agent ${agentIndex + 1} has been selected`, 'success');
+                
             } catch (error) {
-                console.error('Error selecting agent:', error);
+                console.error('Error selecting agent via AlephScript:', error);
+                showNotification('Error', 'Failed to select agent', 'error');
             }
         }
 
         /**
-         * Generate new agent postulations
+         * Generate new agent postulations via AlephScript
          */
         async function generatePostulations() {
             try {
-                const response = await fetch('/api/postulations/generate', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({
-                        clientId: gameState.currentClientId || 'web_client',
-                        context: {
-                            messageCount: gameState.messageCount,
-                            currentPhase: gameState.currentState
-                        }
-                    })
+                // Request postulations via AlephScript
+                alephClient.requestPostulations({
+                    context: 'user_requested',
+                    timestamp: Date.now()
                 });
-
-                const result = await response.json();
-                if (result.success) {
-                    console.log('Postulations generated:', result);
-                } else {
-                    console.error('Failed to generate postulations:', result.error);
-                }
+                
+                console.log('Postulations requested via AlephScript');
+                showNotification('Info', 'Requesting agent postulations...', 'info');
+                
             } catch (error) {
-                console.error('Error generating postulations:', error);
+                console.error('Error requesting postulations via AlephScript:', error);
+                showNotification('Error', 'Failed to request postulations', 'error');
             }
         }
 
@@ -879,17 +921,11 @@
          */
         async function loadAgents() {
             try {
-                const response = await fetch('/api/agents');
-                const data = await response.json();
-                
-                if (data.agents) {
-                    renderAgents(data.agents);
-                    console.log('Loaded agents:', data.agents);
-                } else {
-                    console.error('Failed to load agents');
-                }
+                // Request current agents via AlephScript
+                alephClient.requestGameState();
+                console.log('Requested agents via AlephScript');
             } catch (error) {
-                console.error('Error loading agents:', error);
+                console.error('Error requesting agents via AlephScript:', error);
             }
         }
 
@@ -949,8 +985,8 @@
 
         // Cleanup on page unload
         window.addEventListener('beforeunload', function() {
-            if (eventSource) {
-                eventSource.close();
+            if (alephClient) {
+                alephClient.disconnect();
             }
         });
     </script>

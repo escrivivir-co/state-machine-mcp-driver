@@ -43,7 +43,8 @@
     "app:verbose": "cross-env OLLAMA_MODEL=gpt-oss:20b MCP_USE_NATIVE_PROTOCOL=true MCP_VERBOSE=true LOG_LEVEL=debug npm run launcher:x-plus-1",
     "app:normal": "cross-env OLLAMA_MODEL=gpt-oss:20b MCP_USE_NATIVE_PROTOCOL=true MCP_QUIET=false MCP_VERBOSE=false npm run launcher:x-plus-1",
     "threejs:test": "npx tsx examples/threejs-standalone-test.ts",
-    "threejs:demo": "npx tsx examples/threejs-integration-example.ts",
+    "threejs:demo": "npx tsx examples/threejs-library-integration-example.ts",
+    "threejs:demo-integration": "npx tsx examples/threejs-integration-example.ts",
     "unity:test": "npx tsx examples/unity-standalone-test.ts",
     "unity:demo": "npx tsx examples/threejs-integration-example.ts"
   },
@@ -61,6 +62,7 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "@escrivivir/threejs-ui-lib": "file:../threejs-gamify-ui/dist/threejs-ui-lib/escrivivir-threejs-ui-lib-1.0.0.tgz",
     "@modelcontextprotocol/sdk": "^1.17.4",
     "axios": "^1.6.0",
     "express": "^4.18.2",

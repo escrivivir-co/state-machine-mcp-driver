@@ -63,7 +63,7 @@ const exampleConfig: MultiUIGameConfig = {
       config: {
         gameTitle: "ThreeJS Visual Demo",
         port: 9090,
-        staticDir: "e:/LAB_AGOSTO/threejs-gamify-ui/dist/threegamification-ui",
+        staticDir: "e:/LAB_AGOSTO/threejs-gamify-ui/dist/public",
         corsOrigin: "*",
         enablePostulations: true,
         autoSelectSingleAgent: false,

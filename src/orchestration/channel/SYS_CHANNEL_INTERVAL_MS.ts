@@ -1,0 +1,2 @@
+
+export const SYS_CHANNEL_INTERVAL_MS = 60 * 1000;

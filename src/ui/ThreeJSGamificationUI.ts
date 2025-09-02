@@ -96,12 +96,8 @@ export class ThreeJSGamificationUI extends GamificationUI {
   async start(): Promise<void> {
     Logger.info("🎮 Starting ThreeJS Gamification UI...");
 
-    // Step 1: Build Angular app if needed
-    if (this.cfg.autoBuild) {
-      await this.buildAngularApp();
-    }
-
-    // Step 2: Setup Express server with enhanced routes (similar to HTML5UI)
+    // Step 1: Setup Express server with dynamic HTML generation (like ThreeJSLibraryServer)
+    // Skip Angular build - we'll generate HTML dynamically
     this.app = express();
     this.app.use(express.json());
     this.setupExpressRoutes();
@@ -120,10 +116,10 @@ export class ThreeJSGamificationUI extends GamificationUI {
       this.server.on("error", reject);
     });
 
-    // Step 3: Initialize AlephScript client for Socket.IO communication
+    // Step 2: Initialize AlephScript client for Socket.IO communication
     this.proserpinaBot = new AlephScriptClient(
       `ThreeJSUI_${this.config.gameTitle}`,
-      "http://localhost:3000", // AlephScript server
+      "http://localhost:3000", // AlephScript orchestrator server (port 3000, not 8090)
       "/runtime", // namespace for UI communication
       true
     );
@@ -175,8 +171,11 @@ export class ThreeJSGamificationUI extends GamificationUI {
     });
   }
 
-  // === Angular Build Management ===
+  // === Angular Build Management (DEPRECATED - Using dynamic HTML generation instead) ===
   
+  // NOTE: We no longer need to build Angular app since we generate HTML dynamically
+  // This eliminates Socket.IO conflicts and simplifies deployment
+  /*
   private async buildAngularApp(): Promise<void> {
     return new Promise((resolve, reject) => {
       Logger.info("🔨 Building Angular ThreeJS app...");
@@ -215,7 +214,7 @@ export class ThreeJSGamificationUI extends GamificationUI {
           Logger.info("✅ Angular ThreeJS app built successfully");
           
           // Update static directory to built app
-          const builtAppPath = path.join(angularPath, "dist", "threegamification-ui");
+          const builtAppPath = path.join(angularPath, "dist", "public");
           this.cfg.staticDir = builtAppPath;
           
           resolve();
@@ -234,6 +233,7 @@ export class ThreeJSGamificationUI extends GamificationUI {
       });
     });
   }
+  */
 
   // === Express Routes Setup ===
   
@@ -246,8 +246,101 @@ export class ThreeJSGamificationUI extends GamificationUI {
       next();
     });
 
-    // Serve static files from built Angular app
-    this.app.use(express.static(this.cfg.staticDir));
+    // Serve AlephScript client assets from both public and src/assets
+    this.app.use("/assets", express.static(path.join(__dirname, "../../public")));
+    this.app.use("/assets", express.static(path.join(__dirname, "../assets")));
+    
+    // Serve compiled Angular assets (fonts, textures, sounds, etc.)
+    const angularAssetsPath = path.join(__dirname, "../../../threejs-gamify-ui/dist/public");
+    this.app.use("/angular-assets", express.static(angularAssetsPath));
+    this.app.use("/fonts", express.static(path.join(angularAssetsPath, "fonts")));
+    this.app.use("/geometries", express.static(path.join(angularAssetsPath, "geometries")));
+    this.app.use("/sounds", express.static(path.join(angularAssetsPath, "sounds")));
+    this.app.use("/textures", express.static(path.join(angularAssetsPath, "textures")));
+
+    // Main application route - serve compiled Angular HTML with AlephScript injection
+    this.app.get("/", (req, res) => {
+      try {
+        // Path to the compiled Angular HTML
+        const angularHtmlPath = path.join(__dirname, "../../../threejs-gamify-ui/dist/public/index.html");
+        
+        // Check if the compiled file exists
+        if (!require('fs').existsSync(angularHtmlPath)) {
+          Logger.warn("Angular compiled HTML not found, using fallback HTML generation");
+          res.send(this.generateHTML());
+          return;
+        }
+        
+        // Read the compiled Angular HTML
+        const angularHtml = require('fs').readFileSync(angularHtmlPath, 'utf8');
+        
+        // Inject AlephScript integration before closing body tag
+        const alephScriptInjection = `
+        <!-- AlephScript Integration -->
+        <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+        <script src="/assets/alephscript-client.js"></script>
+        <script>
+          let alephClient = null;
+          
+          // Initialize AlephScript connection for Angular ThreeJS UI
+          function initializeAlephScript() {
+            console.log('🔌 Initializing AlephScript for Angular ThreeJS UI...');
+            
+            alephClient = createAlephScriptClient(
+              'threejs-angular',
+              'threejs-angular-integration',
+              'http://localhost:3000',
+              true
+            );
+            
+            alephClient.on('connected', () => {
+              console.log('✅ AlephScript connected to Angular ThreeJS UI!');
+              // Send initialization message
+              alephClient.sendMessage({
+                type: 'ui_ready',
+                message: 'Angular ThreeJS UI with AlephScript integration ready',
+                timestamp: Date.now()
+              });
+            });
+            
+            alephClient.on('disconnected', () => {
+              console.log('❌ AlephScript disconnected from Angular ThreeJS UI');
+            });
+            
+            alephClient.on('message', (data) => {
+              console.log('📨 Received AlephScript message:', data);
+              // Forward to Angular app if needed
+              if (window.handleAlephScriptMessage) {
+                window.handleAlephScriptMessage(data);
+              }
+            });
+            
+            alephClient.connect();
+          }
+          
+          // Initialize when DOM is ready
+          if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', initializeAlephScript);
+          } else {
+            initializeAlephScript();
+          }
+          
+          // Export for Angular app usage
+          window.alephClient = alephClient;
+        </script>
+        </body>`;
+        
+        // Replace closing body tag with our injection
+        const modifiedHtml = angularHtml.replace('</body>', alephScriptInjection);
+        
+        res.send(modifiedHtml);
+        Logger.info("✅ Served compiled Angular HTML with AlephScript integration");
+        
+      } catch (error) {
+        Logger.error("Failed to serve Angular HTML, using fallback", error as Error);
+        res.send(this.generateHTML());
+      }
+    });
 
     // API Routes (similar to HTML5UI)
     this.app.get("/api/status", (req, res) => {
@@ -268,7 +361,7 @@ export class ThreeJSGamificationUI extends GamificationUI {
         debugMode: this.config.debugMode,
         enablePostulations: this.config.enablePostulations,
         uiType: "threejs",
-        alephScriptEndpoint: "http://localhost:3000/runtime",
+        alephScriptEndpoint: "http://localhost:3000/runtime", // Fixed port to 3000
       });
     });
 
@@ -338,7 +431,10 @@ export class ThreeJSGamificationUI extends GamificationUI {
       res.sendFile(indexPath, (err) => {
         if (err) {
           Logger.error("Failed to serve index.html", err);
-          res.status(404).send("ThreeJS UI not found. Make sure the Angular app is built.");
+          // Don't send another response - sendFile already handles errors
+          if (!res.headersSent) {
+            res.status(404).send("ThreeJS UI not found. Make sure the Angular app is built.");
+          }
         }
       });
     });
@@ -535,6 +631,288 @@ export class ThreeJSGamificationUI extends GamificationUI {
         clientId 
       });
     }
+  }
+
+  // === HTML Generation (Dynamic ThreeJS UI) ===
+  
+  private generateHTML(): string {
+    return `
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>${this.config.gameTitle}</title>
+  <base href="/">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="icon" type="image/x-icon" href="favicon.ico">
+  <style>
+    body { 
+      margin: 0; 
+      padding: 0; 
+      overflow: hidden; 
+      background: #1a1a1a; 
+      color: white; 
+      font-family: Arial, sans-serif; 
+    }
+    .container {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      flex-direction: column;
+    }
+    .status {
+      padding: 20px;
+      text-align: center;
+    }
+    .btn {
+      padding: 10px 20px;
+      background: #3498db;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      margin: 5px;
+    }
+    .btn:hover {
+      background: #2980b9;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="status">
+      <h1>🎮 ${this.config.gameTitle}</h1>
+      <p>ThreeJS Gamification UI (AlephScript Integrated)</p>
+      <p id="connection-status">Connecting to AlephScript (Socket.IO)...</p>
+      <button class="btn" onclick="testConnection()">Test Connection</button>
+      <button class="btn" onclick="initializeThreeJS()">Initialize ThreeJS</button>
+    </div>
+  </div>
+  
+  <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+  <script src="/assets/alephscript-client.js"></script>
+  
+  <script type="module">
+    // Modern ES6 module import for Three.js
+    let THREE;
+    try {
+      THREE = await import('https://cdn.jsdelivr.net/npm/three@0.175.0/build/three.module.js');
+      console.log('✅ Three.js ES6 module loaded successfully:', THREE.REVISION);
+      window.THREE = THREE; // Make it globally accessible for legacy code
+      window.threeJSLoaded = true;
+    } catch (error) {
+      console.error('❌ Failed to load Three.js ES6 module:', error);
+      // Fallback to UMD version
+      const script = document.createElement('script');
+      script.src = 'https://cdn.jsdelivr.net/npm/three@0.175.0/build/three.min.js';
+      script.onload = () => {
+        console.log('✅ Three.js UMD fallback loaded successfully');
+        window.threeJSLoaded = true;
+      };
+      script.onerror = () => {
+        console.error('❌ Three.js UMD fallback also failed');
+        window.threeJSLoaded = false;
+      };
+      document.head.appendChild(script);
+    }
+  </script>
+  <script>
+    let alephClient = null;
+    
+    // Initialize AlephScript connection with native client
+    function initializeAlephScript() {
+      console.log('🔌 Initializing native AlephScript connection...');
+      
+      alephClient = createAlephScriptClient(
+        'threejs-gamification',
+        'threejs-ui-integration',
+        'http://localhost:3000', // Socket.IO AlephScript server
+        true // debug mode
+      );
+      
+      alephClient.on('connected', () => {
+        console.log('✅ Native AlephScript connected!');
+        document.getElementById('connection-status').innerHTML = 
+          '<span style="color: #00ff00;">✅ Connected to AlephScript (Socket.IO)</span>';
+      });
+      
+      alephClient.on('disconnected', () => {
+        console.log('❌ Native AlephScript disconnected');
+        document.getElementById('connection-status').innerHTML = 
+          '<span style="color: #ff0000;">❌ Disconnected from AlephScript</span>';
+      });
+      
+      alephClient.on('message', (data) => {
+        console.log('📨 Received AlephScript message:', data);
+      });
+      
+      alephClient.connect();
+    }
+    
+    function testConnection() {
+      if (alephClient && alephClient.isConnected) {
+        alephClient.sendMessage({
+          type: 'test',
+          message: 'Hello from ThreeJS Gamification UI!',
+          timestamp: Date.now()
+        });
+        console.log('📤 Test message sent via Socket.IO AlephScript');
+        alert('📤 Test message sent successfully!\\nCheck console for details.');
+      } else {
+        alert('❌ AlephScript not connected. Please wait for connection.');
+      }
+    }
+    
+    function initializeThreeJS() {
+      console.log('🎮 Initializing ThreeJS scene...');
+      
+      // Check if Three.js is loaded
+      if (!window.threeJSLoaded) {
+        console.log('⏳ Waiting for Three.js to load...');
+        // Poll for Three.js to be loaded
+        const checkInterval = setInterval(() => {
+          if (window.threeJSLoaded && typeof THREE !== 'undefined') {
+            clearInterval(checkInterval);
+            startThreeJSScene();
+          }
+        }, 100);
+        
+        // Timeout after 10 seconds
+        setTimeout(() => {
+          clearInterval(checkInterval);
+          if (!window.threeJSLoaded) {
+            console.error('❌ Three.js loading timeout');
+            alert('Three.js failed to load. Please refresh the page.');
+          }
+        }, 10000);
+        return;
+      }
+      
+      startThreeJSScene();
+    }
+    
+    function startThreeJSScene() {
+      console.log('✅ Three.js loaded successfully, starting scene...');
+      
+      // Hide the status container and show ThreeJS
+      document.querySelector('.container').style.display = 'none';
+      
+      // Create ThreeJS scene
+      const scene = new THREE.Scene();
+      const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+      const renderer = new THREE.WebGLRenderer({ antialias: true });
+        
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setClearColor(0x1a1a1a);
+        document.body.appendChild(renderer.domElement);
+      
+      // Create a simple demo scene with bots
+      const botGeometry = new THREE.BoxGeometry(0.5, 0.5, 0.5);
+      const bots = [];
+      
+      // Create 8 bots in cardinal positions
+      const botPositions = [
+        { x: 0, z: 3, name: 'bot_north_1' },
+        { x: 0, z: -3, name: 'bot_south_1' },
+        { x: 3, z: 0, name: 'bot_east_1' },
+        { x: -3, z: 0, name: 'bot_west_1' },
+        { x: 2, z: 2, name: 'bot_northeast_1' },
+        { x: -2, z: 2, name: 'bot_northwest_1' },
+        { x: 2, z: -2, name: 'bot_southeast_1' },
+        { x: -2, z: -2, name: 'bot_southwest_1' }
+      ];
+      
+      botPositions.forEach((pos, index) => {
+        const material = new THREE.MeshPhongMaterial({ 
+          color: [0xff4444, 0x44ff44, 0x4444ff, 0xffff44, 0xff44ff, 0x44ffff, 0xffffff, 0x888888][index] 
+        });
+        const bot = new THREE.Mesh(botGeometry, material);
+        bot.position.set(pos.x, 0.5, pos.z);
+        bot.userData = { name: pos.name, originalY: 0.5 };
+        scene.add(bot);
+        bots.push(bot);
+      });
+      
+      // Add ground plane
+      const planeGeometry = new THREE.PlaneGeometry(10, 10);
+      const planeMaterial = new THREE.MeshLambertMaterial({ color: 0x333333 });
+      const plane = new THREE.Mesh(planeGeometry, planeMaterial);
+      plane.rotation.x = -Math.PI / 2;
+      scene.add(plane);
+      
+      // Add lighting
+      const ambientLight = new THREE.AmbientLight(0x404040, 0.6);
+      scene.add(ambientLight);
+      
+      const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+      directionalLight.position.set(5, 10, 5);
+      scene.add(directionalLight);
+      
+      // Position camera
+      camera.position.set(5, 5, 5);
+      camera.lookAt(0, 0, 0);
+      
+      // Animation loop
+      const clock = new THREE.Clock();
+      function animate() {
+        requestAnimationFrame(animate);
+        
+        const elapsedTime = clock.getElapsedTime();
+        
+        // Animate bots with gentle bobbing
+        bots.forEach((bot, index) => {
+          const bobOffset = Math.sin(elapsedTime * 1.5 + index * 0.3) * 0.1;
+          bot.position.y = bot.userData.originalY + bobOffset;
+          bot.rotation.y += 0.01;
+        });
+        
+        renderer.render(scene, camera);
+      }
+      
+      animate();
+      
+      // Handle window resize
+      window.addEventListener('resize', () => {
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+      });
+      
+      console.log('✅ ThreeJS scene initialized with 8 bots!');
+      
+      // Send message to AlephScript about scene initialization
+      if (alephClient) {
+        alephClient.sendMessage({
+          type: 'scene_initialized',
+          message: 'ThreeJS Gamification UI scene loaded with 8 bots',
+          timestamp: Date.now(),
+          bots: botPositions.length
+        });
+      }
+    }
+    
+    // Auto-initialize on page load
+    document.addEventListener('DOMContentLoaded', function() {
+      console.log('🎮 ThreeJS Gamification UI loaded');
+      
+      // Check what scripts are loaded
+      console.log('Available scripts:', Array.from(document.scripts).map(s => s.src));
+      console.log('Socket.IO available:', typeof io !== 'undefined');
+      console.log('Three.js available:', typeof THREE !== 'undefined');
+      
+      if (typeof THREE !== 'undefined') {
+        console.log('✅ Three.js loaded successfully, version:', THREE.REVISION);
+      } else {
+        console.warn('⚠️ Three.js not detected on DOMContentLoaded');
+      }
+      
+      initializeAlephScript();
+    });
+  </script>
+</body>
+</html>
+    `;
   }
 }
 
