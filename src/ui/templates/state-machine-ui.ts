@@ -583,10 +583,10 @@ export class StateMachineUI extends ConsoleGamificationUI {
         const simEnabled = simAgent?.status === AgentStatus.ACTIVE;
         this.gameState.simulateUser = !!simEnabled;
         try {
-          const st = this.runtime.getCurrentState();
-          st.gameData.flags = st.gameData.flags || {};
-          st.gameData.flags["userSimulatorEnabled"] =
-            this.gameState.simulateUser;
+          const st = this.runtime.getCurrentState() || {};
+          st.gameData = st.gameData || {};
+          st.gameData.flags = st.gameData?.flags || {};
+          st.gameData.flags["userSimulatorEnabled"] = this.gameState.simulateUser;
           await this.runtime.saveCurrentState();
           // Add small delay to ensure agents are fully loaded
 

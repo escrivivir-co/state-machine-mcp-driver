@@ -196,7 +196,7 @@ export abstract class GamificationUI extends EventEmitter {
         this.setupRuntimeIntegration();
 
         // Initialize AlephScript bot for UI interactions
-        this.initAlephScriptBot();
+        this.initAlephScriptBot(undefined);
 
         if (this.config.enablePostulations) {
             this.postulationManager = new AgentPostulationManager();
@@ -246,9 +246,9 @@ export abstract class GamificationUI extends EventEmitter {
     /**
      * Initialize AlephScriptBot - Socket client for UI operations
      */
-    private initAlephScriptBot(): void {
+    initAlephScriptBot(bot?: AlephScriptClient): void {
         try {
-            this.alephScriptBot = new AlephScriptClient(`${this.config.gameTitle}_UI`);
+            this.alephScriptBot = bot || new AlephScriptClient(`${this.config.gameTitle}_UI`);
             
             this.alephScriptBot.initTriggersDefinition.push(() => {
                 const ROOM_NAME = this.alephScriptBot.name + "_ROOM";
