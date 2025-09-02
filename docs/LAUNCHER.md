@@ -163,7 +163,7 @@ npm run launcher:x-plus-1
       },
       "description": "MCP Service Launcher - manages and monitors other MCP servers"
     },
-    "xplus1-mcp-machine": {
+    "state-machine-server": {
       "command": "npx", 
       "args": ["tsx", "src/mcp-servers/XPlus1MCPMachine.ts"],
       "env": {
@@ -360,7 +360,7 @@ const config = {
   mcpServiceLauncherPort: 3050,
   mcpServers: [
     {
-      id: 'xplus1-mcp-machine',
+      id: 'state-machine-server',
       port: 3001,
       script: 'src/mcp-servers/XPlus1MCPMachine.ts'
     },

@@ -180,7 +180,7 @@ export class StateMachineUI extends ConsoleGamificationUI {
     try {
       // Use the existing MCP tool to get next command
       const result = await this.mcpDriver.executeTool(
-        "xplus1-mcp-machine",
+        "state-machine-server",
         "get_next_command",
         {}
       );
@@ -386,7 +386,7 @@ export class StateMachineUI extends ConsoleGamificationUI {
     if (!this.mcpDriver) return false;
     try {
       const result = await this.mcpDriver.executeTool(
-        "xplus1-mcp-machine",
+        "state-machine-server",
         "advance_x",
         { reason }
       );
@@ -412,7 +412,7 @@ export class StateMachineUI extends ConsoleGamificationUI {
     if (!this.mcpDriver) return false;
     try {
       const result = await this.mcpDriver.executeTool(
-        "xplus1-mcp-machine",
+        "state-machine-server",
         "reset_x",
         { reason }
       );
@@ -508,7 +508,7 @@ export class StateMachineUI extends ConsoleGamificationUI {
     this.registerGameCommand("mcp-status", async () => {
       try {
         const result = await this.mcpDriver.executeTool(
-          "xplus1-mcp-machine",
+          "state-machine-server",
           "get_x_status",
           {}
         );
@@ -534,6 +534,22 @@ export class StateMachineUI extends ConsoleGamificationUI {
     });
   }
 
+  async retryInit(retries: number): Promise<boolean> {
+    return new Promise((resolve, reject) => {
+      if (retries < 1) resolve(false);
+
+      setTimeout(async () => {
+        try {
+          await this.initRuntime();
+          retries = -1;
+          resolve(true);
+        } catch (error: any) {
+          console.log("Restart because", error.message);
+          resolve(await this.retryInit(retries--));
+        }
+      }, 5000);
+    });
+  }
   /**
    * Start the X+1 game, initializing runtime then delegating to base UI start
    */
@@ -545,51 +561,51 @@ export class StateMachineUI extends ConsoleGamificationUI {
     console.log("📢 STARTING THE CONSOLE... 0");
     console.log("📢 STARTING THE CONSOLE... 1");
 
-    let notFound = true;
     let retries = 3;
-    while (notFound && retries > 0) {
-      console.warn("Retrying to to contact mcp-servers");
-      try {
-        retries--;
-        setTimeout(async () => {
-          await this.initRuntime();
-        }, 10000);
-        notFound = true;
-      } catch (error: any) {
-        console.log("Restart because", error.message);
-      }
+    const found = await this.retryInit(retries);
+
+    if (found) {
+      setTimeout(async () => {
+        // Display welcome
+        this.displayWelcome();
+
+        // Initialize runtime if not already done
+        if (!this.runtime.getCurrentState) {
+          await this.runtime.initialize();
+        }
+
+        console.log("📢 STARTING THE CONSOLE... 2");
+        // Synchronize with MCP state on startup
+        await this.syncWithMCPState();
+        console.log("📢 STARTING THE CONSOLE... 3");
+        // Determine simulation mode from agent status and persist in state
+        const simAgent = this.runtime.getAgent("user-simulator");
+        const simEnabled = simAgent?.status === AgentStatus.ACTIVE;
+        this.gameState.simulateUser = !!simEnabled;
+        try {
+          const st = this.runtime.getCurrentState();
+          st.gameData.flags = st.gameData.flags || {};
+          st.gameData.flags["userSimulatorEnabled"] =
+            this.gameState.simulateUser;
+          await this.runtime.saveCurrentState();
+          // Add small delay to ensure agents are fully loaded
+
+          // Initialize X+1 postulation system
+          this.postulationSystem = new XPlus1PostulationSystem();
+          this.setPostulationManager(this.postulationSystem.getManager());
+
+          setTimeout(async () => {
+            await this.forceDisplayPostulations();
+          }, 500);
+        } catch (error) {
+          console.log("state machine ui boot procedure error", error);
+        }
+      }, 5000);
     }
-    setTimeout(async () => {
-      console.log("📢 STARTING THE CONSOLE... 2");
-      // Synchronize with MCP state on startup
-      await this.syncWithMCPState();
-      console.log("📢 STARTING THE CONSOLE... 3");
-      // Determine simulation mode from agent status and persist in state
-      const simAgent = this.runtime.getAgent("user-simulator");
-      const simEnabled = simAgent?.status === AgentStatus.ACTIVE;
-      this.gameState.simulateUser = !!simEnabled;
-      try {
-        const st = this.runtime.getCurrentState();
-        st.gameData.flags = st.gameData.flags || {};
-        st.gameData.flags["userSimulatorEnabled"] = this.gameState.simulateUser;
-        await this.runtime.saveCurrentState();
-        // Add small delay to ensure agents are fully loaded
-
-        // Initialize X+1 postulation system
-        this.postulationSystem = new XPlus1PostulationSystem();
-        this.setPostulationManager(this.postulationSystem.getManager());
-
-        setTimeout(async () => {
-          await this.forceDisplayPostulations();
-        }, 500);
-      } catch (error) {
-        console.log("state machine ui boot procedure error", error);
-      }
-    }, 5000);
 
     // Start base console UI (welcome, input loop, threads)
     console.log("📢 STARTING THE CONSOLE... nan");
-    // await super.start();
+    await super.start();
 
     // CREATE INITIAL THREAD - Ensure we have an active conversation thread
     if (!this.getCurrentThread()) {
@@ -616,6 +632,10 @@ export class StateMachineUI extends ConsoleGamificationUI {
   }
 
   async initRuntime() {
+    if (this.runtime.isInitialized) {
+      console.warn("Warning, RT is already init!");
+      return;
+    }
     if (!this.runtime.getAgent || !this.runtime.initialize) {
       console.log("Warning reset runtime and agents config!!!!!");
       this.runtime = new Runtime();
@@ -894,7 +914,7 @@ export class StateMachineUI extends ConsoleGamificationUI {
 
       const currentState = this.runtime.getCurrentState();
       const result = await this.mcpDriver.getPrompt(
-        "xplus1-mcp-machine",
+        "state-machine-server",
         promptId,
         {
           state: currentState,
@@ -1097,7 +1117,7 @@ export class StateMachineUI extends ConsoleGamificationUI {
     // Ask MCP to evaluate the advancement decision
     try {
       const evalRes = await this.mcpDriver.executeTool(
-        "xplus1-mcp-machine",
+        "state-machine-server",
         "evaluate_advancement",
         {
           userInput: answer,
@@ -1116,7 +1136,7 @@ export class StateMachineUI extends ConsoleGamificationUI {
         console.log(
           "\n⚖️ JusticeBot: You chose consumption. X will be reset to 0."
         );
-        await this.mcpDriver.executeTool("xplus1-mcp-machine", "reset_x", {
+        await this.mcpDriver.executeTool("state-machine-server", "reset_x", {
           reason: "user_consumed",
           metadata: { source: "user-simulator" },
         });
@@ -1125,7 +1145,7 @@ export class StateMachineUI extends ConsoleGamificationUI {
         console.log(
           "\n⚖️ JusticeBot: You chose restraint. X will advance by 1."
         );
-        await this.mcpDriver.executeTool("xplus1-mcp-machine", "advance_x", {
+        await this.mcpDriver.executeTool("state-machine-server", "advance_x", {
           reason: "user_did_not_consume",
           metadata: { source: "user-simulator" },
         });
@@ -1138,7 +1158,7 @@ export class StateMachineUI extends ConsoleGamificationUI {
 
       // Sync X with server status
       const status = await this.mcpDriver.executeTool(
-        "xplus1-mcp-machine",
+        "state-machine-server",
         "get_x_status",
         {}
       );

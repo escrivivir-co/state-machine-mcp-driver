@@ -252,7 +252,7 @@ async function main(): Promise<void> {
             case "x-plus-1-multi":
                 const gameConfig = await getBasicRuntimeConfig({} as AppConfig);
                 runtimeConfig = {
-                    mcpServerId: "xplus1-mcp-machine",
+                    mcpServerId: "state-machine-server",
                     graphId: gameConfig.graphId,
                     userId: gameConfig.userId,
                     agentConfigs: gameConfig.agentConfigs,

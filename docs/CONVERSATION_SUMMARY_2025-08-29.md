@@ -99,7 +99,7 @@ This document captures, as literally and exhaustively as practical, the key step
 
 - We patched (during the session):
   - Enabled remote control automatically in `start()` by adding `this.enableRemoteControl()`.
-  - Implemented `getNextRemoteCommand()` to call `xplus1-mcp-machine` → `get_next_command` tool and parse its result.
+  - Implemented `getNextRemoteCommand()` to call `state-machine-server` → `get_next_command` tool and parse its result.
   - Simplified polling: `checkForRemoteCommands()` now directly calls `processNextRemoteCommand()`.
 
 - On the server side: `src/mcp-servers/XPlus1MCPMachine.ts` already had:
@@ -165,7 +165,7 @@ This document captures, as literally and exhaustively as practical, the key step
 
 - `examples/x-plus-1-state-machine/ConsoleGamificationUI.ts`:
   - Added `this.enableRemoteControl()` inside `start()` after `await super.start()`.
-  - Implemented `getNextRemoteCommand()` to call `executeTool('xplus1-mcp-machine', 'get_next_command', {})` and parse the JSON result.
+  - Implemented `getNextRemoteCommand()` to call `executeTool('state-machine-server', 'get_next_command', {})` and parse the JSON result.
   - Simplified `checkForRemoteCommands()` to call `processNextRemoteCommand()` directly every 500ms.
 
 - Results after changes:
@@ -177,7 +177,7 @@ This document captures, as literally and exhaustively as practical, the key step
 ## 10) Verified Behaviors and Outputs (Literal Excerpts)
 
 - Health/status verified via service launcher:
-  - "xplus1-mcp-machine": status "healthy", port 3001
+  - "state-machine-server": status "healthy", port 3001
   - "wiki-mcp-browser": status "healthy", port 3002
 
 - Game console initial prompts:

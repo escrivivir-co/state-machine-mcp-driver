@@ -88,10 +88,10 @@ async function completeAIControl() {
   await callTool('devops-mcp-server', 'open_web_console', { port: 8080 });
   
   // 4. Read game state
-  const uiStatus = await callTool('xplus1-mcp-machine', 'get_ui_status', {});
+  const uiStatus = await callTool('state-machine-server', 'get_ui_status', {});
   
   // 5. Make intelligent decisions
-  await callTool('xplus1-mcp-machine', 'select_agent', {
+  await callTool('state-machine-server', 'select_agent', {
     agentId: 'ApoloBot',
     reason: 'System stable, choosing positive advancement'
   });
@@ -145,7 +145,7 @@ async function masterAIController() {
   if (!healthResults.success) {
     console.log("⚠️ System issues detected, initiating recovery...");
     await callTool('mcp-service-launcher', 'restart_mcp_server', {
-      serverId: 'xplus1-mcp-machine',
+      serverId: 'state-machine-server',
       graceful: true
     });
   }
@@ -159,8 +159,8 @@ async function masterAIController() {
   
   // === PHASE 4: GAME STATE ANALYSIS ===
   console.log("🎮 Phase 4: Game State Analysis");
-  const gameState = await callTool('xplus1-mcp-machine', 'get_full_game_state', {});
-  const uiStatus = await callTool('xplus1-mcp-machine', 'get_ui_status', {});
+  const gameState = await callTool('state-machine-server', 'get_full_game_state', {});
+  const uiStatus = await callTool('state-machine-server', 'get_ui_status', {});
   
   console.log(`Current X value: ${gameState.x}`);
   console.log(`UI Phase: ${uiStatus.interaction.phase}`);
@@ -171,7 +171,7 @@ async function masterAIController() {
   
   if (uiStatus.interaction.phase === 'agent_selection') {
     // Analyze conversation context
-    const conversation = await callTool('xplus1-mcp-machine', 'get_current_conversation', {});
+    const conversation = await callTool('state-machine-server', 'get_current_conversation', {});
     const messageCount = conversation.messages?.length || 0;
     const remainingMessages = 50 - messageCount; // MAX_MESSAGES_THREAD = 50
     
@@ -185,7 +185,7 @@ async function masterAIController() {
       selectedAgent = 'JusticeBot'; // Neutral evaluation
     }
     
-    await callTool('xplus1-mcp-machine', 'select_agent', {
+    await callTool('state-machine-server', 'select_agent', {
       agentId: selectedAgent,
       reason: `Strategic choice based on X=${gameState.x}, messages=${messageCount}/${50}`
     });
@@ -218,13 +218,13 @@ async function masterAIController() {
   // Set up monitoring loop
   const monitoringInterval = setInterval(async () => {
     try {
-      const currentStatus = await callTool('xplus1-mcp-machine', 'get_ui_status', {});
+      const currentStatus = await callTool('state-machine-server', 'get_ui_status', {});
       
       // React to critical questions
       if (currentStatus.interaction.phase === 'critical_question') {
         const decision = gameState.x > 10 ? 'no' : 'yes'; // Conservative strategy
         
-        await callTool('xplus1-mcp-machine', 'answer_critical_question', {
+        await callTool('state-machine-server', 'answer_critical_question', {
           answer: decision,
           reasoning: `Strategic decision based on X=${gameState.x}: ${decision === 'no' ? 'advance' : 'reset'}`
         });

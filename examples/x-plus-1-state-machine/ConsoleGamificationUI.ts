@@ -184,7 +184,7 @@ export class DEPRECATEDXPlus1GameConsole extends ConsoleGamificationUI {
         try {
             // Use the existing MCP tool to get next command
             const result = await this.mcpDriver.executeTool(
-                "xplus1-mcp-machine",
+                "state-machine-server",
                 "get_next_command",
                 {}
             );
@@ -358,7 +358,7 @@ export class DEPRECATEDXPlus1GameConsole extends ConsoleGamificationUI {
         try {
             // Get current state from MCP server
             const result = await this.mcpDriver.executeTool(
-                "xplus1-mcp-machine",
+                "state-machine-server",
                 "get_x_status",
                 {}
             );
@@ -391,7 +391,7 @@ export class DEPRECATEDXPlus1GameConsole extends ConsoleGamificationUI {
     private async advanceXViaMCP(reason: string): Promise<boolean> {
         try {
             const result = await this.mcpDriver.executeTool(
-                "xplus1-mcp-machine",
+                "state-machine-server",
                 "advance_x",
                 { reason }
             );
@@ -416,7 +416,7 @@ export class DEPRECATEDXPlus1GameConsole extends ConsoleGamificationUI {
     private async resetXViaMCP(reason: string): Promise<boolean> {
         try {
             const result = await this.mcpDriver.executeTool(
-                "xplus1-mcp-machine",
+                "state-machine-server",
                 "reset_x",
                 { reason }
             );
@@ -444,7 +444,7 @@ export class DEPRECATEDXPlus1GameConsole extends ConsoleGamificationUI {
 
         // Configure MCP servers
         await mcpDriver.addServer({
-            id: "xplus1-mcp-machine",
+            id: "state-machine-server",
             name: "X+1 MCP Machine",
             url: process.env.MCP_XPLUS1_URL || "http://localhost:3001",
             timeout: 5000,
@@ -524,7 +524,7 @@ export class DEPRECATEDXPlus1GameConsole extends ConsoleGamificationUI {
         this.registerGameCommand("mcp-status", async () => {
             try {
                 const result = await this.mcpDriver.executeTool(
-                    "xplus1-mcp-machine",
+                    "state-machine-server",
                     "get_x_status",
                     {}
                 );
@@ -901,7 +901,7 @@ export class DEPRECATEDXPlus1GameConsole extends ConsoleGamificationUI {
 
             const currentState = this.runtimeInstance.getCurrentState();
             const result = await this.mcpDriver.getPrompt(
-                "xplus1-mcp-machine",
+                "state-machine-server",
                 promptId,
                 {
                     state: currentState,
@@ -1112,7 +1112,7 @@ export class DEPRECATEDXPlus1GameConsole extends ConsoleGamificationUI {
         // Ask MCP to evaluate the advancement decision
         try {
             const evalRes = await this.mcpDriver.executeTool(
-                "xplus1-mcp-machine",
+                "state-machine-server",
                 "evaluate_advancement",
                 {
                     userInput: answer,
@@ -1132,7 +1132,7 @@ export class DEPRECATEDXPlus1GameConsole extends ConsoleGamificationUI {
                     "\n⚖️ JusticeBot: You chose consumption. X will be reset to 0."
                 );
                 await this.mcpDriver.executeTool(
-                    "xplus1-mcp-machine",
+                    "state-machine-server",
                     "reset_x",
                     {
                         reason: "user_consumed",
@@ -1145,7 +1145,7 @@ export class DEPRECATEDXPlus1GameConsole extends ConsoleGamificationUI {
                     "\n⚖️ JusticeBot: You chose restraint. X will advance by 1."
                 );
                 await this.mcpDriver.executeTool(
-                    "xplus1-mcp-machine",
+                    "state-machine-server",
                     "advance_x",
                     {
                         reason: "user_did_not_consume",
@@ -1161,7 +1161,7 @@ export class DEPRECATEDXPlus1GameConsole extends ConsoleGamificationUI {
 
             // Sync X with server status
             const status = await this.mcpDriver.executeTool(
-                "xplus1-mcp-machine",
+                "state-machine-server",
                 "get_x_status",
                 {}
             );

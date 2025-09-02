@@ -122,14 +122,6 @@ export class ConsoleGamificationUI extends GamificationUI {
       this.isGameActive = true;
       this.updateUIPhase("startup");
 
-      // Display welcome
-      this.displayWelcome();
-
-      // Initialize runtime if not already done
-      if (!this.runtime.getCurrentState) {
-        await this.runtime.initialize();
-      }
-
       // Start first conversation turn if autoStart is enabled
       if (this.config.autoStart !== false) {
         // Add a small delay to ensure everything is initialized
@@ -739,7 +731,7 @@ export class ConsoleGamificationUI extends GamificationUI {
     });
   }
 
-  private async displayWelcome(): Promise<void> {
+  public async displayWelcome(): Promise<void> {
     this.clearScreen();
 
     this.config.gameTitle = this.config.gameTitle || "default-game-title";

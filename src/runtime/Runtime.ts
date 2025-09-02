@@ -24,6 +24,7 @@ import { DEFAULT_RUNTIME_CONFIG } from "@/mcp-servers/DEFAULT_RUNTIME_CONFIG";
 import { MCPDriverAdapter } from "@/drivers";
 import { DEFAULT_AGENT_CONFIG } from "@/ui/DEFAULT_AGENT_CONFIG";
 import { OllamaChatProvider } from "@/chat-provider";
+import { DEAFULT_STATE_CONFIG } from "./DEAFULT_STATE_CONFIG";
 
 // Chat provider types (supporting both strict typing and flexibility)
 export interface DEPRECATEDChatProviderLike {
@@ -125,7 +126,7 @@ export class Runtime extends EventEmitter {
   private stateGraph?: StateGraph;
   private currentState?: State;
   private agents: Map<string, Agent> = new Map();
-  private isInitialized = false;
+  public isInitialized = false;
   private sessionStartTime: number = 0;
   private stats: RuntimeStats;
   private autoSaveTimer?: NodeJS.Timeout;
@@ -273,6 +274,7 @@ export class Runtime extends EventEmitter {
       // Load agent prompt if available
       if (agent.mcpServerId) {
         try {
+          console.log("REQUESTING PROMPT FOR AGENT",  )
           agent.prompt = await this.mcpDriver.getPrompt(
             agent.mcpServerId,
             `agent_${agent.role}`,
@@ -336,6 +338,9 @@ export class Runtime extends EventEmitter {
     if (!this.currentState.currentStateId) {
       return this.currentState as unknown as StateNode;
     }
+
+    // console.log("RT getCurrentStateNode", this.stateGraph, this.currentState)
+    this.currentState = this.currentState || StateManager.createNew(DEAFULT_STATE_CONFIG);
     const stateNode = this.stateGraph.states[this.currentState.currentStateId];
     if (!stateNode) {
       throw new Error(

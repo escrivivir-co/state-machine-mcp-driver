@@ -43,19 +43,19 @@ Si eres un asistente de IA con capacidades MCP (Model Context Protocol), ahora t
 
 ```javascript
 // ❌ ANTES: Control ciego (peligroso)
-await callTool('xplus1-mcp-machine', 'send_user_input', { text: "1" });
+await callTool('state-machine-server', 'send_user_input', { text: "1" });
 // ¿Qué opciones hay? ¿Existe la opción 1? ¡No lo sabemos!
 
 // ✅ AHORA: Control inteligente (seguro y eficaz)
 // 1. Primero lee el estado actual
-const prompt = await callTool('xplus1-mcp-machine', 'get_current_prompt', {});
+const prompt = await callTool('state-machine-server', 'get_current_prompt', {});
 console.log('Opciones disponibles:', prompt.availableOptions);
 
 // 2. Verifica que la opción existe
 const option1 = prompt.availableOptions.find(opt => opt.key === "1");
 if (option1) {
   console.log(`Opción 1 disponible: ${option1.description}`);
-  await callTool('xplus1-mcp-machine', 'send_user_input', { text: "1" });
+  await callTool('state-machine-server', 'send_user_input', { text: "1" });
   console.log('✅ Opción 1 seleccionada inteligentemente');
 } else {
   console.log('❌ Opción 1 no disponible, buscando alternativas...');
@@ -67,7 +67,7 @@ if (option1) {
 #### 1. Exploración de Estado
 ```javascript
 // Lee todo el contexto actual
-const status = await callTool('xplus1-mcp-machine', 'get_ui_status', {});
+const status = await callTool('state-machine-server', 'get_ui_status', {});
 console.log(`Fase actual: ${status.interaction.phase}`);
 console.log(`¿UI responsiva?: ${status.interaction.isResponsive}`);
 console.log(`Comandos disponibles: ${status.interaction.availableCommands}`);
@@ -76,7 +76,7 @@ console.log(`Comandos disponibles: ${status.interaction.availableCommands}`);
 #### 2. Análisis de Opciones
 ```javascript
 // Comprende qué opciones tienes
-const prompt = await callTool('xplus1-mcp-machine', 'get_current_prompt', {});
+const prompt = await callTool('state-machine-server', 'get_current_prompt', {});
 console.log(`Prompt: ${prompt.promptText}`);
 prompt.availableOptions.forEach(opt => {
   console.log(`  ${opt.key}: ${opt.description}`);
@@ -86,7 +86,7 @@ prompt.availableOptions.forEach(opt => {
 #### 3. Toma de Decisiones Contextual
 ```javascript
 // Decide basándote en información real
-const gameState = await callTool('xplus1-mcp-machine', 'get_full_game_state', {});
+const gameState = await callTool('state-machine-server', 'get_full_game_state', {});
 const currentX = gameState.internalState.x;
 
 if (status.interaction.phase === 'menu') {
@@ -95,13 +95,13 @@ if (status.interaction.phase === 'menu') {
     opt.description.includes('DionisioBot')
   );
   if (dionisioOption) {
-    await callTool('xplus1-mcp-machine', 'send_user_input', { 
+    await callTool('state-machine-server', 'send_user_input', { 
       text: dionisioOption.key 
     });
   }
 } else if (status.interaction.phase === 'decision') {
   // Pregunta crítica, decidir basándose en el X actual
-  await callTool('xplus1-mcp-machine', 'answer_critical_question', {
+  await callTool('state-machine-server', 'answer_critical_question', {
     answer: currentX < 5 ? "no" : "yes",
     reasoning: `X=${currentX}, ${currentX < 5 ? 'continuando' : 'reiniciando'} viaje`
   });
@@ -111,7 +111,7 @@ if (status.interaction.phase === 'menu') {
 #### 4. Verificación de Resultados
 ```javascript
 // Confirma que tu acción tuvo efecto
-const newOutput = await callTool('xplus1-mcp-machine', 'get_console_output', {});
+const newOutput = await callTool('state-machine-server', 'get_console_output', {});
 console.log('Resultado de la acción:', newOutput.lastLines.slice(-3));
 ```
 
@@ -129,11 +129,11 @@ Una vez que hayas leído el estado, puedes usar:
 #### Selección Informada de Agentes
 ```javascript
 // Lee postulaciones disponibles
-const postulations = await callTool('xplus1-mcp-machine', 'get_available_postulations', {});
+const postulations = await callTool('state-machine-server', 'get_available_postulations', {});
 
 // Elige basándote en contexto actual
 if (postulations.availableAgents.includes('DionisioBot')) {
-  await callTool('xplus1-mcp-machine', 'select_agent', {
+  await callTool('state-machine-server', 'select_agent', {
     agentId: 'DionisioBot',
     reason: 'Quiero perspectiva cósmica para esta X'
   });
@@ -143,8 +143,8 @@ if (postulations.availableAgents.includes('DionisioBot')) {
 #### Respuesta Contextual a Preguntas Críticas
 ```javascript
 // Lee el estado del juego antes de responder
-const gameState = await callTool('xplus1-mcp-machine', 'get_full_game_state', {});
-const conversation = await callTool('xplus1-mcp-machine', 'get_current_conversation', {});
+const gameState = await callTool('state-machine-server', 'get_full_game_state', {});
+const conversation = await callTool('state-machine-server', 'get_current_conversation', {});
 
 // Analiza el contexto de la conversación
 const hasCosmicContent = conversation.conversation.some(msg => 
@@ -152,7 +152,7 @@ const hasCosmicContent = conversation.conversation.some(msg =>
   msg.message.toLowerCase().includes('universe')
 );
 
-await callTool('xplus1-mcp-machine', 'answer_critical_question', {
+await callTool('state-machine-server', 'answer_critical_question', {
   answer: hasCosmicContent ? "no" : "yes",
   reasoning: hasCosmicContent ? 
     "Conversación cósmica meaningful, continúo" : 
@@ -174,25 +174,25 @@ await callTool('xplus1-mcp-machine', 'answer_critical_question', {
 // === SESIÓN DE CONTROL INTELIGENTE ===
 
 // 1. Inicialización: Lee estado completo
-const status = await callTool('xplus1-mcp-machine', 'get_ui_status', {});
+const status = await callTool('state-machine-server', 'get_ui_status', {});
 console.log(`🎮 Juego iniciado, fase: ${status.interaction.phase}`);
 
 // 2. Análisis: Comprende opciones disponibles
-const prompt = await callTool('xplus1-mcp-machine', 'get_current_prompt', {});
+const prompt = await callTool('state-machine-server', 'get_current_prompt', {});
 console.log(`🎯 Opciones: ${prompt.availableOptions.length} disponibles`);
 
 // 3. Decisión: Elige basándote en información
-const gameState = await callTool('xplus1-mcp-machine', 'get_full_game_state', {});
+const gameState = await callTool('state-machine-server', 'get_full_game_state', {});
 console.log(`📊 X actual: ${gameState.internalState.x}`);
 
 // 4. Acción: Ejecuta comando informado
 if (prompt.availableOptions.find(opt => opt.key === "1")) {
-  await callTool('xplus1-mcp-machine', 'send_user_input', { text: "1" });
+  await callTool('state-machine-server', 'send_user_input', { text: "1" });
   console.log(`✅ Comando ejecutado con conocimiento`);
 }
 
 // 5. Verificación: Confirma resultado
-const newStatus = await callTool('xplus1-mcp-machine', 'get_ui_status', {});
+const newStatus = await callTool('state-machine-server', 'get_ui_status', {});
 console.log(`🔄 Nueva fase: ${newStatus.interaction.phase}`);
 ```
 

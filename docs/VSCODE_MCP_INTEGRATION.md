@@ -114,7 +114,7 @@ El usuario ve estas instrucciones en consola:
       },
       "description": "MCP Service Launcher - manages and monitors other MCP servers"
     },
-    "xplus1-mcp-machine": {
+    "state-machine-server": {
       "command": "npx",
       "args": ["tsx", "src/mcp-servers/XPlus1MCPMachine.ts"],
       "env": {

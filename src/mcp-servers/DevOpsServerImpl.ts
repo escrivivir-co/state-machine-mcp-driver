@@ -161,7 +161,7 @@ export class DevOpsServer extends BaseMCPServer {
 
         const mcpServers = [
             {
-                id: "xplus1-mcp-machine",
+                id: "state-machine-server",
                 name: "X+1 MCP Machine",
                 url: "http://localhost:3001",
                 timeout: 5000,
@@ -263,11 +263,11 @@ export class DevOpsServer extends BaseMCPServer {
             if (this.mcpAdapter) {
                 try {
                     isHealthy = await this.mcpAdapter.healthCheck(
-                        "xplus1-mcp-machine"
+                        "state-machine-server"
                     );
                 } catch (hcError) {
                     Logger.mcpVerbose(
-                        "DevOps: Health check for xplus1-mcp-machine failed",
+                        "DevOps: Health check for state-machine-server failed",
                         { error: hcError }
                     );
                 }
@@ -292,7 +292,7 @@ export class DevOpsServer extends BaseMCPServer {
                         if (!this.pluginManager) return;
                         if (this.mcpAdapter) {
                             const ok = await this.mcpAdapter.healthCheck(
-                                "xplus1-mcp-machine"
+                                "state-machine-server"
                             );
                             if (!ok) {
                                 Logger.mcpWarn(
@@ -751,35 +751,35 @@ Por favor, abre el navegador simple de VS Code para acceder a la consola web del
         try {
             // Get X value and status
             const xStatus = await this.mcpAdapter.executeTool(
-                "xplus1-mcp-machine",
+                "state-machine-server",
                 "get_x_status",
                 {}
             );
 
             // Get current game state
             const fullGameState = await this.mcpAdapter.executeTool(
-                "xplus1-mcp-machine",
+                "state-machine-server",
                 "get_full_game_state",
                 {}
             );
 
             // Get UI status
             const uiStatus = await this.mcpAdapter.executeTool(
-                "xplus1-mcp-machine",
+                "state-machine-server",
                 "get_ui_status",
                 {}
             );
 
             // Get interaction state
             const interactionState = await this.mcpAdapter.executeTool(
-                "xplus1-mcp-machine",
+                "state-machine-server",
                 "get_interaction_state",
                 {}
             );
 
             return {
                 timestamp: new Date().toISOString(),
-                serverId: "xplus1-mcp-machine",
+                serverId: "state-machine-server",
                 gameState: {
                     x: xStatus?.content?.[0]?.text || "Unknown",
                     fullState: fullGameState?.content?.[0]?.text || "Unknown",
@@ -810,13 +810,13 @@ Por favor, abre el navegador simple de VS Code para acceder a la consola web del
             // Since the Runtime is typically embedded in the application,
             // we'll try to get statistics from the X+1 machine server
             const consoleOutput = await this.mcpAdapter.executeTool(
-                "xplus1-mcp-machine",
+                "state-machine-server",
                 "get_console_output",
                 {}
             );
 
             const conversationThread = await this.mcpAdapter.executeTool(
-                "xplus1-mcp-machine",
+                "state-machine-server",
                 "get_current_conversation",
                 {}
             );
@@ -857,7 +857,7 @@ Por favor, abre el navegador simple de VS Code para acceder a la consola web del
 
         const healthResults: Record<string, any> = {};
         const servers = [
-            "xplus1-mcp-machine",
+            "state-machine-server",
             "wiki-mcp-browser",
             "mcp-service-launcher",
         ];
@@ -931,21 +931,21 @@ Por favor, abre el navegador simple de VS Code para acceder a la consola web del
         try {
             // Get available agents/postulations
             const availableAgents = await this.mcpAdapter.executeTool(
-                "xplus1-mcp-machine",
+                "state-machine-server",
                 "get_available_postulations",
                 {}
             );
 
             // Get current conversation to see active agents
             const conversation = await this.mcpAdapter.executeTool(
-                "xplus1-mcp-machine",
+                "state-machine-server",
                 "get_current_conversation",
                 {}
             );
 
             // Get interaction state to see what agents are available
             const interactionState = await this.mcpAdapter.executeTool(
-                "xplus1-mcp-machine",
+                "state-machine-server",
                 "get_interaction_state",
                 {}
             );

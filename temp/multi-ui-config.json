@@ -52,7 +52,7 @@
   },
   "mcp": {
     "servers": [
-      "xplus1-mcp-machine",
+      "state-machine-server",
       "wiki-mcp-browser"
     ]
   }

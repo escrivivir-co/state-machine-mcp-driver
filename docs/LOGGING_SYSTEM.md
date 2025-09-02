@@ -95,7 +95,7 @@ Durante la ejecución del juego, puedes cambiar el modo de logging usando comand
 ]: MCPClientDriver: Initializing native MCP client driver
 ]: MCPDriverAdapter: Initialized with native protocol  
 ]: MCPClientDriver: Successfully connected to X+1 MCP Machine at http://localhost:3001
-]: MCPClientDriver: Resource retrieval failed: {"serverId":"xplus1-mcp-machine","resourceId":"states/x-plus-1-game/player-1","error":{"code":-32603,"name":"McpError"}}
+]: MCPClientDriver: Resource retrieval failed: {"serverId":"state-machine-server","resourceId":"states/x-plus-1-game/player-1","error":{"code":-32603,"name":"McpError"}}
 ]: MCPDriverAdapter: loadState failed with native driver, falling back to legacy
 ...
 ```

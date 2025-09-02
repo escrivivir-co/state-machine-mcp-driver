@@ -124,7 +124,7 @@ export class MCPLauncherServer extends BaseMCPServer {
                 serverId: z
                     .string()
                     .describe(
-                        "ID of the server to launch (e.g., xplus1-mcp-machine, wiki-mcp-browser)"
+                        "ID of the server to launch (e.g., state-machine-server, wiki-mcp-browser)"
                     ),
                 customConfig: z
                     .object({

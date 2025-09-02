@@ -262,18 +262,18 @@ The XPlus1MCPMachine server (port 3001) now provides complete remote control cap
 #### Usage from VS Code Copilot
 ```typescript
 // Example: Send user input remotely
-await mcpClient.callTool('xplus1-mcp-machine', 'send_user_input', {
+await mcpClient.callTool('state-machine-server', 'send_user_input', {
   text: "I want to learn about the cosmos"
 });
 
 // Example: Select DionisioBot for cosmic conversation
-await mcpClient.callTool('xplus1-mcp-machine', 'select_agent', {
+await mcpClient.callTool('state-machine-server', 'select_agent', {
   agentId: "DionisioBot",
   reason: "Perfect for cosmic exploration"
 });
 
 // Example: Answer the critical question
-await mcpClient.callTool('xplus1-mcp-machine', 'answer_critical_question', {
+await mcpClient.callTool('state-machine-server', 'answer_critical_question', {
   answer: "no",
   reasoning: "Stayed focused today, X should advance"
 });
@@ -729,7 +729,7 @@ The auto-generated `.vscode/mcp.json` will contain:
       "type": "http",
       "url": "http://localhost:3050"
     },
-    "xplus1-mcp-machine": {
+    "state-machine-server": {
       "type": "http", 
       "url": "http://localhost:3001"
     },

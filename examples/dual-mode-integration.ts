@@ -137,7 +137,7 @@ class DualModeGameManager {
     private async setupMCPServers(): Promise<void> {
         // Add X+1 MCP Machine server
         await this.mcpAdapter.addServer({
-            id: "xplus1-mcp-machine",
+            id: "state-machine-server",
             name: "X+1 MCP Machine",
             url: "stdio",
         });

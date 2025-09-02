@@ -116,7 +116,7 @@ async function developmentWorkflow() {
   });
   
   // 3. Initialize game control
-  await callTool('xplus1-mcp-machine', 'get_x_status', {});
+  await callTool('state-machine-server', 'get_x_status', {});
   
   // 4. Begin intelligent gameplay
   console.log("🎮 Ready for AI-controlled gameplay!");
@@ -328,16 +328,16 @@ async function completeAIWorkflow() {
   console.log("🌐 Web console ready");
   
   // 4. Game state analysis
-  const gameStatus = await callTool('xplus1-mcp-machine', 'get_x_status', {});
+  const gameStatus = await callTool('state-machine-server', 'get_x_status', {});
   console.log("🎮 Game X value:", gameStatus.x);
   
   // 5. Begin intelligent gameplay
-  const uiStatus = await callTool('xplus1-mcp-machine', 'get_ui_status', {});
+  const uiStatus = await callTool('state-machine-server', 'get_ui_status', {});
   console.log("📱 UI Status:", uiStatus.interaction.phase);
   
   // 6. Make intelligent decisions based on system state
   if (uiStatus.interaction.phase === 'conversation') {
-    await callTool('xplus1-mcp-machine', 'select_agent', {
+    await callTool('state-machine-server', 'select_agent', {
       agentId: 'ApoloBot',
       reason: 'System is stable, choosing positive agent for advancement'
     });
