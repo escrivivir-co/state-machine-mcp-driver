@@ -26,7 +26,16 @@ import {
   UIPhase,
   GamificationUIEvent
 } from './GamificationUI';
-import { AgentPostulation } from '../models/AgentPostulation';
+import { 
+  AgentPostulation, 
+  AgentPostulationManager,
+  PostulationContext 
+} from '../models/AgentPostulation';
+import { Agent, AgentRole } from '../models/Agent';
+import { ConversationThread } from './ConversationThread';
+import { ConversationMessage } from './ConversationMessage';
+import { AlephScriptClient } from '../clients/alephscript-client';
+import { IOrchestratorChannels } from '../orchestration/types';
 import { Logger } from '../utils/logger';
 
 /**
@@ -92,6 +101,17 @@ export class HTML5GamificationUI extends GamificationUI {
   private clientConnections$ = new Subject<{ type: 'connect' | 'disconnect'; client: WebClient }>();
   private sseClients = new Set<express.Response>();
 
+  // ===== Orchestrator Integration =====
+  private proserpinaBot!: AlephScriptClient;
+  private orchestratorChannels?: IOrchestratorChannels;
+
+  // ===== Agent Postulation System =====
+  protected postulationManager?: AgentPostulationManager;
+  protected pendingPostulations: AgentPostulation[] = [];
+  protected awaitingAgentSelection = false;
+  protected currentThread?: ConversationThread;
+  protected messageIdCounter = 0;
+
   constructor(
     runtime: Runtime, 
     mcpAdapter: MCPDriverAdapter, 
@@ -108,8 +128,206 @@ export class HTML5GamificationUI extends GamificationUI {
       ...config
     };
 
+    // Initialize AlephScript client (Proserpina)
+    this.initAlephScriptClient();
+
+    // Initialize PostulationManager if postulations are enabled
+    if (this.config.enablePostulations) {
+      this.postulationManager = new AgentPostulationManager();
+    }
+
     this.setupWebStreams();
     this.setupExpressApp();
+  }
+
+  // ===== AlephScript Integration =====
+
+  /**
+   * Initialize AlephScript client (Proserpina) for orchestrator communication
+   */
+  private initAlephScriptClient(): void {
+    this.proserpinaBot = new AlephScriptClient(
+      `HTML5UI_${this.config.gameTitle}`,
+      'http://localhost:3000',
+      '/runtime',
+      true
+    );
+
+    Logger.info(`🤖 Initialized AlephScript client (Proserpina) for HTML5UI: ${this.config.gameTitle}`);
+  }
+
+  /**
+   * Connect to orchestrator channels for synchronized communication
+   */
+  public connectOrchestrator(channels: IOrchestratorChannels): void {
+    this.orchestratorChannels = channels;
+    
+    // Initialize sys channel integration
+    this.proserpinaBot.initializeSysChannelIntegration(channels);
+
+    // Subscribe to UI channel messages
+    channels.ui.subscribe((message) => {
+      this.handleOrchestratorUIMessage(message);
+    });
+
+    // Subscribe to app channel messages for agent updates
+    channels.app.subscribe((message) => {
+      this.handleOrchestratorAppMessage(message);
+    });
+
+    Logger.info('🔗 HTML5UI connected to orchestrator channels');
+  }
+
+  /**
+   * Handle UI messages from orchestrator
+   */
+  private handleOrchestratorUIMessage(message: any): void {
+    switch (message.type) {
+      case 'agent_postulations':
+        this.broadcastSSE('agent_postulations', message.payload);
+        break;
+      case 'phase_change':
+        this.changePhase(message.payload.phase);
+        break;
+      case 'render_request':
+        this.handleRenderRequest(message);
+        break;
+      default:
+        if (this.config.debugMode) {
+          Logger.debug(`HTML5UI: Unhandled UI message type: ${message.type}`, message);
+        }
+    }
+  }
+
+  /**
+   * Handle app messages from orchestrator
+   */
+  private handleOrchestratorAppMessage(message: any): void {
+    switch (message.type) {
+      case 'agent_message':
+        this.displayAgentMessageFromOrchestrator(message.payload);
+        break;
+      case 'game_state_update':
+        this.broadcastSSE('game_state_update', message.payload);
+        break;
+      default:
+        if (this.config.debugMode) {
+          Logger.debug(`HTML5UI: Unhandled app message type: ${message.type}`, message);
+        }
+    }
+  }
+
+  /**
+   * Display agent message from orchestrator
+   */
+  private async displayAgentMessageFromOrchestrator(payload: any): Promise<void> {
+    const message: GameMessage = {
+      id: this.generateMessageId(),
+      type: 'agent',
+      agent: payload.agent,
+      content: payload.content,
+      metadata: payload.metadata,
+      timestamp: Date.now()
+    };
+
+    await this.displayMessage(message);
+  }
+
+  /**
+   * Handle render requests from orchestrator
+   */
+  private handleRenderRequest(message: any): void {
+    // Broadcast render request to web clients
+    this.broadcastSSE('render_request', message.payload);
+  }
+
+  // ===== Agent Postulation System =====
+
+  /**
+   * Set the postulation manager (for games that use agent postulations)
+   */
+  public setPostulationManager(manager: AgentPostulationManager): void {
+    this.postulationManager = manager;
+  }
+
+  /**
+   * Generate agent postulations for next message
+   */
+  public async generateAgentPostulations(context?: Partial<PostulationContext>): Promise<AgentPostulation[]> {
+    if (!this.postulationManager || !this.currentThread) {
+      return [];
+    }
+
+    const fullContext: PostulationContext = {
+      messageCount: this.currentThread.messageCount,
+      maxMessages: this.config.maxMessagesPerThread || 10,
+      gameState: this.getCurrentState(),
+      lastMessage: this.currentThread.messages[this.currentThread.messages.length - 1]?.content,
+      availableAgents: await this.getActiveAgents(),
+      ...context
+    };
+
+    const postulations = this.postulationManager.generatePostulations(fullContext);
+    
+    // Store for web client selection
+    this.pendingPostulations = postulations;
+    
+    if (this.config.debugMode) {
+      Logger.debug(`HTML5UI: Generated ${postulations.length} agent postulations`, postulations);
+    }
+
+    return postulations;
+  }
+
+  /**
+   * Send user input through orchestrator channels
+   */
+  public sendUserInputThroughOrchestrator(input: string, clientId: string): void {
+    if (this.orchestratorChannels) {
+      this.orchestratorChannels.ui.send({
+        type: 'user_input',
+        payload: { input },
+        source: 'HTML5UI',
+        metadata: { clientId }
+      });
+    }
+
+    // Also process locally
+    this.sendUserInput(input);
+  }
+
+  /**
+   * Send agent selection through orchestrator
+   */
+  public sendAgentSelectionThroughOrchestrator(agentIndex: number, clientId: string): void {
+    if (this.orchestratorChannels && this.pendingPostulations[agentIndex]) {
+      const selectedPostulation = this.pendingPostulations[agentIndex];
+      
+      this.orchestratorChannels.app.send({
+        type: 'agent_command',
+        payload: { 
+          agentId: selectedPostulation.agent.id,
+          command: 'select_agent',
+          data: { 
+            postulation: selectedPostulation, 
+            clientId,
+            agentIndex 
+          }
+        },
+        source: 'HTML5UI',
+      });
+
+      // Clear pending postulations
+      this.pendingPostulations = [];
+      this.awaitingAgentSelection = false;
+    }
+  }
+
+  /**
+   * Generate unique message ID
+   */
+  protected generateMessageId(): string {
+    return `html5_msg_${++this.messageIdCounter}_${Date.now()}`;
   }
 
   // ===== Abstract Method Implementations =====
@@ -121,8 +339,14 @@ export class HTML5GamificationUI extends GamificationUI {
         this.isActive = true;
         this.changePhase('menu');
         
+        // Start AlephScript connection
+        if (this.proserpinaBot) {
+          this.proserpinaBot.run();
+        }
+        
         Logger.info(`HTML5 Game UI started on port ${this.htmlConfig.port}`);
         console.log(`🌐 Game UI available at: http://localhost:${this.htmlConfig.port}`);
+        console.log(`🤖 Proserpina (AlephScript client) initialized for orchestrator communication`);
         
         this.emit(GamificationUIEvent.GAME_STARTED);
         resolve();
@@ -143,12 +367,18 @@ export class HTML5GamificationUI extends GamificationUI {
       });
       this.sseClients.clear();
 
+      // Disconnect AlephScript client
+      if (this.proserpinaBot) {
+        this.proserpinaBot.disconnect();
+      }
+
       if (this.server) {
         this.server.close(() => {
           this.isServerRunning = false;
           this.isActive = false;
           
           Logger.info('HTML5 Game UI server stopped');
+          Logger.info('🤖 Proserpina (AlephScript client) disconnected');
           this.emit(GamificationUIEvent.GAME_STOPPED);
           resolve();
         });
@@ -332,6 +562,43 @@ export class HTML5GamificationUI extends GamificationUI {
       this.handleGameAction(req, res);
     });
 
+    // === New Agent Postulation Routes ===
+
+    // Get agent postulations
+    this.app.get('/api/postulations', (req, res) => {
+      this.handleGetPostulations(req, res);
+    });
+
+    // Generate new postulations
+    this.app.post('/api/postulations/generate', (req, res) => {
+      this.handleGeneratePostulations(req, res);
+    });
+
+    // Get active agents
+    this.app.get('/api/agents', (req, res) => {
+      this.handleGetAgents(req, res);
+    });
+
+    // Get current game state
+    this.app.get('/api/game-state', (req, res) => {
+      this.handleGetGameState(req, res);
+    });
+
+    // Get current conversation thread
+    this.app.get('/api/thread', (req, res) => {
+      this.handleGetCurrentThread(req, res);
+    });
+
+    // Start new conversation thread
+    this.app.post('/api/thread/start', (req, res) => {
+      this.handleStartNewThread(req, res);
+    });
+
+    // Complete current thread
+    this.app.post('/api/thread/complete', (req, res) => {
+      this.handleCompleteThread(req, res);
+    });
+
     // Create HTTP server
     this.server = createServer(this.app);
   }
@@ -439,13 +706,18 @@ export class HTML5GamificationUI extends GamificationUI {
     // Update client activity
     client.lastActivity = Date.now();
 
-    // Emit web event
-    this.webEvents$.next({
-      type: 'user_input',
-      clientId,
-      data: { input },
-      timestamp: Date.now()
-    });
+    // Send through orchestrator if connected
+    if (this.orchestratorChannels) {
+      this.sendUserInputThroughOrchestrator(input, clientId);
+    } else {
+      // Fallback to local processing
+      this.webEvents$.next({
+        type: 'user_input',
+        clientId,
+        data: { input },
+        timestamp: Date.now()
+      });
+    }
 
     res.json({ success: true });
   }
@@ -467,10 +739,28 @@ export class HTML5GamificationUI extends GamificationUI {
     // Update client activity
     client.lastActivity = Date.now();
 
-    // Try to select agent
-    const success = this.selectAgent(agentIndex);
+    // Validate agent index
+    if (agentIndex < 0 || agentIndex >= this.pendingPostulations.length) {
+      res.status(400).json({ error: 'Invalid agent index' });
+      return;
+    }
+
+    // Send through orchestrator if connected
+    if (this.orchestratorChannels) {
+      this.sendAgentSelectionThroughOrchestrator(agentIndex, clientId);
+    } else {
+      // Fallback to local selection
+      const success = this.selectAgent(agentIndex);
+      if (!success) {
+        res.status(400).json({ error: 'Failed to select agent' });
+        return;
+      }
+    }
     
-    res.json({ success });
+    res.json({ 
+      success: true,
+      selectedAgent: this.pendingPostulations[agentIndex]?.agent.name
+    });
   }
 
   private handleGameAction(req: express.Request, res: express.Response): void {
@@ -499,6 +789,227 @@ export class HTML5GamificationUI extends GamificationUI {
     });
 
     res.json({ success: true });
+  }
+
+  // ===== New Agent Postulation HTTP Handlers =====
+
+  /**
+   * Get current agent postulations
+   */
+  private handleGetPostulations(req: express.Request, res: express.Response): void {
+    res.json({
+      postulations: this.pendingPostulations.map(p => ({
+        agentId: p.agent.id,
+        agentName: p.agent.name,
+        agentRole: p.agent.role,
+        reason: p.reason,
+        priority: p.priority,
+        greediness: p.greediness,
+        weight: p.weight,
+        metadata: p.metadata
+      })),
+      awaitingSelection: this.awaitingAgentSelection,
+      timestamp: Date.now()
+    });
+  }
+
+  /**
+   * Generate new agent postulations
+   */
+  private async handleGeneratePostulations(req: express.Request, res: express.Response): Promise<void> {
+    const { context, clientId } = req.body;
+
+    try {
+      const postulations = await this.generateAgentPostulations(context);
+      
+      // Set awaiting selection flag
+      this.awaitingAgentSelection = postulations.length > 0;
+
+      // Broadcast to all clients
+      this.broadcastSSE('agent_postulations_generated', {
+        postulations: postulations.map(p => ({
+          agentId: p.agent.id,
+          agentName: p.agent.name,
+          agentRole: p.agent.role,
+          reason: p.reason,
+          priority: p.priority,
+          greediness: p.greediness,
+          weight: p.weight
+        })),
+        clientId,
+        timestamp: Date.now()
+      });
+
+      res.json({ 
+        success: true, 
+        postulations: postulations.length,
+        awaitingSelection: this.awaitingAgentSelection
+      });
+    } catch (error) {
+      Logger.error('Failed to generate postulations', error as Error);
+      res.status(500).json({ error: 'Failed to generate postulations' });
+    }
+  }
+
+  /**
+   * Get active agents
+   */
+  private async handleGetAgents(req: express.Request, res: express.Response): Promise<void> {
+    try {
+      const agents = await this.getActiveAgents();
+      res.json({
+        agents: agents.map(agent => ({
+          id: agent.id,
+          name: agent.name,
+          role: agent.role,
+          metadata: agent.metadata
+        })),
+        count: agents.length,
+        timestamp: Date.now()
+      });
+    } catch (error) {
+      Logger.error('Failed to get active agents', error as Error);
+      res.status(500).json({ error: 'Failed to get active agents' });
+    }
+  }
+
+  /**
+   * Get current game state
+   */
+  private handleGetGameState(req: express.Request, res: express.Response): void {
+    const gameState = this.getCurrentState();
+    res.json({
+      gameState,
+      currentPhase: this.currentPhase,
+      isActive: this.isActive,
+      timestamp: Date.now()
+    });
+  }
+
+  /**
+   * Get current conversation thread
+   */
+  private handleGetCurrentThread(req: express.Request, res: express.Response): void {
+    const thread = this.getCurrentThread();
+    res.json({
+      thread: thread ? {
+        id: thread.id,
+        messageCount: thread.messageCount,
+        startTime: thread.startTime,
+        status: thread.status,
+        messages: thread.messages.map(msg => ({
+          id: msg.id,
+          type: msg.type,
+          content: msg.content,
+          agent: msg.agent,
+          timestamp: msg.timestamp
+        }))
+      } : null,
+      hasCapacity: this.hasThreadCapacity(),
+      maxMessages: this.config.maxMessagesPerThread || 10,
+      timestamp: Date.now()
+    });
+  }
+
+  /**
+   * Start new conversation thread
+   */
+  private handleStartNewThread(req: express.Request, res: express.Response): void {
+    try {
+      this.startNewThread();
+      
+      // Broadcast thread started event
+      this.broadcastSSE('thread_started', {
+        threadId: this.currentThread?.id,
+        timestamp: Date.now()
+      });
+
+      res.json({ 
+        success: true, 
+        threadId: this.currentThread?.id,
+        timestamp: Date.now()
+      });
+    } catch (error) {
+      Logger.error('Failed to start new thread', error as Error);
+      res.status(500).json({ error: 'Failed to start new thread' });
+    }
+  }
+
+  /**
+   * Complete current conversation thread
+   */
+  private handleCompleteThread(req: express.Request, res: express.Response): void {
+    try {
+      if (this.currentThread) {
+        this.completeCurrentThread();
+        
+        // Broadcast thread completed event
+        this.broadcastSSE('thread_completed', {
+          threadId: this.currentThread?.id,
+          timestamp: Date.now()
+        });
+      }
+
+      res.json({ 
+        success: true,
+        timestamp: Date.now()
+      });
+    } catch (error) {
+      Logger.error('Failed to complete thread', error as Error);
+      res.status(500).json({ error: 'Failed to complete thread' });
+    }
+  }
+
+  /**
+   * Check if thread has capacity for more messages
+   */
+  private hasThreadCapacity(): boolean {
+    if (!this.currentThread) return true;
+    const maxMessages = this.config.maxMessagesPerThread || 10;
+    return this.currentThread.messageCount < maxMessages;
+  }
+
+  /**
+   * Start a new conversation thread
+   */
+  protected startNewThread(): void {
+    const threadId = `html5_thread_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    
+    this.currentThread = {
+      id: threadId,
+      messages: [],
+      messageCount: 0,
+      startTime: Date.now(),
+      status: 'active'
+    };
+
+    this.changePhase('game');
+    
+    if (this.config.debugMode) {
+      Logger.debug(`HTML5UI: Started new thread ${threadId}`);
+    }
+  }
+
+  /**
+   * Complete the current conversation thread
+   */
+  protected completeCurrentThread(): void {
+    if (this.currentThread) {
+      this.currentThread.status = 'completed';
+      
+      if (this.config.debugMode) {
+        Logger.debug(`HTML5UI: Completed thread ${this.currentThread.id}`);
+      }
+      
+      this.changePhase('complete');
+    }
+  }
+
+  /**
+   * Get current conversation thread
+   */
+  public getCurrentThread(): ConversationThread | undefined {
+    return this.currentThread;
   }
 
   // ===== Event Processing =====
