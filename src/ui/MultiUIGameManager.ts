@@ -25,6 +25,14 @@ import {
     HTML5GamificationUI,
     HTML5GameUIConfig,
 } from "../ui/HTML5GamificationUI";
+import {
+    ThreeJSGamificationUI,
+    ThreeJSGameUIConfig,
+} from "../ui/ThreeJSGamificationUI";
+import {
+    UnityGamificationUI,
+    UnityGameUIConfig,
+} from "../ui/UnityGamificationUI";
 import { Logger } from "../utils/logger";
 import {
     IndependentConsoleLauncher,
@@ -288,6 +296,45 @@ class UIFactory {
                     runtime,
                     mcpAdapter,
                     html5Config
+                );
+
+            case "threejs":
+                // Create a valid ThreeJSGameUIConfig
+                const threejsConfig: ThreeJSGameUIConfig = {
+                    gameTitle: config.name,
+                    welcomeMessage: `Welcome to ${config.name}`,
+                    port: config.config.port || 9090,
+                    staticDir: config.config.staticDir || "e:/LAB_AGOSTO/threejs-gamify-ui/client",
+                    corsOrigin: config.config.corsOrigin || "*",
+                    debugMode: !!config.config.debugMode,
+                    enablePostulations: config.config.enablePostulations ?? true,
+                    autoSelectSingleAgent: config.config.autoSelectSingleAgent ?? true,
+                    maxMessagesPerThread: config.config.maxMessagesPerThread ?? 50,
+                };
+                return new ThreeJSGamificationUI(
+                    runtime,
+                    mcpAdapter,
+                    threejsConfig
+                );
+
+            case "unity":
+                // Create a valid UnityGameUIConfig
+                const unityConfig: UnityGameUIConfig = {
+                    gameTitle: config.name,
+                    welcomeMessage: `Welcome to ${config.name}`,
+                    port: config.config.port || 9080,
+                    buildDir: config.config.buildDir || "e:/LAB_AGOSTO/unity-builds/webgl",
+                    unityBuildName: config.config.unityBuildName || "index.html",
+                    corsOrigin: config.config.corsOrigin || "*",
+                    debugMode: !!config.config.debugMode,
+                    enablePostulations: config.config.enablePostulations ?? true,
+                    autoSelectSingleAgent: config.config.autoSelectSingleAgent ?? true,
+                    maxMessagesPerThread: config.config.maxMessagesPerThread ?? 50,
+                };
+                return new UnityGamificationUI(
+                    runtime,
+                    mcpAdapter,
+                    unityConfig
                 );
 
             case "custom":
@@ -754,6 +801,17 @@ export class MultiUIGameManager extends EventEmitter {
                 // Handle both sync and async UI creation
                 const ui = await Promise.resolve(uiResult);
 
+                // Connect Orchestrator channels if UI supports it
+                const channels = this.orchestrator.getChannels();
+                if (typeof (ui as any).connectOrchestrator === "function") {
+                    try {
+                        (ui as any).connectOrchestrator(channels);
+                        Logger.info(`Connected Orchestrator channels to UI: ${uiConfig.name}`);
+                    } catch (e) {
+                        Logger.warn(`Failed to connect Orchestrator to UI ${uiConfig.name}`, e as Error);
+                    }
+                }
+
                 const instance: UIInstance = {
                     config: uiConfig,
                     ui,
@@ -830,6 +888,7 @@ export class MultiUIGameManager extends EventEmitter {
 
     private setupUIEventHandling(instance: UIInstance): void {
         const uiId = instance.config.id;
+        const channels = this.orchestrator.getChannels();
 
         // Forward all UI events to global stream
         Object.values(GamificationUIEvent).forEach((eventType) => {
@@ -840,19 +899,55 @@ export class MultiUIGameManager extends EventEmitter {
 
         // Handle specific events
         instance.ui.on(GamificationUIEvent.USER_INPUT, (data: any) => {
+            // Forward to orchestrator app channel
+            try {
+                channels.app.sendActionRequest(uiId, "user_input", [data]);
+            } catch (e) {
+                Logger.warn(`Failed to forward user input to orchestrator from UI ${uiId}`, e as Error);
+            }
             this.handleUserInput(uiId, data);
         });
 
         instance.ui.on(GamificationUIEvent.AGENT_MESSAGE, (data: any) => {
+            // Forward to orchestrator UI channel
+            try {
+                channels.ui.sendDisplayUpdate(uiId, "agent-message", "info", data?.message?.content || "");
+            } catch (e) {
+                Logger.warn(`Failed to forward agent message to orchestrator from UI ${uiId}`, e as Error);
+            }
             this.handleAgentMessage(uiId, data);
+        });
+
+        instance.ui.on(GamificationUIEvent.PHASE_CHANGED, (data: any) => {
+            // Forward to orchestrator UI channel
+            try {
+                channels.ui.sendDisplayUpdate(uiId, "phase-change", "info", data?.phase || data);
+            } catch (e) {
+                Logger.warn(`Failed to forward phase change to orchestrator from UI ${uiId}`, e as Error);
+            }
+        });
+
+        instance.ui.on(GamificationUIEvent.ERROR_OCCURRED, (error: any) => {
+            // Forward to orchestrator system channel
+            try {
+                channels.sys.sendError(uiId, error instanceof Error ? error : new Error(String(error)), "UI error");
+            } catch (e) {
+                Logger.warn(`Failed to forward error to orchestrator from UI ${uiId}`, e as Error);
+            }
+        });
+
+        instance.ui.on(GamificationUIEvent.STATE_CHANGED, (data: any) => {
+            // Forward to orchestrator UI channel
+            try {
+                channels.ui.sendDisplayUpdate(uiId, "state-display", "info", JSON.stringify(data?.state ?? data));
+            } catch (e) {
+                Logger.warn(`Failed to forward state change to orchestrator from UI ${uiId}`, e as Error);
+            }
+            this.globalGameState$.next(data?.state ?? data);
         });
 
         instance.ui.on(GamificationUIEvent.THREAD_STARTED, (data: any) => {
             this.globalThread$.next(data.thread);
-        });
-
-        instance.ui.on(GamificationUIEvent.STATE_CHANGED, (data: any) => {
-            this.globalGameState$.next(data.state);
         });
     }
 

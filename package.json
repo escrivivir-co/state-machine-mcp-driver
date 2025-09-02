@@ -41,7 +41,11 @@
     "multi:console": "cross-env OLLAMA_MODEL=gpt-oss:20b MCP_USE_NATIVE_PROTOCOL=true MCP_QUIET=true npm run launcher:x-plus-1",
     "app:quiet": "cross-env OLLAMA_MODEL=gpt-oss:20b MCP_USE_NATIVE_PROTOCOL=true MCP_QUIET=true npm run launcher:x-plus-1",
     "app:verbose": "cross-env OLLAMA_MODEL=gpt-oss:20b MCP_USE_NATIVE_PROTOCOL=true MCP_VERBOSE=true LOG_LEVEL=debug npm run launcher:x-plus-1",
-    "app:normal": "cross-env OLLAMA_MODEL=gpt-oss:20b MCP_USE_NATIVE_PROTOCOL=true MCP_QUIET=false MCP_VERBOSE=false npm run launcher:x-plus-1"
+    "app:normal": "cross-env OLLAMA_MODEL=gpt-oss:20b MCP_USE_NATIVE_PROTOCOL=true MCP_QUIET=false MCP_VERBOSE=false npm run launcher:x-plus-1",
+    "threejs:test": "npx tsx examples/threejs-standalone-test.ts",
+    "threejs:demo": "npx tsx examples/threejs-integration-example.ts",
+    "unity:test": "npx tsx examples/unity-standalone-test.ts",
+    "unity:demo": "npx tsx examples/threejs-integration-example.ts"
   },
   "repository": {
     "type": "git",

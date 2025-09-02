@@ -11,7 +11,7 @@ import { AppConfigMcpServers } from "@/utils/config";
 /**
  * UI Type identifiers
  */
-export type UIType = "console" | "html5" | "mobile" | "vr" | "custom";
+export type UIType = "console" | "html5" | "threejs" | "unity" | "mobile" | "vr" | "custom";
 
 /**
  * Configuration for a single UI instance
@@ -27,6 +27,14 @@ export interface UIInstanceConfig {
     config: BaseGamificationUIConfig & {
         /** Port for web-based UIs */
         port?: number;
+        /** Static directory for ThreeJS UI */
+        staticDir?: string;
+        /** Build directory for Unity WebGL */
+        buildDir?: string;
+        /** Unity build name (default: index.html) */
+        unityBuildName?: string;
+        /** CORS origin for web UIs */
+        corsOrigin?: string;
         /** Custom implementation class path for custom UIs */
         customClass?: string;
         /** Whether to launch custom UI in independent console (default: true) */
@@ -35,6 +43,16 @@ export interface UIInstanceConfig {
         priority?: number;
         /** Whether this UI is the primary interface */
         isPrimary?: boolean;
+        /** Auto-build Angular app before serving (ThreeJS) */
+        autoBuild?: boolean;
+        /** Auto-open browser for web UIs */
+        autoOpenBrowser?: boolean;
+        /** Path to Angular project for ThreeJS UI */
+        angularProjectPath?: string;
+        /** Path to Unity project for Unity UI */
+        unityProjectPath?: string;
+        /** Unity build target (default: WebGL) */
+        unityBuildTarget?: string;
     };
     /** Whether this UI is enabled */
     enabled: boolean;

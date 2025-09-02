@@ -25,6 +25,18 @@ export {
   WebEventData
 } from './HTML5GamificationUI';
 
+// ThreeJS Web UI
+export { 
+  ThreeJSGamificationUI, 
+  ThreeJSGameUIConfig
+} from './ThreeJSGamificationUI';
+
+// Unity WebGL UI
+export { 
+  UnityGamificationUI, 
+  UnityGameUIConfig
+} from './UnityGamificationUI';
+
 // Interface definitions
 export { IConsoleReader } from './IConsoleReader';
 export { IWebGameUI } from './IWebGameUI';
