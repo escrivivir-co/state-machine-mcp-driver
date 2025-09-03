@@ -18,8 +18,8 @@ export interface ThreeJSGameUIConfig extends BaseGamificationUIConfig {
   port: number;
   staticDir: string;
   corsOrigin?: string;
-  /** Auto-build Angular app before serving */
-  autoBuild?: boolean;
+  /** Provide pre-compiled Angular template instead of dynamic HTML */
+  provideTemplate?: boolean;
   /** Auto-open browser */
   autoOpenBrowser?: boolean;
   /** Path to threejs-gamify-ui project */
@@ -39,12 +39,11 @@ export class ThreeJSGamificationUI extends GamificationUI {
   
   // Browser management
   private browserProcess?: ChildProcess;
-  private buildProcess?: ChildProcess;
 
   constructor(runtime: Runtime, mcp: MCPDriverAdapter, config: ThreeJSGameUIConfig) {
     super(runtime, mcp, config);
     this.cfg = {
-      autoBuild: true,
+      provideTemplate: false, // Default: use dynamic HTML generation
       autoOpenBrowser: true,
       angularProjectPath: path.resolve(process.cwd(), "../threejs-gamify-ui"),
       ...config
@@ -96,8 +95,7 @@ export class ThreeJSGamificationUI extends GamificationUI {
   async start(): Promise<void> {
     Logger.info("🎮 Starting ThreeJS Gamification UI...");
 
-    // Step 1: Setup Express server with dynamic HTML generation (like ThreeJSLibraryServer)
-    // Skip Angular build - we'll generate HTML dynamically
+    // Step 1: Setup Express server with dynamic HTML generation
     this.app = express();
     this.app.use(express.json());
     this.setupExpressRoutes();
@@ -119,7 +117,7 @@ export class ThreeJSGamificationUI extends GamificationUI {
     // Step 2: Initialize AlephScript client for Socket.IO communication
     this.proserpinaBot = new AlephScriptClient(
       `ThreeJSUI_${this.config.gameTitle}`,
-      "http://localhost:3000", // AlephScript orchestrator server (port 3000, not 8090)
+      "http://localhost:3000", // AlephScript orchestrator server
       "/runtime", // namespace for UI communication
       true
     );
@@ -150,12 +148,6 @@ export class ThreeJSGamificationUI extends GamificationUI {
       this.browserProcess = undefined;
     }
     
-    // Stop build process if running
-    if (this.buildProcess && !this.buildProcess.killed) {
-      this.buildProcess.kill();
-      this.buildProcess = undefined;
-    }
-    
     // Disconnect AlephScript client
     if (this.proserpinaBot) {
       this.proserpinaBot.disconnect();
@@ -171,69 +163,36 @@ export class ThreeJSGamificationUI extends GamificationUI {
     });
   }
 
-  // === Angular Build Management (DEPRECATED - Using dynamic HTML generation instead) ===
+  // === Template Path Resolution ===
   
-  // NOTE: We no longer need to build Angular app since we generate HTML dynamically
-  // This eliminates Socket.IO conflicts and simplifies deployment
-  /*
-  private async buildAngularApp(): Promise<void> {
-    return new Promise((resolve, reject) => {
-      Logger.info("🔨 Building Angular ThreeJS app...");
-      
-      const angularPath = this.cfg.angularProjectPath!;
-      const isWindows = process.platform === "win32";
-      const npmCmd = isWindows ? "npm.cmd" : "npm";
-      
-      this.buildProcess = spawn(npmCmd, ["run", "build"], {
-        cwd: angularPath,
-        stdio: ["pipe", "pipe", "pipe"],
-        shell: isWindows
-      });
-
-      let buildOutput = "";
-      let buildError = "";
-
-      this.buildProcess.stdout?.on("data", (data) => {
-        const output = data.toString();
-        buildOutput += output;
-        if (this.config.debugMode) {
-          Logger.info(`[Angular Build] ${output.trim()}`);
-        }
-      });
-
-      this.buildProcess.stderr?.on("data", (data) => {
-        const error = data.toString();
-        buildError += error;
-        Logger.warn(`[Angular Build Error] ${error.trim()}`);
-      });
-
-      this.buildProcess.on("close", (code) => {
-        this.buildProcess = undefined;
-        
-        if (code === 0) {
-          Logger.info("✅ Angular ThreeJS app built successfully");
-          
-          // Update static directory to built app
-          const builtAppPath = path.join(angularPath, "dist", "public");
-          this.cfg.staticDir = builtAppPath;
-          
-          resolve();
-        } else {
-          Logger.error(`❌ Angular build failed with code ${code}`);
-          Logger.error(`Build output: ${buildOutput}`);
-          Logger.error(`Build error: ${buildError}`);
-          reject(new Error(`Angular build failed with code ${code}`));
-        }
-      });
-
-      this.buildProcess.on("error", (error) => {
-        this.buildProcess = undefined;
-        Logger.error("❌ Failed to start Angular build process", error);
-        reject(error);
-      });
-    });
+  private getTemplatePath(): string {
+    const fs = require('fs');
+    
+    // Priority 1: Package installed in public/threejs-ui (recommended for production)
+    const packagePath = path.resolve(process.cwd(), "public/threejs-ui/index.html");
+    
+    // Priority 2: Development path from staticDir config
+    const devPath = path.resolve(this.cfg.staticDir, "index.html");
+    
+    // Priority 3: Legacy path for backward compatibility
+    const legacyPath = path.resolve(this.cfg.angularProjectPath || "../threejs-gamify-ui", "dist/public/index.html");
+    
+    const paths = [
+      { path: packagePath, type: "package" },
+      { path: devPath, type: "development" },
+      { path: legacyPath, type: "legacy" }
+    ];
+    
+    for (const { path: templatePath, type } of paths) {
+      if (fs.existsSync(templatePath)) {
+        Logger.info(`✅ Using ${type} template: ${templatePath}`);
+        return templatePath;
+      }
+    }
+    
+    Logger.warn(`⚠️  No template found. Checked paths: ${paths.map(p => p.path).join(', ')}`);
+    return devPath; // Return devPath as fallback
   }
-  */
 
   // === Express Routes Setup ===
   
@@ -250,95 +209,117 @@ export class ThreeJSGamificationUI extends GamificationUI {
     this.app.use("/assets", express.static(path.join(__dirname, "../../public")));
     this.app.use("/assets", express.static(path.join(__dirname, "../assets")));
     
-    // Serve compiled Angular assets (fonts, textures, sounds, etc.)
-    const angularAssetsPath = path.join(__dirname, "../../../threejs-gamify-ui/dist/public");
-    this.app.use("/angular-assets", express.static(angularAssetsPath));
-    this.app.use("/fonts", express.static(path.join(angularAssetsPath, "fonts")));
-    this.app.use("/geometries", express.static(path.join(angularAssetsPath, "geometries")));
-    this.app.use("/sounds", express.static(path.join(angularAssetsPath, "sounds")));
-    this.app.use("/textures", express.static(path.join(angularAssetsPath, "textures")));
+    // Serve ThreeJS UI package assets (fonts, textures, sounds, etc.)
+    const packageAssetsPath = path.join(__dirname, "../../public/threejs-ui");
+    const devAssetsPath = path.join(__dirname, "../../../threejs-gamify-ui/dist/public");
+    
+    // Priority: package assets, fallback to development assets
+    const fs = require('fs');
+    const assetsPath = fs.existsSync(packageAssetsPath) ? packageAssetsPath : devAssetsPath;
+    
+    this.app.use("/threejs-assets", express.static(assetsPath));
+    this.app.use("/fonts", express.static(path.join(assetsPath, "fonts")));
+    this.app.use("/geometries", express.static(path.join(assetsPath, "geometries")));
+    this.app.use("/sounds", express.static(path.join(assetsPath, "sounds")));
+    this.app.use("/textures", express.static(path.join(assetsPath, "textures")));
 
-    // Main application route - serve compiled Angular HTML with AlephScript injection
+    // Main application route - serve HTML based on provideTemplate setting
     this.app.get("/", (req, res) => {
       try {
-        // Path to the compiled Angular HTML
-        const angularHtmlPath = path.join(__dirname, "../../../threejs-gamify-ui/dist/public/index.html");
+        // DEBUG: Log configuration
+        Logger.info(`🔍 DEBUG Port ${this.cfg.port}: provideTemplate=${this.cfg.provideTemplate}, staticDir=${this.cfg.staticDir}`);
         
-        // Check if the compiled file exists
-        if (!require('fs').existsSync(angularHtmlPath)) {
-          Logger.warn("Angular compiled HTML not found, using fallback HTML generation");
+        // Check provideTemplate setting to decide which version to serve
+        if (this.cfg.provideTemplate) {
+          // Get template path using priority resolution
+          const templatePath = this.getTemplatePath();
+          
+          // DEBUG: Log template resolution
+          Logger.info(`🔍 DEBUG Port ${this.cfg.port}: Using template from ${templatePath}`);
+          
+          // Check if the template file exists
+          if (!require('fs').existsSync(templatePath)) {
+            Logger.warn(`Template not found at: ${templatePath}, using fallback dynamic HTML`);
+            res.send(this.generateHTML());
+            return;
+          }
+          
+          // Read the template HTML
+          const templateHtml = require('fs').readFileSync(templatePath, 'utf8');
+          
+          // Inject AlephScript integration before closing body tag
+          const alephScriptInjection = `
+          <!-- AlephScript Integration for Template -->
+          <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+          <script src="/assets/alephscript-client.js"></script>
+          <script>
+            let alephClient = null;
+            
+            // Initialize AlephScript connection for Angular ThreeJS UI
+            function initializeAlephScript() {
+              console.log('🔌 Initializing AlephScript for Angular ThreeJS UI...');
+              
+              alephClient = createAlephScriptClient(
+                'threejs-angular',
+                'threejs-angular-integration',
+                'http://localhost:3000',
+                true
+              );
+              
+              alephClient.on('connected', () => {
+                console.log('✅ AlephScript connected to Angular ThreeJS UI!');
+                // Send initialization message
+                alephClient.sendMessage({
+                  type: 'ui_ready',
+                  message: 'Angular ThreeJS UI with AlephScript integration ready',
+                  timestamp: Date.now()
+                });
+              });
+              
+              alephClient.on('disconnected', () => {
+                console.log('❌ AlephScript disconnected from Angular ThreeJS UI');
+              });
+              
+              alephClient.on('message', (data) => {
+                console.log('📨 Received AlephScript message:', data);
+                // Forward to Angular app if needed
+                if (window.handleAlephScriptMessage) {
+                  window.handleAlephScriptMessage(data);
+                }
+              });
+              
+              alephClient.connect();
+            }
+            
+            // Initialize when DOM is ready
+            if (document.readyState === 'loading') {
+              document.addEventListener('DOMContentLoaded', initializeAlephScript);
+            } else {
+              initializeAlephScript();
+            }
+            
+            // Export for Angular app usage
+            window.alephClient = alephClient;
+          </script>
+          </body>`;
+          
+          // Replace closing body tag with our injection
+          const modifiedHtml = templateHtml.replace('</body>', alephScriptInjection);
+          
+          res.send(modifiedHtml);
+          Logger.info("✅ Served template with AlephScript integration");
+        } else {
+          // DEBUG: Log dynamic HTML generation
+          Logger.info(`🔍 DEBUG Port ${this.cfg.port}: Using dynamic HTML generation`);
+          
+          // Use dynamic HTML generation (default behavior)
           res.send(this.generateHTML());
-          return;
+          Logger.info("✅ Served dynamic HTML with AlephScript integration");
         }
         
-        // Read the compiled Angular HTML
-        const angularHtml = require('fs').readFileSync(angularHtmlPath, 'utf8');
-        
-        // Inject AlephScript integration before closing body tag
-        const alephScriptInjection = `
-        <!-- AlephScript Integration -->
-        <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
-        <script src="/assets/alephscript-client.js"></script>
-        <script>
-          let alephClient = null;
-          
-          // Initialize AlephScript connection for Angular ThreeJS UI
-          function initializeAlephScript() {
-            console.log('🔌 Initializing AlephScript for Angular ThreeJS UI...');
-            
-            alephClient = createAlephScriptClient(
-              'threejs-angular',
-              'threejs-angular-integration',
-              'http://localhost:3000',
-              true
-            );
-            
-            alephClient.on('connected', () => {
-              console.log('✅ AlephScript connected to Angular ThreeJS UI!');
-              // Send initialization message
-              alephClient.sendMessage({
-                type: 'ui_ready',
-                message: 'Angular ThreeJS UI with AlephScript integration ready',
-                timestamp: Date.now()
-              });
-            });
-            
-            alephClient.on('disconnected', () => {
-              console.log('❌ AlephScript disconnected from Angular ThreeJS UI');
-            });
-            
-            alephClient.on('message', (data) => {
-              console.log('📨 Received AlephScript message:', data);
-              // Forward to Angular app if needed
-              if (window.handleAlephScriptMessage) {
-                window.handleAlephScriptMessage(data);
-              }
-            });
-            
-            alephClient.connect();
-          }
-          
-          // Initialize when DOM is ready
-          if (document.readyState === 'loading') {
-            document.addEventListener('DOMContentLoaded', initializeAlephScript);
-          } else {
-            initializeAlephScript();
-          }
-          
-          // Export for Angular app usage
-          window.alephClient = alephClient;
-        </script>
-        </body>`;
-        
-        // Replace closing body tag with our injection
-        const modifiedHtml = angularHtml.replace('</body>', alephScriptInjection);
-        
-        res.send(modifiedHtml);
-        Logger.info("✅ Served compiled Angular HTML with AlephScript integration");
-        
       } catch (error) {
-        Logger.error("Failed to serve Angular HTML, using fallback", error as Error);
-        res.send(this.generateHTML());
+        Logger.error("Failed to serve HTML", error as Error);
+        res.status(500).send("Internal Server Error");
       }
     });
 
@@ -361,7 +342,7 @@ export class ThreeJSGamificationUI extends GamificationUI {
         debugMode: this.config.debugMode,
         enablePostulations: this.config.enablePostulations,
         uiType: "threejs",
-        alephScriptEndpoint: "http://localhost:3000/runtime", // Fixed port to 3000
+        alephScriptEndpoint: "http://localhost:3000/runtime",
       });
     });
 
@@ -427,7 +408,7 @@ export class ThreeJSGamificationUI extends GamificationUI {
 
     // Main route - serve Angular app
     this.app.get("*", (req, res) => {
-      const indexPath = path.join(this.cfg.staticDir, "index.html");
+      const indexPath = path.resolve(this.cfg.staticDir, "index.html");
       res.sendFile(indexPath, (err) => {
         if (err) {
           Logger.error("Failed to serve index.html", err);
@@ -684,12 +665,13 @@ export class ThreeJSGamificationUI extends GamificationUI {
     <div class="status">
       <h1>🎮 ${this.config.gameTitle}</h1>
       <p>ThreeJS Gamification UI (AlephScript Integrated)</p>
-      <p id="connection-status">Connecting to AlephScript (Socket.IO)...</p>
+      <p id="connection-status">Connecting to AlephScript...</p>
       <button class="btn" onclick="testConnection()">Test Connection</button>
       <button class="btn" onclick="initializeThreeJS()">Initialize ThreeJS</button>
     </div>
   </div>
   
+  <!-- Socket.IO for AlephScript client integration -->
   <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
   <script src="/assets/alephscript-client.js"></script>
   
@@ -701,6 +683,9 @@ export class ThreeJSGamificationUI extends GamificationUI {
       console.log('✅ Three.js ES6 module loaded successfully:', THREE.REVISION);
       window.THREE = THREE; // Make it globally accessible for legacy code
       window.threeJSLoaded = true;
+      
+      // Trigger custom event when Three.js is ready
+      document.dispatchEvent(new CustomEvent('threejs-loaded', { detail: { THREE } }));
     } catch (error) {
       console.error('❌ Failed to load Three.js ES6 module:', error);
       // Fallback to UMD version
@@ -709,6 +694,7 @@ export class ThreeJSGamificationUI extends GamificationUI {
       script.onload = () => {
         console.log('✅ Three.js UMD fallback loaded successfully');
         window.threeJSLoaded = true;
+        document.dispatchEvent(new CustomEvent('threejs-loaded', { detail: { THREE: window.THREE } }));
       };
       script.onerror = () => {
         console.error('❌ Three.js UMD fallback also failed');
@@ -727,14 +713,14 @@ export class ThreeJSGamificationUI extends GamificationUI {
       alephClient = createAlephScriptClient(
         'threejs-gamification',
         'threejs-ui-integration',
-        'http://localhost:3000', // Socket.IO AlephScript server
+        'http://localhost:3000', // AlephScript server
         true // debug mode
       );
       
       alephClient.on('connected', () => {
         console.log('✅ Native AlephScript connected!');
         document.getElementById('connection-status').innerHTML = 
-          '<span style="color: #00ff00;">✅ Connected to AlephScript (Socket.IO)</span>';
+          '<span style="color: #00ff00;">✅ Connected to AlephScript</span>';
       });
       
       alephClient.on('disconnected', () => {
@@ -757,7 +743,7 @@ export class ThreeJSGamificationUI extends GamificationUI {
           message: 'Hello from ThreeJS Gamification UI!',
           timestamp: Date.now()
         });
-        console.log('📤 Test message sent via Socket.IO AlephScript');
+        console.log('📤 Test message sent via AlephScript');
         alert('📤 Test message sent successfully!\\nCheck console for details.');
       } else {
         alert('❌ AlephScript not connected. Please wait for connection.');
@@ -898,16 +884,33 @@ export class ThreeJSGamificationUI extends GamificationUI {
       
       // Check what scripts are loaded
       console.log('Available scripts:', Array.from(document.scripts).map(s => s.src));
-      console.log('Socket.IO available:', typeof io !== 'undefined');
-      console.log('Three.js available:', typeof THREE !== 'undefined');
+      console.log('AlephScript client available:', typeof createAlephScriptClient !== 'undefined');
+      console.log('Socket.IO available (for AlephScript):', typeof io !== 'undefined');
       
-      if (typeof THREE !== 'undefined') {
-        console.log('✅ Three.js loaded successfully, version:', THREE.REVISION);
+      // Wait for Three.js ES6 module to be fully loaded
+      if (window.threeJSLoaded) {
+        console.log('✅ Three.js already loaded, version:', THREE.REVISION);
+        initializeAlephScript();
       } else {
-        console.warn('⚠️ Three.js not detected on DOMContentLoaded');
+        console.log('⏳ Waiting for Three.js ES6 module...');
+        // Poll for Three.js to be loaded
+        const checkThreeJS = setInterval(() => {
+          if (window.threeJSLoaded && window.THREE) {
+            clearInterval(checkThreeJS);
+            console.log('✅ Three.js loaded after polling, version:', window.THREE.REVISION);
+            initializeAlephScript();
+          }
+        }, 100);
+        
+        // Timeout after 10 seconds
+        setTimeout(() => {
+          clearInterval(checkThreeJS);
+          if (!window.threeJSLoaded) {
+            console.warn('⚠️ Three.js loading timeout, proceeding with AlephScript only');
+            initializeAlephScript();
+          }
+        }, 10000);
       }
-      
-      initializeAlephScript();
     });
   </script>
 </body>

@@ -165,11 +165,11 @@
 		},
 		{
 			"id": "threejs-visual",
-			"name": "ThreeJS Visual Interface",
+			"name": "ThreeJS Visual Interface (Dynamic HTML)",
 			"type": "threejs",
 			"enabled": true,
 			"config": {
-				"gameTitle": "X+1 Game - 3D Visual",
+				"gameTitle": "X+1 Game - 3D Visual (Dynamic)",
 				"port": 9090,
 				"staticDir": "../threejs-gamify-ui/dist/public",
 				"corsOrigin": "*",
@@ -177,9 +177,29 @@
 				"autoSelectSingleAgent": false,
 				"maxMessagesPerThread": 50,
 				"debugMode": true,
-				"welcomeMessage": "Welcome to X+1 3D Experience",
-				"autoBuild": false,
+				"welcomeMessage": "Welcome to X+1 3D Experience (Dynamic HTML)",
+				"provideTemplate": false,
 				"autoOpenBrowser": true,
+				"angularProjectPath": "../threejs-gamify-ui"
+			}
+		},
+		{
+			"id": "threejs-angular",
+			"name": "ThreeJS Angular Interface (Package)",
+			"type": "threejs",
+			"enabled": true,
+			"config": {
+				"gameTitle": "X+1 Game - 3D Package UI",
+				"port": 9091,
+				"staticDir": "./public/threejs-ui",
+				"corsOrigin": "*",
+				"enablePostulations": true,
+				"autoSelectSingleAgent": false,
+				"maxMessagesPerThread": 50,
+				"debugMode": true,
+				"welcomeMessage": "Welcome to X+1 3D Experience (Package Template)",
+				"provideTemplate": true,
+				"autoOpenBrowser": false,
 				"angularProjectPath": "../threejs-gamify-ui"
 			}
 		},

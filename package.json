@@ -45,8 +45,11 @@
     "threejs:test": "npx tsx examples/threejs-standalone-test.ts",
     "threejs:demo": "npx tsx examples/threejs-library-integration-example.ts",
     "threejs:demo-integration": "npx tsx examples/threejs-integration-example.ts",
+    "threejs:install": "npm install threejs-gamification-ui && npm run threejs:setup",
+    "threejs:setup": "node scripts/setup-threejs-ui.js",
     "unity:test": "npx tsx examples/unity-standalone-test.ts",
-    "unity:demo": "npx tsx examples/threejs-integration-example.ts"
+    "unity:demo": "npx tsx examples/threejs-integration-example.ts",
+    "postinstall": "npm run threejs:setup || true"
   },
   "repository": {
     "type": "git",
@@ -62,12 +65,12 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "@escrivivir/threejs-ui-lib": "file:../threejs-gamify-ui/dist/threejs-ui-lib/escrivivir-threejs-ui-lib-1.0.0.tgz",
     "@modelcontextprotocol/sdk": "^1.17.4",
     "axios": "^1.6.0",
     "express": "^4.18.2",
     "rxjs": "^7.8.2",
     "socket.io-client": "^4.8.1",
+    "threejs-gamification-ui": "file:../threejs-gamify-ui/threejs-gamification-ui-1.0.0.tgz",
     "uuid": "^9.0.1",
     "winston": "^3.11.0"
   },

@@ -310,6 +310,9 @@ class UIFactory {
                     enablePostulations: config.config.enablePostulations ?? true,
                     autoSelectSingleAgent: config.config.autoSelectSingleAgent ?? true,
                     maxMessagesPerThread: config.config.maxMessagesPerThread ?? 50,
+                    provideTemplate: config.config.provideTemplate ?? false,
+                    autoOpenBrowser: config.config.autoOpenBrowser ?? true,
+                    angularProjectPath: config.config.angularProjectPath || "../threejs-gamify-ui",
                 };
                 return new ThreeJSGamificationUI(
                     runtime,

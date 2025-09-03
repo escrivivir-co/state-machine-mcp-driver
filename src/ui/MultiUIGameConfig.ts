@@ -45,6 +45,8 @@ export interface UIInstanceConfig {
         isPrimary?: boolean;
         /** Auto-build Angular app before serving (ThreeJS) */
         autoBuild?: boolean;
+        /** Provide pre-compiled Angular template instead of dynamic HTML (ThreeJS) */
+        provideTemplate?: boolean;
         /** Auto-open browser for web UIs */
         autoOpenBrowser?: boolean;
         /** Path to Angular project for ThreeJS UI */

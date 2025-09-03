@@ -37,8 +37,8 @@ async function testThreeJSUI() {
       enablePostulations: true,
       autoSelectSingleAgent: false,
       maxMessagesPerThread: 50,
-      // New auto-build options
-      autoBuild: true,
+      // Template provider options
+      provideTemplate: true,
       autoOpenBrowser: true,
       angularProjectPath: path.resolve(process.cwd(), "../threejs-gamify-ui")
     });
