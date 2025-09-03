@@ -218,7 +218,9 @@ export class ThreeJSGamificationUI extends GamificationUI {
     this.app.use("/assets", express.static(path.join(__dirname, "../assets")));
     
     // Configure static serving based on provideTemplate setting
-    const packageAssetsPath = path.join(__dirname, "../../public/threejs-ui");
+    const packageAssetsPathNew = path.join(__dirname, "../../public_templates/threejs-ui");
+    const packageAssetsPathOld = path.join(__dirname, "../../public/threejs-ui");
+    const packageAssetsPath = fs.existsSync(packageAssetsPathNew) ? packageAssetsPathNew : packageAssetsPathOld;
     const devAssetsPath = path.join(__dirname, "../../../threejs-gamify-ui/dist/public");
     
     if (this.cfg.provideTemplate) {
@@ -226,12 +228,15 @@ export class ThreeJSGamificationUI extends GamificationUI {
       if (fs.existsSync(packageAssetsPath)) {
         // Serve Angular compiled files with correct MIME types, but exclude index.html
         this.app.use(express.static(packageAssetsPath, {
-          setHeaders: (res, path) => {
-            if (path.endsWith('.js')) {
+          setHeaders: (res, filePath) => {
+            if (filePath.endsWith('.js') || filePath.endsWith('.mjs')) {
               res.setHeader('Content-Type', 'application/javascript');
-            } else if (path.endsWith('.css')) {
+            } else if (filePath.endsWith('.css')) {
               res.setHeader('Content-Type', 'text/css');
+            } else if (filePath.endsWith('.json')) {
+              res.setHeader('Content-Type', 'application/json');
             }
+            res.setHeader('X-Served-By', 'ThreeJSGamificationUI-Static');
           },
           // Exclude index.html so it goes through our custom route handler
           index: false

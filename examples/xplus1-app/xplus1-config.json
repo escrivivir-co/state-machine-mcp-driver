@@ -191,7 +191,7 @@
 			"config": {
 				"gameTitle": "X+1 Game - 3D Package UI",
 				"port": 9091,
-				"staticDir": "./public/threejs-ui",
+				"staticDir": "./public_templates/threejs-ui",
 				"corsOrigin": "*",
 				"enablePostulations": true,
 				"autoSelectSingleAgent": false,

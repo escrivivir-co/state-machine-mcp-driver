@@ -6,7 +6,8 @@ const path = require('path');
 function main() {
   const projectRoot = path.dirname(__dirname);
   const nodeModulesPath = path.join(projectRoot, 'node_modules', 'threejs-gamification-ui');
-  const publicPath = path.join(projectRoot, 'public', 'threejs-ui');
+  // Use public_templates as the new target for Angular template assets
+  const publicPath = path.join(projectRoot, 'public_templates', 'threejs-ui');
   
   console.log('🔧 Setting up ThreeJS Gamification UI...');
   
@@ -44,12 +45,12 @@ function main() {
     return;
   }
   
-  // Create public directory if it doesn't exist
-  if (!fs.existsSync(path.join(projectRoot, 'public'))) {
-    fs.mkdirSync(path.join(projectRoot, 'public'), { recursive: true });
+    // Create public_templates directory if it doesn't exist
+  if (!fs.existsSync(path.join(projectRoot, 'public_templates'))) {
+    fs.mkdirSync(path.join(projectRoot, 'public_templates'), { recursive: true });
   }
   
-  // Copy assets to public/threejs-ui
+  // Copy assets to public_templates/threejs-ui
   console.log(`📦 Copying assets from package to ${publicPath}`);
   
   try {

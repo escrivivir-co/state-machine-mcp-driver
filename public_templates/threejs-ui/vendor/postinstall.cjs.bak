@@ -62,7 +62,8 @@ function main() {
     }
   }
   
-  const targetDir = path.join(projectRoot, 'public', 'threejs-ui');
+  // Install into project-level public_templates so runtime can serve templates from there
+  const targetDir = path.join(projectRoot, 'public_templates', 'threejs-ui');
   
   // Check if sources exist
   const angularExists = fs.existsSync(sourceAngularDir);
@@ -115,9 +116,9 @@ function main() {
       console.log('✅ Static assets copied (Angular index.html preserved)');
     }
     
-    console.log('✅ ThreeJS UI application and assets installed successfully!');
-    console.log(`📍 Application available at: ${targetDir}`);
-    console.log('🎮 You can now use provideTemplate: true in your ThreeJS UI configuration');
+  console.log('✅ ThreeJS UI application and assets installed successfully!');
+  console.log(`📍 Application available at: ${targetDir}`);
+  console.log('🎮 You can now use provideTemplate: true (served from public_templates/threejs-ui) in your ThreeJS UI configuration');
     
   } catch (error) {
     console.error('❌ Error installing ThreeJS UI application:', error.message);

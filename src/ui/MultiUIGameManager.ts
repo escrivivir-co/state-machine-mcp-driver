@@ -6,6 +6,7 @@
 import { EventEmitter } from "events";
 import { Subject, BehaviorSubject, merge, combineLatest, EMPTY } from "rxjs";
 import { takeUntil, tap, filter, map, catchError, share } from "rxjs/operators";
+import * as path from "path";
 
 import { Runtime } from "../runtime/Runtime";
 import { MCPDriverAdapter } from "../drivers/MCPDriverAdapter";
@@ -300,17 +301,20 @@ class UIFactory {
 
             case "threejs":
                 // Create a valid ThreeJSGameUIConfig
+                const provideTemplate = config.config.provideTemplate ?? false;
                 const threejsConfig: ThreeJSGameUIConfig = {
                     gameTitle: config.name,
                     welcomeMessage: `Welcome to ${config.name}`,
                     port: config.config.port || 9090,
-                    staticDir: config.config.staticDir || "e:/LAB_AGOSTO/threejs-gamify-ui/client",
+                    staticDir: config.config.staticDir || (provideTemplate 
+                        ? path.resolve(process.cwd(), "public_templates/threejs-ui")
+                        : "e:/LAB_AGOSTO/threejs-gamify-ui/client"),
                     corsOrigin: config.config.corsOrigin || "*",
                     debugMode: !!config.config.debugMode,
                     enablePostulations: config.config.enablePostulations ?? true,
                     autoSelectSingleAgent: config.config.autoSelectSingleAgent ?? true,
                     maxMessagesPerThread: config.config.maxMessagesPerThread ?? 50,
-                    provideTemplate: config.config.provideTemplate ?? false,
+                    provideTemplate: provideTemplate,
                     autoOpenBrowser: config.config.autoOpenBrowser ?? true,
                     angularProjectPath: config.config.angularProjectPath || "../threejs-gamify-ui",
                 };
