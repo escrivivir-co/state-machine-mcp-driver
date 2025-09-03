@@ -49,7 +49,8 @@
     "threejs:setup": "node scripts/setup-threejs-ui.js",
     "unity:test": "npx tsx examples/unity-standalone-test.ts",
     "unity:demo": "npx tsx examples/threejs-integration-example.ts",
-    "postinstall": "npm run threejs:setup || true"
+    "postinstall": "npm run threejs:setup || true",
+    "update_threejs_gamify-ui": "npm remove threejs-gamification-ui && npm install ../threejs-gamify-ui/threejs-gamification-ui-1.0.0.tgz"
   },
   "repository": {
     "type": "git",
