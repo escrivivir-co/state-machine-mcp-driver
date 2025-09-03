@@ -1,5 +1,6 @@
 import express from "express";
 import path from "path";
+import fs from "fs";
 import { createServer } from "http";
 import { Subject } from "rxjs";
 import { spawn, ChildProcess } from "child_process";
@@ -197,6 +198,12 @@ export class ThreeJSGamificationUI extends GamificationUI {
   // === Express Routes Setup ===
   
   private setupExpressRoutes(): void {
+    // DEBUG: Log all incoming requests
+    this.app.use((req, res, next) => {
+      Logger.info(`🌐 Port ${this.cfg.port}: ${req.method} ${req.url} - User-Agent: ${req.headers['user-agent']?.substring(0, 50) || 'unknown'}`);
+      next();
+    });
+
     // CORS headers
     this.app.use((req, res, next) => {
       res.header("Access-Control-Allow-Origin", this.cfg.corsOrigin || "*");
@@ -209,28 +216,56 @@ export class ThreeJSGamificationUI extends GamificationUI {
     this.app.use("/assets", express.static(path.join(__dirname, "../../public")));
     this.app.use("/assets", express.static(path.join(__dirname, "../assets")));
     
-    // Serve ThreeJS UI package assets (fonts, textures, sounds, etc.)
+    // Configure static serving based on provideTemplate setting
     const packageAssetsPath = path.join(__dirname, "../../public/threejs-ui");
     const devAssetsPath = path.join(__dirname, "../../../threejs-gamify-ui/dist/public");
     
-    // Priority: package assets, fallback to development assets
-    const fs = require('fs');
-    const assetsPath = fs.existsSync(packageAssetsPath) ? packageAssetsPath : devAssetsPath;
-    
-    this.app.use("/threejs-assets", express.static(assetsPath));
-    this.app.use("/fonts", express.static(path.join(assetsPath, "fonts")));
-    this.app.use("/geometries", express.static(path.join(assetsPath, "geometries")));
-    this.app.use("/sounds", express.static(path.join(assetsPath, "sounds")));
-    this.app.use("/textures", express.static(path.join(assetsPath, "textures")));
+    if (this.cfg.provideTemplate) {
+      // For template mode: serve Angular app static files directly (EXCEPT index.html)
+      if (fs.existsSync(packageAssetsPath)) {
+        // Serve Angular compiled files with correct MIME types, but exclude index.html
+        this.app.use(express.static(packageAssetsPath, {
+          setHeaders: (res, path) => {
+            if (path.endsWith('.js')) {
+              res.setHeader('Content-Type', 'application/javascript');
+            } else if (path.endsWith('.css')) {
+              res.setHeader('Content-Type', 'text/css');
+            }
+          },
+          // Exclude index.html so it goes through our custom route handler
+          index: false
+        }));
+        Logger.info(`📦 Serving Angular template assets from: ${packageAssetsPath}`);
+        
+        // Also serve individual asset folders for Angular app
+        this.app.use("/fonts", express.static(path.join(packageAssetsPath, "fonts")));
+        this.app.use("/geometries", express.static(path.join(packageAssetsPath, "geometries")));
+        this.app.use("/sounds", express.static(path.join(packageAssetsPath, "sounds")));
+        this.app.use("/textures", express.static(path.join(packageAssetsPath, "textures")));
+      }
+    } else {
+      // For dynamic mode: serve ThreeJS assets
+      const assetsPath = fs.existsSync(packageAssetsPath) ? packageAssetsPath : devAssetsPath;
+      
+      this.app.use("/threejs-assets", express.static(assetsPath));
+      this.app.use("/fonts", express.static(path.join(assetsPath, "fonts")));
+      this.app.use("/geometries", express.static(path.join(assetsPath, "geometries")));
+      this.app.use("/sounds", express.static(path.join(assetsPath, "sounds")));
+      this.app.use("/textures", express.static(path.join(assetsPath, "textures")));
+      Logger.info(`🎮 Serving ThreeJS dynamic assets from: ${assetsPath}`);
+    }
 
     // Main application route - serve HTML based on provideTemplate setting
     this.app.get("/", (req, res) => {
       try {
-        // DEBUG: Log configuration
-        Logger.info(`🔍 DEBUG Port ${this.cfg.port}: provideTemplate=${this.cfg.provideTemplate}, staticDir=${this.cfg.staticDir}`);
+        // DEBUG: Log configuration and request details
+        Logger.info(`🔍 DEBUG Port ${this.cfg.port}: Route handler called - provideTemplate=${this.cfg.provideTemplate}, staticDir=${this.cfg.staticDir}`);
+        Logger.info(`🔍 DEBUG Port ${this.cfg.port}: Request from ${req.ip}, User-Agent: ${req.headers['user-agent']?.substring(0, 80) || 'unknown'}`);
         
         // Check provideTemplate setting to decide which version to serve
         if (this.cfg.provideTemplate) {
+          Logger.info(`🔍 DEBUG Port ${this.cfg.port}: TEMPLATE MODE - Getting template path...`);
+          
           // Get template path using priority resolution
           const templatePath = this.getTemplatePath();
           
@@ -244,26 +279,62 @@ export class ThreeJSGamificationUI extends GamificationUI {
             return;
           }
           
+          Logger.info(`🔍 DEBUG Port ${this.cfg.port}: Reading template file...`);
+          
           // Read the template HTML
           const templateHtml = require('fs').readFileSync(templatePath, 'utf8');
           
-          // Inject AlephScript integration before closing body tag
-          const alephScriptInjection = `
-          <!-- AlephScript Integration for Template -->
-          <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
-          <script src="/assets/alephscript-client.js"></script>
-          <script>
-            let alephClient = null;
+          Logger.info(`🔍 DEBUG Port ${this.cfg.port}: Template size: ${templateHtml.length} chars`);
+          
+          // Check if AlephScript is already included in the template
+          const hasAlephScript = templateHtml.includes('alephscript-client.js') || 
+                                templateHtml.includes('createAlephScriptClient') ||
+                                templateHtml.includes('AlephScriptFrontendClient');
+          
+          Logger.info(`🔍 DEBUG Port ${this.cfg.port}: AlephScript detected in template: ${hasAlephScript}`);
+          
+          if (hasAlephScript) {
+            // Template already has AlephScript integration, serve as-is
+            Logger.info(`📦 Template already includes AlephScript, serving without injection`);
             
-            // Initialize AlephScript connection for Angular ThreeJS UI
-            function initializeAlephScript() {
-              console.log('🔌 Initializing AlephScript for Angular ThreeJS UI...');
+            // For Angular templates, remove external AlephScript reference to avoid conflicts
+            let cleanTemplate = templateHtml;
+            
+            // More flexible regex to catch different quote patterns and whitespace variations
+            const alephScriptRegex = /<script[^>]*src\s*=\s*['"]\/assets\/alephscript-client\.js['"][^>]*>\s*<\/script>/g;
+            
+            if (alephScriptRegex.test(templateHtml)) {
+              cleanTemplate = templateHtml.replace(
+                alephScriptRegex, 
+                '<!-- AlephScript already included in compiled bundle -->'
+              );
+              Logger.info(`🧹 Removed external AlephScript reference to prevent conflicts`);
+              Logger.info(`🔍 DEBUG Port ${this.cfg.port}: Original had AlephScript, cleaned version has ${cleanTemplate.length} chars`);
+            } else {
+              Logger.info(`🔍 DEBUG Port ${this.cfg.port}: No external AlephScript reference found to remove`);
+            }
+            
+            Logger.info(`🎯 DEBUG Port ${this.cfg.port}: Sending cleaned template (${cleanTemplate.length} chars)`);
+            res.send(cleanTemplate);
+          } else {
+            // Inject AlephScript integration for templates that don't have it
+            const alephScriptInjection = `
+            <!-- AlephScript Integration for Template -->
+            <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+            <script src="/assets/alephscript-client.js"></script>
+            <script>
+              let alephClient = null;
               
-              alephClient = createAlephScriptClient(
-                'threejs-angular',
-                'threejs-angular-integration',
-                'http://localhost:3000',
-                true
+              // Initialize AlephScript connection for Angular ThreeJS UI
+              function initializeAlephScript() {
+                console.log('🔌 Initializing AlephScript for Angular ThreeJS UI...');
+                
+                alephClient = createAlephScriptClient(
+                  'threejs-angular',
+                  'threejs-angular-integration',
+                  'http://localhost:3000',
+                  true
+                );
               );
               
               alephClient.on('connected', () => {
@@ -302,12 +373,13 @@ export class ThreeJSGamificationUI extends GamificationUI {
             window.alephClient = alephClient;
           </script>
           </body>`;
-          
-          // Replace closing body tag with our injection
-          const modifiedHtml = templateHtml.replace('</body>', alephScriptInjection);
-          
-          res.send(modifiedHtml);
-          Logger.info("✅ Served template with AlephScript integration");
+            
+            // Replace closing body tag with our injection
+            const modifiedHtml = templateHtml.replace('</body>', alephScriptInjection);
+            
+            res.send(modifiedHtml);
+            Logger.info("✅ Served template with AlephScript integration");
+          }
         } else {
           // DEBUG: Log dynamic HTML generation
           Logger.info(`🔍 DEBUG Port ${this.cfg.port}: Using dynamic HTML generation`);
