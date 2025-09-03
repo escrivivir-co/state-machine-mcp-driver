@@ -32,6 +32,7 @@ export class ThreeJSGamificationUI extends GamificationUI {
   private app!: express.Application;
   private server!: ReturnType<typeof createServer>;
   private isServerRunning = false;
+  private clientLogs: Array<{ level: string; source?: string; message: string; stack?: string; href?: string; ts: number }>=[];
 
   // AlephScript integration (replaces direct Socket.IO)
   private orchestratorChannels?: IOrchestratorChannels;
@@ -255,7 +256,7 @@ export class ThreeJSGamificationUI extends GamificationUI {
       Logger.info(`🎮 Serving ThreeJS dynamic assets from: ${assetsPath}`);
     }
 
-    // Main application route - serve HTML based on provideTemplate setting
+  // Main application route - serve HTML based on provideTemplate setting
     this.app.get("/", (req, res) => {
       try {
         if (this.cfg.provideTemplate) {
@@ -268,10 +269,11 @@ export class ThreeJSGamificationUI extends GamificationUI {
             return;
           }
           
-          // Serve Angular HTML as-is, without any modifications
-          const angularHtml = require('fs').readFileSync(angularHtmlPath, 'utf8');
-          res.send(angularHtml);
-          Logger.info("✅ Served pure Angular template without server-side AlephScript injection");
+      // Serve Angular HTML with sanitized scripts to avoid AlephScript duplication
+      const angularHtml = require('fs').readFileSync(angularHtmlPath, 'utf8');
+      const cleaned = this.sanitizeAngularIndex(angularHtml);
+      res.send(cleaned);
+      Logger.info("✅ Served Angular template (sanitized to remove external AlephScript)");
           
         } else {
           // HTML dinámico: Aquí SÍ inyectamos AlephScript como antes
@@ -309,6 +311,25 @@ export class ThreeJSGamificationUI extends GamificationUI {
         uiType: "threejs",
         port: this.cfg.port,
       });
+    });
+
+    // Diagnostics: collect client-side logs from Angular template
+    this.app.post("/api/log", (req, res) => {
+      try {
+        const { level = "info", source = "client", message = "", stack = "", href = "", ts = Date.now() } = req.body || {};
+        const entry = { level, source, message: String(message), stack: String(stack || ''), href: String(href || ''), ts: Number(ts) || Date.now() };
+        this.clientLogs.push(entry);
+        if (this.clientLogs.length > 200) this.clientLogs.shift();
+        Logger.info(`📝 ClientLog[${level}] ${source}: ${entry.message.substring(0, 160)}`);
+        res.json({ ok: true });
+      } catch (e) {
+        Logger.warn("Failed to record client log", e as Error);
+        res.status(500).json({ ok: false });
+      }
+    });
+
+    this.app.get("/api/logs", (req, res) => {
+      res.json({ logs: this.clientLogs });
     });
 
     this.app.get("/api/config", (req, res) => {
@@ -382,22 +403,112 @@ export class ThreeJSGamificationUI extends GamificationUI {
       res.status(204).send();
     });
 
-    // Main route - serve Angular app
+    // Main route - serve Angular app (sanitize index.html when provideTemplate=true)
     this.app.get("*", (req, res) => {
       const indexPath = path.resolve(this.cfg.staticDir, "index.html");
-      res.sendFile(indexPath, (err) => {
-        if (err) {
-          Logger.error("Failed to serve index.html", err);
-          // Don't send another response - sendFile already handles errors
+      if (this.cfg.provideTemplate) {
+        try {
+          const html = fs.readFileSync(indexPath, "utf8");
+          const cleaned = this.sanitizeAngularIndex(html);
+          res.send(cleaned);
+        } catch (err) {
+          Logger.error("Failed to serve sanitized index.html", err as Error);
           if (!res.headersSent) {
             res.status(404).send("ThreeJS UI not found. Make sure the Angular app is built.");
           }
         }
-      });
+      } else {
+        res.sendFile(indexPath, (err) => {
+          if (err) {
+            Logger.error("Failed to serve index.html", err);
+            if (!res.headersSent) {
+              res.status(404).send("ThreeJS UI not found. Make sure the Angular app is built.");
+            }
+          }
+        });
+      }
     });
   }
 
   // === Browser Management ===
+
+  /**
+   * Remove external AlephScript script tags from Angular index.html to avoid duplicate global definitions
+   * while keeping all other scripts/styles intact. This only runs when provideTemplate=true.
+   */
+  private sanitizeAngularIndex(html: string): string {
+    try {
+      const before = html;
+      // Remove any <script ... src="...alephscript..."></script> tags (case-insensitive)
+      const alephRegex = /<script[^>]*src=["'][^"']*alephscript[^"']*["'][^>]*><\/script>\s*/gi;
+  let cleaned = before.replace(alephRegex, '<!-- AlephScript reference removed to prevent conflicts -->\n');
+      
+      // Optional: inject lightweight diagnostics when debugMode is enabled
+      if (this.config.debugMode) {
+        const diagScript = `\n<script>(function(){\n  try {\n    const post = (payload) => {\n      fetch('/api/log', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) }).catch(()=>{});\n    };\n\n    // Capture window errors and unhandled rejections
+    window.addEventListener('error', function(ev){
+      try {
+        post({ level: 'error', source: 'threejs-angular', message: String(ev.error || ev.message || 'unknown'), stack: ev.error && ev.error.stack, href: location.href, ts: Date.now() });
+      } catch(_) {}
+    });
+    window.addEventListener('unhandledrejection', function(ev){
+      try {
+        const reason = ev.reason || {};
+        post({ level: 'error', source: 'threejs-angular', message: String(reason.message || reason || 'unhandledrejection'), stack: reason.stack, href: location.href, ts: Date.now() });
+      } catch(_) {}
+    });
+
+    // Patch console to capture NG0908 and other bootstrap errors
+    (function(){
+      try {
+        const origErr = console.error.bind(console);
+        const origWarn = console.warn.bind(console);
+        console.error = function(){
+          try {
+            const msg = Array.from(arguments).map(a => typeof a === 'string' ? a : (a && a.message) ? a.message : JSON.stringify(a)).join(' ');
+            post({ level: 'error', source: 'threejs-angular', message: msg, href: location.href, ts: Date.now() });
+          } catch(_) {}
+          return origErr.apply(console, arguments);
+        };
+        console.warn = function(){
+          try {
+            const msg = Array.from(arguments).map(a => typeof a === 'string' ? a : (a && a.message) ? a.message : JSON.stringify(a)).join(' ');
+            post({ level: 'warn', source: 'threejs-angular', message: msg, href: location.href, ts: Date.now() });
+          } catch(_) {}
+          return origWarn.apply(console, arguments);
+        };
+      } catch(_) {}
+    })();
+
+    // Mark that diagnostics are active and basic DOM readiness
+    document.addEventListener('DOMContentLoaded', function(){
+      try {
+        post({ level: 'info', source: 'threejs-angular', message: 'diagnostics_ready', hasAppRoot: !!document.querySelector('app-root'), ts: Date.now() });
+        // Send loaded scripts to help debugging
+        const scripts = Array.from(document.scripts).map(s => s.src || '[inline]');
+        post({ level: 'info', source: 'threejs-angular', message: 'scripts_loaded', stack: JSON.stringify(scripts), href: location.href, ts: Date.now() });
+      } catch(_) {}
+    });
+  } catch(_) {}
+})();</script>\n`;
+        // inject before </head> if present, else append at end of body
+        if (cleaned.includes('</head>')) {
+          cleaned = cleaned.replace('</head>', diagScript + '</head>');
+        } else if (cleaned.includes('</body>')) {
+          cleaned = cleaned.replace('</body>', diagScript + '</body>');
+        } else {
+          cleaned += diagScript;
+        }
+      }
+      if (cleaned !== before) {
+        Logger.info("🧹 Sanitized Angular index.html: removed external AlephScript reference");
+      }
+      return cleaned;
+    } catch (e) {
+      Logger.warn("Failed to sanitize Angular index.html, serving original", e as Error);
+      return html;
+    }
+  }
   
   private async openBrowser(): Promise<void> {
     const url = `http://localhost:${this.cfg.port}`;
