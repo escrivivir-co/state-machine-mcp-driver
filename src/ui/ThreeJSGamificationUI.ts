@@ -258,141 +258,45 @@ export class ThreeJSGamificationUI extends GamificationUI {
     // Main application route - serve HTML based on provideTemplate setting
     this.app.get("/", (req, res) => {
       try {
-        // DEBUG: Log configuration and request details
-        Logger.info(`🔍 DEBUG Port ${this.cfg.port}: Route handler called - provideTemplate=${this.cfg.provideTemplate}, staticDir=${this.cfg.staticDir}`);
-        Logger.info(`🔍 DEBUG Port ${this.cfg.port}: Request from ${req.ip}, User-Agent: ${req.headers['user-agent']?.substring(0, 80) || 'unknown'}`);
-        
-        // Check provideTemplate setting to decide which version to serve
         if (this.cfg.provideTemplate) {
-          Logger.info(`🔍 DEBUG Port ${this.cfg.port}: TEMPLATE MODE - Getting template path...`);
+          // For Angular: Serve HTML WITHOUT modifications - Angular handles AlephScript loading
+          const angularHtmlPath = path.resolve(this.cfg.staticDir, "index.html");
           
-          // Get template path using priority resolution
-          const templatePath = this.getTemplatePath();
-          
-          // DEBUG: Log template resolution
-          Logger.info(`🔍 DEBUG Port ${this.cfg.port}: Using template from ${templatePath}`);
-          
-          // Check if the template file exists
-          if (!require('fs').existsSync(templatePath)) {
-            Logger.warn(`Template not found at: ${templatePath}, using fallback dynamic HTML`);
+          if (!require('fs').existsSync(angularHtmlPath)) {
+            Logger.warn("Angular template not found, using fallback dynamic HTML");
             res.send(this.generateHTML());
             return;
           }
           
-          Logger.info(`🔍 DEBUG Port ${this.cfg.port}: Reading template file...`);
+          // Serve Angular HTML as-is, without any modifications
+          const angularHtml = require('fs').readFileSync(angularHtmlPath, 'utf8');
+          res.send(angularHtml);
+          Logger.info("✅ Served pure Angular template without server-side AlephScript injection");
           
-          // Read the template HTML
-          const templateHtml = require('fs').readFileSync(templatePath, 'utf8');
-          
-          Logger.info(`🔍 DEBUG Port ${this.cfg.port}: Template size: ${templateHtml.length} chars`);
-          
-          // Check if AlephScript is already included in the template
-          const hasAlephScript = templateHtml.includes('alephscript-client.js') || 
-                                templateHtml.includes('createAlephScriptClient') ||
-                                templateHtml.includes('AlephScriptFrontendClient');
-          
-          Logger.info(`🔍 DEBUG Port ${this.cfg.port}: AlephScript detected in template: ${hasAlephScript}`);
-          
-          if (hasAlephScript) {
-            // Template already has AlephScript integration, serve as-is
-            Logger.info(`📦 Template already includes AlephScript, serving without injection`);
-            
-            // For Angular templates, remove external AlephScript reference to avoid conflicts
-            let cleanTemplate = templateHtml;
-            
-            // More flexible regex to catch different quote patterns and whitespace variations
-            const alephScriptRegex = /<script[^>]*src\s*=\s*['"]\/assets\/alephscript-client\.js['"][^>]*>\s*<\/script>/g;
-            
-            if (alephScriptRegex.test(templateHtml)) {
-              cleanTemplate = templateHtml.replace(
-                alephScriptRegex, 
-                '<!-- AlephScript already included in compiled bundle -->'
-              );
-              Logger.info(`🧹 Removed external AlephScript reference to prevent conflicts`);
-              Logger.info(`🔍 DEBUG Port ${this.cfg.port}: Original had AlephScript, cleaned version has ${cleanTemplate.length} chars`);
-            } else {
-              Logger.info(`🔍 DEBUG Port ${this.cfg.port}: No external AlephScript reference found to remove`);
-            }
-            
-            Logger.info(`🎯 DEBUG Port ${this.cfg.port}: Sending cleaned template (${cleanTemplate.length} chars)`);
-            res.send(cleanTemplate);
-          } else {
-            // Inject AlephScript integration for templates that don't have it
-            const alephScriptInjection = `
-            <!-- AlephScript Integration for Template -->
-            <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
-            <script src="/assets/alephscript-client.js"></script>
-            <script>
-              let alephClient = null;
-              
-              // Initialize AlephScript connection for Angular ThreeJS UI
-              function initializeAlephScript() {
-                console.log('🔌 Initializing AlephScript for Angular ThreeJS UI...');
-                
-                alephClient = createAlephScriptClient(
-                  'threejs-angular',
-                  'threejs-angular-integration',
-                  'http://localhost:3000',
-                  true
-                );
-              );
-              
-              alephClient.on('connected', () => {
-                console.log('✅ AlephScript connected to Angular ThreeJS UI!');
-                // Send initialization message
-                alephClient.sendMessage({
-                  type: 'ui_ready',
-                  message: 'Angular ThreeJS UI with AlephScript integration ready',
-                  timestamp: Date.now()
-                });
-              });
-              
-              alephClient.on('disconnected', () => {
-                console.log('❌ AlephScript disconnected from Angular ThreeJS UI');
-              });
-              
-              alephClient.on('message', (data) => {
-                console.log('📨 Received AlephScript message:', data);
-                // Forward to Angular app if needed
-                if (window.handleAlephScriptMessage) {
-                  window.handleAlephScriptMessage(data);
-                }
-              });
-              
-              alephClient.connect();
-            }
-            
-            // Initialize when DOM is ready
-            if (document.readyState === 'loading') {
-              document.addEventListener('DOMContentLoaded', initializeAlephScript);
-            } else {
-              initializeAlephScript();
-            }
-            
-            // Export for Angular app usage
-            window.alephClient = alephClient;
-          </script>
-          </body>`;
-            
-            // Replace closing body tag with our injection
-            const modifiedHtml = templateHtml.replace('</body>', alephScriptInjection);
-            
-            res.send(modifiedHtml);
-            Logger.info("✅ Served template with AlephScript integration");
-          }
         } else {
-          // DEBUG: Log dynamic HTML generation
-          Logger.info(`🔍 DEBUG Port ${this.cfg.port}: Using dynamic HTML generation`);
-          
-          // Use dynamic HTML generation (default behavior)
+          // HTML dinámico: Aquí SÍ inyectamos AlephScript como antes
           res.send(this.generateHTML());
           Logger.info("✅ Served dynamic HTML with AlephScript integration");
         }
-        
       } catch (error) {
         Logger.error("Failed to serve HTML", error as Error);
         res.status(500).send("Internal Server Error");
       }
+    });
+
+    // Serve AlephScript client as vendor resource for Angular
+    this.app.get("/vendor/alephscript-client.js", (req, res) => {
+      const alephScriptPath = path.resolve(__dirname, "../../assets/alephscript-client.js");
+      if (fs.existsSync(alephScriptPath)) {
+        res.sendFile(alephScriptPath);
+      } else {
+        res.status(404).send("AlephScript client not found");
+      }
+    });
+
+    this.app.get("/vendor/socket.io.min.js", (req, res) => {
+      // Proxy to CDN for now
+      res.redirect("https://cdn.socket.io/4.7.5/socket.io.min.js");
     });
 
     // API Routes (similar to HTML5UI)
