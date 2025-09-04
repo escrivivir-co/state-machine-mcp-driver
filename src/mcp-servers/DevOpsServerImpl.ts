@@ -7,6 +7,7 @@ import { BaseMCPServerConfig } from "./MCPServerConfig";
 import { DevOpsPluginManager, PluginContext, XPlus1ControlPlugin } from "./plugins";
 import { AlephScriptClient } from "@/clients/alephscript-client";
 import { z } from "zod";
+import { MCP_PROSERPINA_DEVOPS_BOT } from "@/configs/MCP_PROSERPINA_DEVOPS_BOT";
 
 export interface IUserDetails {
 	id?: string;
@@ -38,7 +39,7 @@ export class DevOpsServer extends BaseMCPServer {
     private crudToolsManager?: CRUDToolsManager;
     private coreComponentsManager?: CoreComponentsManager;
 
-    name = "ProserpinaBot_DevOps_MCP";
+    name = MCP_PROSERPINA_DEVOPS_BOT;
 
     constructor() {
         const config: BaseMCPServerConfig = DEFAULT_DEVOPS_MCP_SERVER_CONFIG;

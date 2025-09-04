@@ -19,6 +19,7 @@ import { SysChannelImpl } from "./channel/sys-channel";
 import { UIChannelImpl } from "./channel/ui-channel";
 import { createChannelAgent } from "./channel/channel-agent-factory";
 import { AlephScriptClient } from "@/clients/alephscript-client";
+import { ORCHESTRATOR_BOT } from "@/configs/ORCHESTRATOR_BOT";
 
 export interface IUserDetails {
 	id?: string;
@@ -33,7 +34,7 @@ export interface IUserDetails {
  */
 export class Orchestrator extends EventEmitter {
 
-    name = "STM_MCP_Client";
+    name = ORCHESTRATOR_BOT;
 
     // ===== Core Channels =====
     public readonly app: AppChannelImpl;

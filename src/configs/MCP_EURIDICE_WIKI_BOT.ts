@@ -1,0 +1,1 @@
+export const MCP_EURIDICE_WIKI_BOT = "MCP_Euridice_WIKI_BOT"

@@ -1,0 +1,1 @@
+export const MCP_PROSERPINA_DEVOPS_BOT = "MCP_Proserpina_DEVOPS_BOT"

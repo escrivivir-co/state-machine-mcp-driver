@@ -29,6 +29,7 @@ import * as fs from "fs/promises";
 import * as path from "path";
 import * as crypto from "crypto";
 import { DEFAULT_WIKI_MCP_SERVER_CONFIG } from "./DEFAULT_WIKI_MCP_SERVER_CONFIG";
+import { MCP_EURIDICE_WIKI_BOT } from "@/configs/MCP_EURIDICE_WIKI_BOT";
 
 /**
  * Wikipedia article structure from API
@@ -107,7 +108,7 @@ export class MCPWikiBrowserServer extends BaseMCPServer {
     private cache: CacheConfig;
     private euridiceBot!: AlephScriptClient;
 
-    name = "EuridiceBot_Wiki_MCP";
+    name = MCP_EURIDICE_WIKI_BOT;
 
     constructor() {
         const config: BaseMCPServerConfig = DEFAULT_WIKI_MCP_SERVER_CONFIG;

@@ -1,0 +1,1 @@
+export const MCP_ORFEO_STATE_BOT = "MCP_Orfeo_STATE_BOT"

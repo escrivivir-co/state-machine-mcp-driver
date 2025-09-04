@@ -10,6 +10,7 @@ import { Logger } from "../utils/logger";
 import DEPRECATED_OLD_STATE_MACHINE_SERVER from "./DEPRECATED";
 import { AlephScriptClient } from "@/clients/alephscript-client";
 import { DEFAULT_STATE_MACHINE_MCP_SERVER_CONFIG } from "./DEFAULT_STATE_MACHINE_MCP_SERVER_CONFIG";
+import { MCP_ORFEO_STATE_BOT } from "@/configs/MCP_ORFEO_STATE_BOT";
 
 export interface IUserDetails {
 	id?: string;
@@ -89,7 +90,7 @@ export class MCPStateMachineServer extends BaseMCPServer {
     private eventListeners: Set<(event: any) => void> = new Set();
     private orfeoBot!: AlephScriptClient;
 
-    name = "OrfeoBot_StateMachine_MCP";
+    name = MCP_ORFEO_STATE_BOT;
 
     constructor() {
         const config: BaseMCPServerConfig = DEFAULT_STATE_MACHINE_MCP_SERVER_CONFIG;

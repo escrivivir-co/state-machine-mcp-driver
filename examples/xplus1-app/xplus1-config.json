@@ -117,7 +117,7 @@
   "ui": [
     {
       "id": "console-primary",
-      "name": "Console Interface",
+      "name": "UI_Lurra_BASH_BOT",
       "type": "custom",
       "enabled": true,
       "config": {
@@ -138,7 +138,7 @@
     },
     {
       "id": "web-interface",
-      "name": "Web Game Interface",
+      "name": "UI_Pacha_WEB_BOT",
       "type": "html5",
       "enabled": true,
       "config": {
@@ -157,7 +157,7 @@
     },
     {
       "id": "threejs-visual",
-      "name": "ThreeJS Visual Interface (Dynamic HTML)",
+      "name": "UI_Yoruba_3JSD_BOT",
       "type": "threejs",
       "enabled": true,
       "config": {
@@ -177,7 +177,7 @@
     },
     {
       "id": "threejs-angular",
-      "name": "ThreeJS Angular Interface (Package)",
+      "name": "UI_Gaia_3JS_BOT",
       "type": "threejs",
       "enabled": true,
       "config": {
@@ -212,14 +212,14 @@
         "debugMode": true,
         "welcomeMessage": "Welcome to X+1 Unity Experience",
         "autoBuild": true,
-        "autoOpenBrowser": true,
+        "autoOpenBrowser": false,
         "unityProjectPath": "../unity-project",
         "unityBuildTarget": "WebGL"
       }
     },
     {
       "id": "node-red-gamify-ui-manager",
-      "name": "AlephScript Node-RED Web Manager",
+      "name": "UI_Terra_RED_BOT",
       "type": "node-red-gamify-ui",
       "enabled": true,
       "config": {
@@ -232,7 +232,7 @@
     },
     {
       "id": "webrtc-main",
-      "name": "WebRTC Communication Hub",
+      "name": "UI_Gea_RTC_BOT",
       "type": "webrtc",
       "enabled": true,
       "config": {
