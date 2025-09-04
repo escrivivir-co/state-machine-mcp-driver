@@ -270,6 +270,25 @@
           "alephscript_integration"
         ]
       }
+    },
+    {
+      "id": "blockly-visual-editor",
+      "name": "UI_Blockly_Visual_BOT",
+      "type": "blockly-gamify-ui",
+      "enabled": true,
+      "config": {
+        "gameTitle": "Blockly Visual Programming - AlephScript",
+        "port": 9094,
+        "staticDir": "./public_templates/blockly-gamify-ui",
+        "provideTemplate": true,
+        "autoOpenBrowser": true,
+        "corsOrigin": "*",
+        "debugMode": true,
+        "enablePostulations": true,
+        "autoSelectSingleAgent": false,
+        "maxMessagesPerThread": 50,
+        "welcomeMessage": "Welcome to Visual Programming with Blockly AlephScript"
+      }
     }
   ]
 }

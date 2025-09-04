@@ -39,6 +39,10 @@ import {
     NodeRedGamificationUIConfig,
 } from "../ui/NodeRedGamificationUI";
 import {
+    BlocklyGamificationUI,
+    BlocklyGamificationUIConfig,
+} from "../ui/BlocklyGamificationUI";
+import {
     WebRTCGamificationUI,
     WebRTCGameUIConfig,
 } from "../ui/WebRTCGamificationUI";
@@ -369,6 +373,31 @@ class UIFactory {
                     runtime,
                     mcpAdapter,
                     nodeRedConfig
+                );
+
+            case "blockly-gamify-ui":
+                // Create a valid BlocklyGamificationUIConfig
+                const provideBlocklyTemplate = config.config.provideTemplate ?? true;
+                const blocklyConfig: BlocklyGamificationUIConfig = {
+                    gameTitle: config.name,
+                    welcomeMessage: config.config.welcomeMessage || `Welcome to ${config.name}`,
+                    port: config.config.port || 8085,
+                    staticDir: config.config.staticDir || 
+                        (provideBlocklyTemplate 
+                            ? path.resolve(process.cwd(), "public_templates/blockly-gamify-ui")
+                            : "fallback/path"),
+                    provideTemplate: provideBlocklyTemplate,
+                    autoOpenBrowser: config.config.autoOpenBrowser ?? true,
+                    corsOrigin: config.config.corsOrigin || "*",
+                    debugMode: !!config.config.debugMode,
+                    enablePostulations: config.config.enablePostulations ?? true,
+                    autoSelectSingleAgent: config.config.autoSelectSingleAgent ?? false,
+                    maxMessagesPerThread: config.config.maxMessagesPerThread || 50,
+                };
+                return new BlocklyGamificationUI(
+                    runtime,
+                    mcpAdapter,
+                    blocklyConfig
                 );
 
             case "webrtc":
