@@ -304,7 +304,8 @@ export class NodeRedGamificationUI extends GamificationUI {
             // SPA fallback - serve index.html for all non-API routes
             this.app.get('*', (req, res) => {
                 if (!req.path.startsWith('/api/') && !req.path.startsWith('/health')) {
-                    res.sendFile(path.join(this.config.staticDir!, 'index.html'));
+                    const indexPath = path.resolve(this.config.staticDir!, 'index.html');
+                    res.sendFile(indexPath);
                 } else {
                     res.status(404).json({ error: 'API endpoint not found' });
                 }

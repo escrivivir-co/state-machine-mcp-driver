@@ -224,9 +224,10 @@
       "enabled": true,
       "config": {
         "port": 9092,
-        "staticDir": "./public_templates/node-red-gamify-ui",
+        "staticDir": "./public_templates/node-red-gamify-ui/node-red-gamify-ui",
         "provideTemplate": true,
-        "features": ["node_red_discovery", "multi_instance_management"]
+        "gameTitle": "Node-RED AlephScript Manager",
+        "debugMode": true
       }
     }
   ]
