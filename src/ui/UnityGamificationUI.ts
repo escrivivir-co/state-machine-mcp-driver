@@ -42,6 +42,7 @@ export class UnityGamificationUI extends GamificationUI {
   // Browser and build management
   private browserProcess?: ChildProcess;
   private buildProcess?: ChildProcess;
+  isActive: boolean = false;
 
   constructor(runtime: Runtime, mcp: MCPDriverAdapter, config: UnityGameUIConfig) {
     super(runtime, mcp, config);
@@ -93,7 +94,7 @@ export class UnityGamificationUI extends GamificationUI {
 
     // Forward SYS messages selectively
     channels.sys.filter("info").subscribe((msg) => {
-      this.broadcastToUnity("sys_info", msg);
+      // this.broadcastToUnity("sys_info", msg);
     });
   }
 

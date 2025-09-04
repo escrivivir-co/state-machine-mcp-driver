@@ -82,7 +82,7 @@ export class ThreeJSGamificationUI extends GamificationUI {
             });
             break;
           default:
-            this.broadcastToClients("ui_event", msg);
+            // this.broadcastToClients("ui_event", msg);
         }
       } catch (e) {
         Logger.warn("ThreeJS UI broadcast failed for ui message", e as Error);
@@ -91,7 +91,7 @@ export class ThreeJSGamificationUI extends GamificationUI {
 
     // Forward SYS messages selectively
     channels.sys.filter("info").subscribe((msg) => {
-      this.broadcastToClients("sys_info", msg);
+      // this.broadcastToClients("sys_info", msg);
     });
   }
 

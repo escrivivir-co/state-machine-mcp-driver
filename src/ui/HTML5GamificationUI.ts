@@ -246,7 +246,7 @@ export class HTML5GamificationUI extends GamificationUI {
    */
   private handleRenderRequest(message: any): void {
     // Broadcast render request to web clients
-    this.broadcastSSE("render_request", message.payload);
+    // this.broadcastSSE("render_request", message.payload);
   }
 
   // ===== Agent Postulation System =====
