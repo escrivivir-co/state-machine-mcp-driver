@@ -2,9 +2,9 @@
  * Simple example demonstrating the RxJS Orchestrator usage
  */
 
-import { Orchestrator } from '../src/orchestration/orchestrator';
-import { SysAgent, AppAgent, UIAgent, LogAgent } from '../src/orchestration/__tests__/test-agents';
-import { Logger } from '../src/utils/logger';
+import { Orchestrator } from "@/orchestration";
+import { SysAgent, AppAgent, UIAgent, LogAgent } from "@/orchestration/__tests__/test-agents";
+
 
 async function runOrchestratorExample() {
   console.log('🎼 Starting Orchestrator Example\n');

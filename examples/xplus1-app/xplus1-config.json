@@ -1,229 +1,233 @@
 {
-	"app": {
-		"type": "x-plus-1"
-	},
-	"launcher": {
-		"ollamaUrl": "http://localhost:11434",
-		"requiredModel": "GPT-OSS:20b",
-		"mcpServiceLauncherPort": 3050,
-		"healthCheckTimeout": 30000,
-		"shutdownGracePeriod": 5000
-	},
-	"game": {
-		"id": "x-plus-1-multi",
-		"name": "X+1 Multi-UI Demo",
-		"description": "X+1 game running with both console and web interfaces",
-		"mcpServerId": "state-machine-server",
-		"graphId": "x-plus-1-game",
-		"userId": "player-1",
-		"sessionId": "x-plus-1-1756594661560",
-		"maxMessagesPerThread": 10,
-		"sessionTimeout": 1800000,
-		"autoSave": true,
-		"autoSaveInterval": 30000,
-		"agentConfigs": [
-			{
-				"id": "dionisio-bot",
-				"name": "DionisioBot",
-				"role": "narrator",
-				"description": "Hedonistic agent that represents immediate gratification and cosmic doom-scrolling",
-				"mcpServerId": "wiki-mcp-browser",
-				"autoStart": true,
-				"priority": 10,
-				"config": {
-					"maxActionsPerMinute": 3,
-					"allowedActions": [
-						"narrate",
-						"describe",
-						"present",
-						"browse_cosmic"
-					],
-					"personality": "hedonistic",
-					"influence": "negative",
-					"topics": "cosmic"
-				}
-			},
-			{
-				"id": "apolo-bot",
-				"name": "ApoloBot",
-				"role": "guide",
-				"description": "Wisdom agent that represents discipline and historical learning",
-				"mcpServerId": "wiki-mcp-browser",
-				"autoStart": true,
-				"priority": 10,
-				"config": {
-					"maxActionsPerMinute": 3,
-					"allowedActions": [
-						"guide",
-						"help",
-						"suggest",
-						"explain",
-						"browse_history"
-					],
-					"personality": "wise",
-					"influence": "positive",
-					"topics": "historical"
-				}
-			},
-			{
-				"id": "justice-bot",
-				"name": "JusticeBot",
-				"role": "system",
-				"description": "Neutral arbiter that manages the X+1 decision process",
-				"mcpServerId": "state-machine-server",
-				"autoStart": true,
-				"priority": 100,
-				"config": {
-					"maxActionsPerMinute": 5,
-					"allowedActions": [
-						"question",
-						"validate",
-						"update_state",
-						"manage_turn"
-					],
-					"personality": "neutral",
-					"influence": "balanced",
-					"keyQuestion": "Did you consume today, do I reset?"
-				}
-			},
-			{
-				"id": "user-simulator",
-				"name": "UserSimulator",
-				"role": "player",
-				"description": "Simulated user that decides yes/no and can choose next agent",
-				"autoStart": true,
-				"priority": 90,
-				"config": {
-					"personality": "balanced",
-					"allowedActions": [
-						"choose",
-						"interact"
-					]
-				}
-			}
-		]
-	},
-	"mcp": {
-		"servers": {
-			"devops-mcp-server": {},
-			"state-machine-server": {},
-			"wiki-mcp-browser": {}
-		}
-	},
-	"orchestration": {
-		"enableReplay": true,
-		"replayBufferSize": 200,
-		"enableLogging": true,
-		"enableCrossChannelRouting": true,
-		"messageTimeout": 10000,
-		"autoRegisterComponentsKeys": [
-			"AppChannelAgent",
-			"UIChannelAgent",
-			"SysChannelAgent"
-		]
-	},
-	"ui": [
-		{
-			"id": "console-primary",
-			"name": "Console Interface",
-			"type": "custom",
-			"enabled": true,
-			"config": {
-				"customClass": "@ui/templates/state-machine-ui",
-				"isPrimary": true,
-				"autoStart": true,
-				"showStats": true,
-				"colorScheme": "default",
-				"maxMessagesPerThread": 50,
-				"gameTitle": "X+1 State Machine Game",
-				"welcomeMessage": "Welcome to X+1 Game",
-				"debugMode": false,
-				"userPrompt": "> ",
-				"enableColors": true,
-				"enablePostulations": true,
-				"autoSelectSingleAgent": false
-			}
-		},
-		{
-			"id": "web-interface",
-			"name": "Web Game Interface",
-			"type": "html5",
-			"enabled": true,
-			"config": {
-				"isPrimary": false,
-				"autoStart": true,
-				"port": 8080,
-				"gameTitle": "X+1 Game - Web Interface",
-				"welcomeMessage": "Welcome to X+1 Game via Web",
-				"theme": "dark",
-				"enableDevTools": true,
-				"enablePostulations": true,
-				"autoSelectSingleAgent": false,
-				"maxMessagesPerThread": 50,
-				"debugMode": true
-			}
-		},
-		{
-			"id": "threejs-visual",
-			"name": "ThreeJS Visual Interface (Dynamic HTML)",
-			"type": "threejs",
-			"enabled": true,
-			"config": {
-				"gameTitle": "X+1 Game - 3D Visual (Dynamic)",
-				"port": 9090,
-				"staticDir": "../threejs-gamify-ui/dist/public",
-				"corsOrigin": "*",
-				"enablePostulations": true,
-				"autoSelectSingleAgent": false,
-				"maxMessagesPerThread": 50,
-				"debugMode": true,
-				"welcomeMessage": "Welcome to X+1 3D Experience (Dynamic HTML)",
-				"provideTemplate": false,
-				"autoOpenBrowser": true,
-				"angularProjectPath": "../threejs-gamify-ui"
-			}
-		},
-		{
-			"id": "threejs-angular",
-			"name": "ThreeJS Angular Interface (Package)",
-			"type": "threejs",
-			"enabled": true,
-			"config": {
-				"gameTitle": "X+1 Game - 3D Package UI",
-				"port": 9091,
-				"staticDir": "./public_templates/threejs-ui",
-				"corsOrigin": "*",
-				"enablePostulations": true,
-				"autoSelectSingleAgent": false,
-				"maxMessagesPerThread": 50,
-				"debugMode": true,
-				"welcomeMessage": "Welcome to X+1 3D Experience (Package Template)",
-				"provideTemplate": true,
-				"autoOpenBrowser": false,
-				"angularProjectPath": "../threejs-gamify-ui"
-			}
-		},
-		{
-			"id": "unity-3d",
-			"name": "Unity 3D Interface",
-			"type": "unity",
-			"enabled": false,
-			"config": {
-				"gameTitle": "X+1 Game - Unity 3D",
-				"port": 9080,
-				"buildDir": "../unity-builds/webgl",
-				"unityBuildName": "index.html",
-				"corsOrigin": "*",
-				"enablePostulations": true,
-				"autoSelectSingleAgent": false,
-				"maxMessagesPerThread": 50,
-				"debugMode": true,
-				"welcomeMessage": "Welcome to X+1 Unity Experience",
-				"autoBuild": true,
-				"autoOpenBrowser": true,
-				"unityProjectPath": "../unity-project",
-				"unityBuildTarget": "WebGL"
-			}
-		}
-	]
+  "app": {
+    "type": "x-plus-1"
+  },
+  "launcher": {
+    "ollamaUrl": "http://localhost:11434",
+    "requiredModel": "GPT-OSS:20b",
+    "mcpServiceLauncherPort": 3050,
+    "healthCheckTimeout": 30000,
+    "shutdownGracePeriod": 5000
+  },
+  "game": {
+    "id": "x-plus-1-multi",
+    "name": "X+1 Multi-UI Demo",
+    "description": "X+1 game running with both console and web interfaces",
+    "mcpServerId": "state-machine-server",
+    "graphId": "x-plus-1-game",
+    "userId": "player-1",
+    "sessionId": "x-plus-1-1756594661560",
+    "maxMessagesPerThread": 10,
+    "sessionTimeout": 1800000,
+    "autoSave": true,
+    "autoSaveInterval": 30000,
+    "agentConfigs": [
+      {
+        "id": "dionisio-bot",
+        "name": "DionisioBot",
+        "role": "narrator",
+        "description": "Hedonistic agent that represents immediate gratification and cosmic doom-scrolling",
+        "mcpServerId": "wiki-mcp-browser",
+        "autoStart": true,
+        "priority": 10,
+        "config": {
+          "maxActionsPerMinute": 3,
+          "allowedActions": ["narrate", "describe", "present", "browse_cosmic"],
+          "personality": "hedonistic",
+          "influence": "negative",
+          "topics": "cosmic"
+        }
+      },
+      {
+        "id": "apolo-bot",
+        "name": "ApoloBot",
+        "role": "guide",
+        "description": "Wisdom agent that represents discipline and historical learning",
+        "mcpServerId": "wiki-mcp-browser",
+        "autoStart": true,
+        "priority": 10,
+        "config": {
+          "maxActionsPerMinute": 3,
+          "allowedActions": [
+            "guide",
+            "help",
+            "suggest",
+            "explain",
+            "browse_history"
+          ],
+          "personality": "wise",
+          "influence": "positive",
+          "topics": "historical"
+        }
+      },
+      {
+        "id": "justice-bot",
+        "name": "JusticeBot",
+        "role": "system",
+        "description": "Neutral arbiter that manages the X+1 decision process",
+        "mcpServerId": "state-machine-server",
+        "autoStart": true,
+        "priority": 100,
+        "config": {
+          "maxActionsPerMinute": 5,
+          "allowedActions": [
+            "question",
+            "validate",
+            "update_state",
+            "manage_turn"
+          ],
+          "personality": "neutral",
+          "influence": "balanced",
+          "keyQuestion": "Did you consume today, do I reset?"
+        }
+      },
+      {
+        "id": "user-simulator",
+        "name": "UserSimulator",
+        "role": "player",
+        "description": "Simulated user that decides yes/no and can choose next agent",
+        "autoStart": true,
+        "priority": 90,
+        "config": {
+          "personality": "balanced",
+          "allowedActions": ["choose", "interact"]
+        }
+      }
+    ]
+  },
+  "mcp": {
+    "servers": {
+      "devops-mcp-server": {},
+      "state-machine-server": {},
+      "wiki-mcp-browser": {}
+    }
+  },
+  "orchestration": {
+    "enableReplay": true,
+    "replayBufferSize": 200,
+    "enableLogging": true,
+    "enableCrossChannelRouting": true,
+    "messageTimeout": 10000,
+    "autoRegisterComponentsKeys": [
+      "AppChannelAgent",
+      "UIChannelAgent",
+      "SysChannelAgent"
+    ]
+  },
+  "ui": [
+    {
+      "id": "console-primary",
+      "name": "Console Interface",
+      "type": "custom",
+      "enabled": true,
+      "config": {
+        "customClass": "@ui/templates/state-machine-ui",
+        "isPrimary": true,
+        "autoStart": true,
+        "showStats": true,
+        "colorScheme": "default",
+        "maxMessagesPerThread": 50,
+        "gameTitle": "X+1 State Machine Game",
+        "welcomeMessage": "Welcome to X+1 Game",
+        "debugMode": false,
+        "userPrompt": "> ",
+        "enableColors": true,
+        "enablePostulations": true,
+        "autoSelectSingleAgent": false
+      }
+    },
+    {
+      "id": "web-interface",
+      "name": "Web Game Interface",
+      "type": "html5",
+      "enabled": true,
+      "config": {
+        "isPrimary": false,
+        "autoStart": true,
+        "port": 8080,
+        "gameTitle": "X+1 Game - Web Interface",
+        "welcomeMessage": "Welcome to X+1 Game via Web",
+        "theme": "dark",
+        "enableDevTools": true,
+        "enablePostulations": true,
+        "autoSelectSingleAgent": false,
+        "maxMessagesPerThread": 50,
+        "debugMode": true
+      }
+    },
+    {
+      "id": "threejs-visual",
+      "name": "ThreeJS Visual Interface (Dynamic HTML)",
+      "type": "threejs",
+      "enabled": true,
+      "config": {
+        "gameTitle": "X+1 Game - 3D Visual (Dynamic)",
+        "port": 9090,
+        "staticDir": "./public_templates/threejs-ui",
+        "corsOrigin": "*",
+        "enablePostulations": true,
+        "autoSelectSingleAgent": false,
+        "maxMessagesPerThread": 50,
+        "debugMode": true,
+        "welcomeMessage": "Welcome to X+1 3D Experience (Dynamic HTML)",
+        "provideTemplate": false,
+        "autoOpenBrowser": true,
+        "angularProjectPath": "./public_templates/threejs-ui"
+      }
+    },
+    {
+      "id": "threejs-angular",
+      "name": "ThreeJS Angular Interface (Package)",
+      "type": "threejs",
+      "enabled": true,
+      "config": {
+        "gameTitle": "X+1 Game - 3D Package UI",
+        "port": 9091,
+        "staticDir": "./public_templates/threejs-ui",
+        "corsOrigin": "*",
+        "enablePostulations": true,
+        "autoSelectSingleAgent": false,
+        "maxMessagesPerThread": 50,
+        "debugMode": true,
+        "welcomeMessage": "Welcome to X+1 3D Experience (Package Template)",
+        "provideTemplate": true,
+        "autoOpenBrowser": false,
+        "angularProjectPath": "../threejs-gamify-ui"
+      }
+    },
+    {
+      "id": "unity-3d",
+      "name": "Unity 3D Interface",
+      "type": "unity",
+      "enabled": false,
+      "config": {
+        "gameTitle": "X+1 Game - Unity 3D",
+        "port": 9080,
+        "buildDir": "../unity-builds/webgl",
+        "unityBuildName": "index.html",
+        "corsOrigin": "*",
+        "enablePostulations": true,
+        "autoSelectSingleAgent": false,
+        "maxMessagesPerThread": 50,
+        "debugMode": true,
+        "welcomeMessage": "Welcome to X+1 Unity Experience",
+        "autoBuild": true,
+        "autoOpenBrowser": true,
+        "unityProjectPath": "../unity-project",
+        "unityBuildTarget": "WebGL"
+      }
+    },
+    {
+      "id": "node-red-gamify-ui-manager",
+      "name": "AlephScript Node-RED Web Manager",
+      "type": "node-red-gamify-ui",
+      "enabled": true,
+      "config": {
+        "port": 9092,
+        "staticDir": "./public_templates/node-red-gamify-ui",
+        "provideTemplate": true,
+        "features": ["node_red_discovery", "multi_instance_management"]
+      }
+    }
+  ]
 }

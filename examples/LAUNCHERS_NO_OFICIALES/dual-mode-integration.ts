@@ -3,17 +3,15 @@
  * Demonstrates Console + HTML5 UI working together with MCPDriverAdapter
  */
 
-import { Runtime } from "../src/runtime/Runtime";
-import { MCPDriverAdapter } from "../src/drivers/MCPDriverAdapter";
-import { ConsoleGamificationUI } from "../src/ui/ConsoleGamificationUI";
-import { HTML5GamificationUI } from "../src/ui/HTML5GamificationUI";
-import { OllamaChatProvider } from "../src/chat-provider/OllamaChatProvider";
-import { Logger } from "../src/utils/logger";
-
-// Import X+1 specific components
-import { getBasicRuntimeConfig } from "./xplus1-app/getBasicRuntimeConfig";
+import { OllamaChatProvider } from "@/chat-provider";
+import { MCPDriverAdapter } from "@/drivers";
 import { ChannelConsumer } from "@/orchestration/channel/deprecated-channel-consumer";
-import { AppConfig } from "@/utils";
+import { Runtime } from "@/runtime";
+import { ConsoleGamificationUI, HTML5GamificationUI } from "@/ui";
+import { AppConfig, Logger } from "@/utils";
+import { getBasicRuntimeConfig } from "@examples/xplus1-app/getBasicRuntimeConfig";
+
+
 
 /**
  * Dual Mode Game Configuration

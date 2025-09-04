@@ -4,13 +4,13 @@
  * through the InterfaceOrchestrator
  */
 
-import { Runtime } from "../src/runtime/Runtime";
-import { MCPDriverAdapter } from "../src/drivers/MCPDriverAdapter";
-import { OllamaChatProvider } from "../src/chat-provider/OllamaChatProvider";
-import { ConsoleGamificationUI } from "../src/ui/ConsoleGamificationUI";
-import { AgentControlService } from "../src/services/AgentControlService";
-import { Logger } from "../src/utils/logger";
+import { OllamaChatProvider } from "@/chat-provider";
+import { MCPDriverAdapter } from "@/drivers";
 import { ChannelConsumer } from "@/orchestration/channel/deprecated-channel-consumer";
+import { Runtime } from "@/runtime";
+import { AgentControlService } from "@/services/AgentControlService";
+import { ConsoleGamificationUI } from "@/ui";
+
 
 async function main() {
     console.log("🚀 Starting Multi-Interface Integration Demo");

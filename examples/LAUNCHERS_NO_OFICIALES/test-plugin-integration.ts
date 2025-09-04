@@ -4,7 +4,6 @@
  */
 
 import { DevOpsServer } from "@/mcp-servers";
-import { Logger } from "../src/utils/logger.js";
 
 async function testXPlus1ControlPlugin() {
     console.log("🧪 Testing XPlus1 Control Plugin Integration");

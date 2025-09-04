@@ -4,10 +4,8 @@
  * Configures the complete X+1 game including agents, MCP servers, and chat provider
  */
 
-import {
-    loadAgentPrompts,
-    loadGameMessages,
-} from "../x-plus-1-state-machine/mcp-servers/config-loader";
+import { loadAgentPrompts, loadGameMessages } from "@/scripts/config-loader";
+
 
 /**
  * Game configuration constants

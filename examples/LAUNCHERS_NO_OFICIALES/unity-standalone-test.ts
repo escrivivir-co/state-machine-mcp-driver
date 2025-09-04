@@ -3,10 +3,11 @@
  * Simple test for UnityGamificationUI with auto-build and browser opening
  */
 
-import { Runtime } from "../src/runtime/Runtime";
-import { MCPDriverAdapter } from "../src/drivers/MCPDriverAdapter";
-import { UnityGamificationUI } from "../src/ui/UnityGamificationUI";
-import { Logger } from "../src/utils/logger";
+
+import { MCPDriverAdapter } from "@/drivers";
+import { Runtime } from "@/runtime";
+import { UnityGamificationUI } from "@/ui";
+import { Logger } from "@/utils";
 import path from "path";
 
 async function testUnityUI() {

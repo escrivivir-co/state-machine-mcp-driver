@@ -3,8 +3,9 @@
  * Demonstrates the new library-based approach vs external build approach
  */
 
-import { ThreeJSLibraryServer } from "../src/ui/ThreeJSLibraryServer";
-import { Logger } from "../src/utils/logger";
+import { ThreeJSLibraryServer } from "@/ui/ThreeJSLibraryServer";
+import { Logger } from "@/utils";
+
 
 async function runThreeJSLibraryExample() {
   console.log("🎮 Starting ThreeJS Library Integration Example...");

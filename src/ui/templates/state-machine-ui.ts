@@ -7,7 +7,6 @@ import { MCPDriverAdapter, MCPServerConfig } from "@/drivers";
 import { AgentStatus, AgentPostulation, AgentGreediness } from "@/models";
 import { Runtime } from "@/runtime";
 import { AppConfig } from "@/utils";
-import XPlus1PostulationSystem from "@examples/x-plus-1-state-machine/XPlus1PostulationSystem";
 import { getBasicRuntimeConfig } from "@examples/xplus1-app/getBasicRuntimeConfig";
 import {
   GAME_CONFIG,
@@ -24,6 +23,7 @@ import {
 import { DEFAULT_AGENT_CONFIG } from "../DEFAULT_AGENT_CONFIG";
 import { DEFAULT_DEVOPS_MCP_SERVER_CONFIG } from "@/mcp-servers/DEFAULT_DEVOPS_MCP_SERVER_CONFIG";
 import { BaseMCPServerConfig } from "@/mcp-servers/MCPServerConfig";
+import XPlus1PostulationSystem from "@/models/XPlus1PostulationSystem";
 
 // Remote control interfaces (matching XPlus1MCPMachine)
 interface RemoteCommand {

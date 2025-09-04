@@ -3,10 +3,11 @@
  * Simple test for ThreeJSGamificationUI with auto-build and browser opening
  */
 
-import { Runtime } from "../src/runtime/Runtime";
-import { MCPDriverAdapter } from "../src/drivers/MCPDriverAdapter";
-import { ThreeJSGamificationUI } from "../src/ui/ThreeJSGamificationUI";
-import { Logger } from "../src/utils/logger";
+
+import { MCPDriverAdapter } from "@/drivers";
+import { Runtime } from "@/runtime";
+import { ThreeJSGamificationUI } from "@/ui";
+import { Logger } from "@/utils";
 import path from "path";
 
 async function testThreeJSUI() {

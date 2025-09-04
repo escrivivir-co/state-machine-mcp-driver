@@ -2,13 +2,10 @@
  * State Machine MCP Driver - Example Usage
  */
 
-import {
-    Runtime,
-    RuntimeConfig,
-    AgentRole,
-    logger,
-	MCPDriverAdapter
-} from "../src";
+import { MCPDriverAdapter } from "@/drivers";
+import { AgentRole } from "@/models";
+import { RuntimeConfig, Runtime } from "@/runtime";
+import { logger } from "@/utils";
 
 /**
  * Example: Basic Runtime usage

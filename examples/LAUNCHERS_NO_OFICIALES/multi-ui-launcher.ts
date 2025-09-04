@@ -3,22 +3,16 @@
  * Launches multiple GamificationUI instances based on configuration
  */
 
-import { readFile } from "fs/promises";
-import { Runtime, RuntimeConfig } from "../src/runtime/Runtime";
-import {
-    MCPDriverAdapter,
-    MCPDriverAdapterConfig,
-} from "../src/drivers/MCPDriverAdapter";
-import { MultiUIGameManager } from "../src/ui/MultiUIGameManager";
-import { MultiUIGameConfig } from "../src/ui/MultiUIGameConfig";
-import { Logger } from "../src/utils/logger";
-import { MCPServerTransportConfig } from "../src/drivers/IMCPDriver";
-
-// Import game-specific configurations
-import { getBasicRuntimeConfig } from "./xplus1-app/getBasicRuntimeConfig";
-import { ChannelConsumer } from "@/orchestration/channel/deprecated-channel-consumer";
-import { AppConfig, DEFAULT_APP_CONFIG, getConfigOrDefault, parseMcpConfigToTransportConfig } from "@/utils/config";
+import { MCPDriverAdapter } from "@/drivers";
+import { MCPDriverAdapterConfig } from "@/drivers/MCPDriverAdapter";
 import { Orchestrator } from "@/orchestration";
+import { Runtime, RuntimeConfig } from "@/runtime";
+import MultiUIGameConfig from "@/ui/MultiUIGameConfig";
+import MultiUIGameManager from "@/ui/MultiUIGameManager";
+import { AppConfig, Logger } from "@/utils";
+import { getConfigOrDefault, DEFAULT_APP_CONFIG, parseMcpConfigToTransportConfig } from "@/utils/config";
+import { getBasicRuntimeConfig } from "@examples/xplus1-app/getBasicRuntimeConfig";
+import { readFileSync } from "fs";
 
 /**
  * Retry configuration
@@ -199,7 +193,7 @@ async function main(): Promise<void> {
 
         // 1. Load configuration
         console.log(`📋 Loading multi-UI configuration from: ${configPath}`);
-        const configContent = await readFile(configPath, "utf-8");
+        const configContent = readFileSync(configPath, "utf-8");
         config = JSON.parse(configContent);
 
         console.log(`🎮 Starting Multi-UI Game: ${config.game.name}`);

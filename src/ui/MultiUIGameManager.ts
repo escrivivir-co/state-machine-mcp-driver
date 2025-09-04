@@ -34,6 +34,10 @@ import {
     UnityGamificationUI,
     UnityGameUIConfig,
 } from "../ui/UnityGamificationUI";
+import {
+    NodeRedGamificationUI,
+    NodeRedGamificationUIConfig,
+} from "../ui/NodeRedGamificationUI";
 import { Logger } from "../utils/logger";
 import {
     IndependentConsoleLauncher,
@@ -342,6 +346,25 @@ class UIFactory {
                     runtime,
                     mcpAdapter,
                     unityConfig
+                );
+
+            case "node-red-gamify-ui":
+                // Create a valid NodeRedGamificationUIConfig
+                const nodeRedConfig: NodeRedGamificationUIConfig = {
+                    gameTitle: config.name,
+                    port: config.config.port || 9092,
+                    staticDir: config.config.staticDir || path.resolve(process.cwd(), "public_templates/node-red-gamify-ui"),
+                    provideTemplate: config.config.provideTemplate ?? true,
+                    autoOpenBrowser: config.config.autoOpenBrowser ?? false,
+                    corsOrigin: config.config.corsOrigin || "*",
+                    debugMode: !!config.config.debugMode,
+                    features: ["node_red_discovery", "multi_instance_management"],
+                    maxMessagesPerThread: config.config.maxMessagesPerThread || 50,
+                };
+                return new NodeRedGamificationUI(
+                    runtime,
+                    mcpAdapter,
+                    nodeRedConfig
                 );
 
             case "custom":

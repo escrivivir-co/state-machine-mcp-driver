@@ -5,12 +5,12 @@
  * with AgentPostulation system and orchestrator communication.
  */
 
-import { HTML5GamificationUI, HTML5GameUIConfig } from '../src/ui/HTML5GamificationUI';
-import { Runtime } from '../src/runtime/Runtime';
-import { MCPDriverAdapter } from '../src/drivers/MCPDriverAdapter';
-import { AgentPostulationManager, AgentGreediness } from '../src/models/AgentPostulation';
-import { Agent, AgentRole, AgentStatus } from '../src/models/Agent';
-import { Orchestrator } from '../src/orchestration/orchestrator';
+import { MCPDriverAdapter } from "@/drivers";
+import { AgentPostulationManager, AgentRole, AgentStatus, AgentGreediness, Agent } from "@/models";
+import { Orchestrator } from "@/orchestration";
+import { Runtime } from "@/runtime";
+import { HTML5GameUIConfig, HTML5GamificationUI } from "@/ui";
+
 
 async function createHTML5GameExample() {
     console.log('🚀 Starting HTML5 Gamification UI with Agent Postulation System...');

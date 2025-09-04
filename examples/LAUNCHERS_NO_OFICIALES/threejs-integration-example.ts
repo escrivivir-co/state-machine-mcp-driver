@@ -24,12 +24,14 @@
     },mificationUI with MultiUIGameManager and Orchestrator
  */
 
-import { MultiUIGameManager } from "../src/ui/MultiUIGameManager";
-import { MultiUIGameConfig } from "../src/ui/MultiUIGameConfig";
-import { Runtime } from "../src/runtime/Runtime";
-import { MCPDriverAdapter } from "../src/drivers/MCPDriverAdapter";
-import { Orchestrator } from "../src/orchestration/orchestrator";
-import { Logger } from "../src/utils/logger";
+import { MCPDriverAdapter } from "@/drivers";
+import { Orchestrator } from "@/orchestration";
+import { Runtime } from "@/runtime";
+import MultiUIGameConfig from "@/ui/MultiUIGameConfig";
+import MultiUIGameManager from "@/ui/MultiUIGameManager";
+import { Logger } from "@/utils";
+
+
 
 // Example configuration for multi-UI setup with ThreeJS integration
 const exampleConfig: MultiUIGameConfig = {

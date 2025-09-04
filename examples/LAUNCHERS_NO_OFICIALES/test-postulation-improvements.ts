@@ -3,9 +3,9 @@
  * Shows how the system now guarantees at least one greedy agent option
  */
 
-import { XPlus1PostulationSystem } from './x-plus-1-state-machine/XPlus1PostulationSystem';
-import { Agent, AgentRole, AgentStatus } from '../src/models/Agent';
-import { PostulationContext } from '../src/models/AgentPostulation';
+import { Agent, AgentRole, AgentStatus, PostulationContext } from "@/models";
+import XPlus1PostulationSystem from "@/models/XPlus1PostulationSystem";
+
 
 // Create mock agents
 const mockAgents: Agent[] = [
