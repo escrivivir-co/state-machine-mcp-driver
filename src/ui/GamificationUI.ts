@@ -33,6 +33,8 @@ import {
 } from "../models/AgentPostulation";
 import { MCPEvent } from "@/drivers";
 import { AlephScriptClient } from "@/clients/alephscript-client";
+import { UI_ERDE_WEB_BOT } from "@/configs/UI_ERDE_WEB_BOT";
+import { UI_ZAMEEN_BASH_BOT } from "@/configs/UI_ZAMEEN_BASH_BOT";
 
 /**
  * Generate a hash for session identification
@@ -248,10 +250,10 @@ export abstract class GamificationUI extends EventEmitter {
      */
     initAlephScriptBot(bot?: AlephScriptClient): void {
         try {
-            this.alephScriptBot = bot || new AlephScriptClient(`${this.config.gameTitle}_UI`);
+            this.alephScriptBot = bot || new AlephScriptClient(`${this.config.gameTitle || UI_ZAMEEN_BASH_BOT}`);
             
             this.alephScriptBot.initTriggersDefinition.push(() => {
-                const ROOM_NAME = this.alephScriptBot.name + "_ROOM";
+                const ROOM_NAME = UI_ZAMEEN_BASH_BOT + "-" + this.alephScriptBot.name  + "_ROOM";
                 const REGISTER_PAYLOAD = { 
                     usuario: this.alephScriptBot.name, 
                     sesion: getHash("GamificationUI")

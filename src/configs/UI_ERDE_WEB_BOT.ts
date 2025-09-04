@@ -1,0 +1,1 @@
+export const UI_ERDE_WEB_BOT = "UI_Erde_WEB_BOT"

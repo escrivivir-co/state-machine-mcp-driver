@@ -41,6 +41,7 @@ export class ThreeJSGamificationUI extends GamificationUI {
   
   // Browser management
   private browserProcess?: ChildProcess;
+  isActive: any;
 
   constructor(runtime: Runtime, mcp: MCPDriverAdapter, config: ThreeJSGameUIConfig) {
     super(runtime, mcp, config);
@@ -118,7 +119,7 @@ export class ThreeJSGamificationUI extends GamificationUI {
 
     // Step 2: Initialize AlephScript client for Socket.IO communication
     this.proserpinaBot = new AlephScriptClient(
-      `ThreeJSUI_${this.config.gameTitle}`,
+      `${this.config.gameTitle}`,
       "http://localhost:3000", // AlephScript orchestrator server
       "/runtime", // namespace for UI communication
       true

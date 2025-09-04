@@ -58,7 +58,7 @@
       "name": "WIN START 2",
       "type": "node",
       "request": "launch",
-      "runtimeExecutable": "C:\\Users\\secre\\.nvm\\versions\\node\\v20.16.0\\bin\\node.exe",
+      "runtimeExecutable": "C:\\Users\\secre\\.nvm\\versions\\node\\v22.19.0\\bin\\node.exe",
       "runtimeArgs": ["--require", "tsx/cjs"],
       "program": "${workspaceFolder}/examples/xplus1-app/xplus1-app.ts",
       "args": [
@@ -86,7 +86,7 @@
       "name": "Debug npm start (tsx direct)",
       "type": "node",
       "request": "launch",
-      "runtimeExecutable": "C:\\Users\\secre\\.nvm\\versions\\node\\v20.16.0\\bin\\npx.cmd",
+      "runtimeExecutable": "C:\\Users\\secre\\.nvm\\versions\\node\\v22.19.0\\bin\\npx.cmd",
       "runtimeArgs": ["tsx", "examples/multi-ui-launcher.ts", "examples/configs/x-plus-1-multi-ui.json"],
       "cwd": "${workspaceFolder}",
       "env": {
@@ -110,7 +110,7 @@
       "name": "Debug npm start (nvm path)",
       "type": "node",
       "request": "launch",
-      "runtimeExecutable": "C:\\Users\\secre\\.nvm\\versions\\node\\v20.16.0\\bin\\node.exe",
+      "runtimeExecutable": "C:\\Users\\secre\\.nvm\\versions\\node\\v22.19.0\\bin\\node.exe",
       "runtimeArgs": ["--require", "tsx/cjs"],
       "program": "${workspaceFolder}/examples/multi-ui-launcher.ts",
       "args": [
@@ -138,7 +138,7 @@
       "name": "Debug npm start (tsx direct)",
       "type": "node",
       "request": "launch",
-      "runtimeExecutable": "C:\\Users\\secre\\.nvm\\versions\\node\\v20.16.0\\bin\\npx.cmd",
+      "runtimeExecutable": "C:\\Users\\secre\\.nvm\\versions\\node\\v22.19.0\\bin\\npx.cmd",
       "runtimeArgs": ["tsx", "examples/multi-ui-launcher.ts", "examples/configs/x-plus-1-multi-ui.json"],
       "cwd": "${workspaceFolder}",
       "env": {

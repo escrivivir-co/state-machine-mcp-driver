@@ -1,0 +1,1 @@
+export const UI_ZAMEEN_BASH_BOT = "UI_Zameen_BASH_BOT"

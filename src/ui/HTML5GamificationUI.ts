@@ -29,6 +29,7 @@ import { ConversationMessage } from "./ConversationMessage";
 import { AlephScriptClient } from "../clients/alephscript-client";
 import { IOrchestratorChannels } from "../orchestration/types";
 import { Logger } from "../utils/logger";
+import { UI_ERDE_WEB_BOT } from "@/configs/UI_ERDE_WEB_BOT";
 
 /**
  * Configuration for HTML5 Game UI (extends base config)
@@ -106,6 +107,7 @@ export class HTML5GamificationUI extends GamificationUI {
   protected awaitingAgentSelection = false;
   protected currentThread?: ConversationThread;
   protected messageIdCounter = 0;
+  isActive: boolean = false;
 
   constructor(
     runtime: Runtime,
@@ -142,7 +144,7 @@ export class HTML5GamificationUI extends GamificationUI {
    */
   initAlephScriptBot(): void {
     this.proserpinaBot = new AlephScriptClient(
-      `HTML5UI_${this.config.gameTitle}`,
+      `${"UI_HTML_" + (this.config.gameTitle || UI_ERDE_WEB_BOT) }`,
       "http://localhost:3000",
       "/runtime",
       true

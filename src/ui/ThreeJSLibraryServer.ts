@@ -49,7 +49,7 @@ export class ThreeJSLibraryServer {
 
     // Initialize AlephScript client (using the real implementation)
     this.alephClient = new AlephScriptClient(
-      `ThreeJSLibrary_${this.config.gameTitle}`,
+      `${this.config.gameTitle}`,
       "http://localhost:3000", // Default AlephScript server port
       "/runtime",
       true
