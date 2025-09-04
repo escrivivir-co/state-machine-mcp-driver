@@ -229,6 +229,47 @@
         "gameTitle": "Node-RED AlephScript Manager",
         "debugMode": true
       }
+    },
+    {
+      "id": "webrtc-main",
+      "name": "WebRTC Communication Hub",
+      "type": "webrtc",
+      "enabled": true,
+      "config": {
+        "gameTitle": "WebRTC Gamification Demo",
+        "port": 9096,
+        "staticDir": "./public_templates/web-rtc-gamify-ui",
+        "provideTemplate": true,
+        "autoOpenBrowser": false,
+        "corsOrigin": "*",
+        "debugMode": true,
+        "enablePostulations": true,
+        "autoSelectSingleAgent": false,
+        "maxMessagesPerThread": 50,
+        "welcomeMessage": "Welcome to WebRTC Real-time Communication Hub",
+        "isPrimary": true,
+        "priority": 10,
+        "maxConnections": 50,
+        "enableSignaling": true,
+        "iceServers": [
+          { "urls": "stun:stun.l.google.com:19302" },
+          { "urls": "stun:stun1.l.google.com:19302" }
+        ],
+        "roomSettings": {
+          "maxRoomsPerUser": 5,
+          "defaultRoomType": "public",
+          "autoCleanupInterval": 300000
+        },
+        "angularProjectPath": "../web-rtc-gamify-ui",
+        "features": [
+          "webrtc_p2p_communication",
+          "room_management",
+          "media_controls",
+          "file_sharing",
+          "real_time_chat",
+          "alephscript_integration"
+        ]
+      }
     }
   ]
 }

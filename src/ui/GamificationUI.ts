@@ -169,7 +169,7 @@ export abstract class GamificationUI extends EventEmitter {
     // ===== State Management =====
     protected currentThread?: GameThread;
     protected currentPhase: UIPhase = "startup";
-    protected isActive = false;
+    protected _isActiveBase = false;
     protected messageIdCounter = 0;
     protected postulationManager?: AgentPostulationManager;
     protected pendingPostulations: AgentPostulation[] = [];
