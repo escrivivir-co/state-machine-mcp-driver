@@ -20,6 +20,7 @@ import { MCPDriverAdapter } from '../drivers';
 import { Logger } from '../utils';
 import { AlephScriptFrontendClient } from './shared/AlephScriptFrontendClient';
 import { IOrchestratorChannels } from '../orchestration';
+import { AlephScriptClient } from '@alephscript/client';
 
 /**
  * WebRTC-specific configuration extending base config
@@ -112,7 +113,7 @@ export class WebRTCGamificationUI extends GamificationUI {
   protected config: WebRTCGameUIConfig;
   private app: express.Application;
   private server: http.Server | null = null;
-  private alephScriptClient: AlephScriptFrontendClient | null = null;
+  private alephScriptClient: AlephScriptClient | null = null;
   private isStarted = false;
   private clientLogs: Array<{ 
     level: string; 
@@ -258,7 +259,7 @@ export class WebRTCGamificationUI extends GamificationUI {
       if (this.config.autoOpenBrowser) {
         await this.openBrowser();
       }
-    } catch (error) {
+    } catch (error: any) {
       Logger.error("Failed to start WebRTC UI:", error);
       throw error;
     }
@@ -300,7 +301,7 @@ export class WebRTCGamificationUI extends GamificationUI {
 
       this.isStarted = false;
       Logger.info("🛑 WebRTC UI stopped successfully");
-    } catch (error) {
+    } catch (error: any) {
       Logger.error("Error stopping WebRTC UI:", error);
       throw error;
     }
@@ -319,7 +320,7 @@ export class WebRTCGamificationUI extends GamificationUI {
       // Broadcast message to all connected clients
       this.broadcastToClients("game-message", { message });
       Logger.debug(`📨 Message displayed in WebRTC UI: ${message.content}`);
-    } catch (error) {
+    } catch (error: any) {
       Logger.error("Error displaying message in WebRTC UI:", error);
     }
   }
@@ -336,7 +337,7 @@ export class WebRTCGamificationUI extends GamificationUI {
     try {
       this.broadcastToClients("agent-postulations", { postulations });
       Logger.info(`🎭 Displayed ${postulations.length} agent postulations in WebRTC UI`);
-    } catch (error) {
+    } catch (error: any) {
       Logger.error("Error displaying postulations in WebRTC UI:", error);
     }
   }
@@ -357,7 +358,7 @@ export class WebRTCGamificationUI extends GamificationUI {
     try {
       this.broadcastToClients("notification", { title, message, type, timestamp: Date.now() });
       Logger.debug(`🔔 Notification displayed: ${title} - ${message}`);
-    } catch (error) {
+    } catch (error: any) {
       Logger.error("Error displaying notification in WebRTC UI:", error);
     }
   }
@@ -369,7 +370,7 @@ export class WebRTCGamificationUI extends GamificationUI {
     try {
       this.broadcastToClients("phase-update", { phase, timestamp: Date.now() });
       Logger.debug(`🎯 Phase updated to: ${phase}`);
-    } catch (error) {
+    } catch (error: any) {
       Logger.error("Error updating phase in WebRTC UI:", error);
     }
   }
@@ -414,7 +415,7 @@ export class WebRTCGamificationUI extends GamificationUI {
    */
   private async initializeAlephScriptIntegration(): Promise<void> {
     try {
-      this.alephScriptClient = new AlephScriptFrontendClient(
+      this.alephScriptClient = new AlephScriptClient(
         `webrtc-ui-${Date.now()}`,
         this.config.gameTitle || "WebRTC Gamification UI"
       );
@@ -423,7 +424,7 @@ export class WebRTCGamificationUI extends GamificationUI {
       this.setupAlephScriptHandlers();
 
       Logger.info("🔗 AlephScript integration initialized for WebRTC UI");
-    } catch (error) {
+    } catch (error: any) {
       Logger.error("Failed to initialize AlephScript integration:", error);
       throw error;
     }
@@ -433,7 +434,7 @@ export class WebRTCGamificationUI extends GamificationUI {
    * Setup WebRTC event handlers
    */
   private setupWebRTCEventHandlers(): void {
-    this.signalingMessages$.subscribe((message) => {
+    this.signalingMessages$.subscribe((message: any) => {
       this.handleSignalingMessage(message);
     });
   }
@@ -467,7 +468,7 @@ export class WebRTCGamificationUI extends GamificationUI {
   private setupAlephScriptHandlers(): void {
     if (!this.alephScriptClient) return;
 
-    this.alephScriptClient.onMessage((message) => {
+    this.alephScriptClient.onMessage((message: any) => {
       if (message.type === 'webrtc-signaling') {
         this.signalingMessages$.next(message.data);
       }
@@ -497,7 +498,7 @@ export class WebRTCGamificationUI extends GamificationUI {
           // Handle other signaling messages
           break;
       }
-    } catch (error) {
+    } catch (error: any) {
       Logger.error("Error handling signaling message:", error);
     }
   }
@@ -617,10 +618,10 @@ export class WebRTCGamificationUI extends GamificationUI {
       }
       
       this.browserProcess = spawn(command, args, { detached: true, stdio: 'ignore' });
-      this.browserProcess.unref();
+      this.browserProcess?.unref();
       
       Logger.info(`🌐 Browser opened to WebRTC UI: ${url}`);
-    } catch (error) {
+    } catch (error: any) {
       Logger.warn("Could not open browser automatically:", error);
     }
   }

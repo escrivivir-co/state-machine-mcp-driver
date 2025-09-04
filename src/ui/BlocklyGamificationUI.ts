@@ -4,11 +4,12 @@
  */
 
 import { GamificationUI, BaseGamificationUIConfig, GameMessage, UIPhase } from './GamificationUI';
-import { Runtime } from '../runtime/Runtime';
-import { MCPDriverAdapter } from '../mcp/MCPDriverAdapter';
-import { AgentPostulation } from '../agents/AgentPostulationManager';
-import { AlephScriptFrontendClient } from '../clients/AlephScriptFrontendClient';
-import * as express from 'express';
+import { Runtime } from "@/runtime/Runtime";
+import { MCPDriverAdapter } from "@/drivers/MCPDriverAdapter";
+import { Logger } from "@/utils/logger";
+import { AgentPostulation } from "@/models/AgentPostulation";
+import { AlephScriptClient } from "@/clients/alephscript-client";
+import express from 'express';
 import * as path from 'path';
 import * as fs from 'fs';
 
@@ -33,7 +34,7 @@ export class BlocklyGamificationUI extends GamificationUI {
   protected config: BlocklyGamificationUIConfig;
   private expressApp: express.Application;
   private server: any;
-  private frontendClient?: AlephScriptFrontendClient;
+  private proserpinaBot!: AlephScriptClient;
   private isServerStarted = false;
 
   constructor(
@@ -58,6 +59,12 @@ export class BlocklyGamificationUI extends GamificationUI {
   // ===== Express Server Setup =====
 
   private setupExpressApp(): void {
+    // Request logging middleware
+    this.expressApp.use((req, res, next) => {
+      console.log(`🌐 ${req.method} ${req.path} - User-Agent: ${req.headers['user-agent']?.substring(0, 50) || 'unknown'}`);
+      next();
+    });
+    
     // CORS configuration
     this.expressApp.use((req, res, next) => {
       res.header('Access-Control-Allow-Origin', this.config.corsOrigin || '*');
@@ -84,19 +91,33 @@ export class BlocklyGamificationUI extends GamificationUI {
   private setupStaticFiles(): void {
     const provideTemplate = this.config.provideTemplate !== false;
     
+    console.log(`🔧 Setting up static files with provideTemplate: ${provideTemplate}`);
+    
     if (provideTemplate) {
       // Serve Angular app from public_templates (installed by postinstall)
       const staticDir = this.config.staticDir || 
         path.join(process.cwd(), 'public_templates', 'blockly-gamify-ui');
       
+      console.log(`🔍 Checking static directory: ${staticDir}`);
+      console.log(`🔍 Directory exists: ${fs.existsSync(staticDir)}`);
+      
       if (fs.existsSync(staticDir)) {
         console.log(`📁 Serving Blockly UI from: ${staticDir}`);
+        
+        // List files in the directory for debugging
+        const files = fs.readdirSync(staticDir);
+        console.log(`📄 Files in static directory:`, files);
+        
         this.expressApp.use(express.static(staticDir));
         
         // Angular routes fallback
         this.expressApp.get('*', (req, res) => {
           if (!req.path.startsWith('/api/')) {
-            const indexPath = path.join(staticDir, 'index.html');
+            const indexPath = path.resolve(staticDir, 'index.html');
+            console.log(`🌐 Serving index.html for route: ${req.path}`);
+            console.log(`📄 Index path: ${indexPath}`);
+            console.log(`📄 Index exists: ${fs.existsSync(indexPath)}`);
+            
             if (fs.existsSync(indexPath)) {
               res.sendFile(indexPath);
             } else {
@@ -232,8 +253,15 @@ console.log('Blockly workspace compiled and ready!');
     // Execute the compiled AlephScript code
     // This could involve creating a new bot instance or sending commands
     
-    if (this.frontendClient) {
-      await this.frontendClient.executeCode(code);
+    if (this.proserpinaBot) {
+      // TODO: Use correct method to execute code
+      console.log('Executing AlephScript code:', code);
+      
+      // Emit to connected Blockly clients for execution
+      this.proserpinaBot.io.emit("blockly_execute_code", {
+        code,
+        timestamp: Date.now()
+      });
     } else {
       console.log('Executing AlephScript code:', code);
       // Fallback execution or queue for later
@@ -261,14 +289,16 @@ console.log('Blockly workspace compiled and ready!');
 
       this.isServerStarted = true;
 
-      // Initialize AlephScript frontend client
-      if (this.alephScriptBot) {
-        this.frontendClient = new AlephScriptFrontendClient(
-          this.alephScriptBot,
-          'blockly-ui'
-        );
-        await this.frontendClient.initialize();
-      }
+      // Initialize AlephScript client for Socket.IO communication
+      this.proserpinaBot = new AlephScriptClient(
+        `${this.config.gameTitle}`,
+        "http://localhost:3000", // AlephScript orchestrator server
+        "/runtime", // namespace for UI communication
+        true
+      );
+
+      // Initialize base UI AlephScript integration
+      this.initAlephScriptBot(this.proserpinaBot);
 
       this.changePhase('menu');
       this.emit('gameStarted', { uiType: 'blockly', port: this.config.port });
@@ -286,8 +316,8 @@ console.log('Blockly workspace compiled and ready!');
       console.log('🛑 Blockly UI server stopped');
     }
 
-    if (this.frontendClient) {
-      await this.frontendClient.disconnect();
+    if (this.proserpinaBot) {
+      this.proserpinaBot.disconnect();
     }
 
     this.changePhase('complete');
@@ -299,25 +329,42 @@ console.log('Blockly workspace compiled and ready!');
     // For now, log to console
     console.log(`💬 [${message.type}] ${message.content}`);
     
-    if (this.frontendClient) {
-      await this.frontendClient.sendToChannel('ui', {
-        type: 'message',
-        data: message
-      });
+    if (this.proserpinaBot) {
+      const messageData = {
+        botId: message.agent?.id || "system",
+        message: message.content,
+        type: message.type,
+        agent: message.agent,
+        metadata: message.metadata,
+        timestamp: message.timestamp || Date.now(),
+      };
+      
+      this.proserpinaBot.io.emit("blockly_message", messageData);
     }
   }
 
   async displayAgentPostulations(postulations: AgentPostulation[]): Promise<void> {
     console.log(`🤖 Agent Postulations (${postulations.length}):`);
     postulations.forEach((p, i) => {
-      console.log(`  ${i + 1}. ${p.agent.name}: ${p.rationale}`);
+      console.log(`  ${i + 1}. ${p.agent.name}: ${p.reason}`);
     });
 
-    if (this.frontendClient) {
-      await this.frontendClient.sendToChannel('ui', {
-        type: 'postulations',
-        data: postulations
-      });
+    if (this.proserpinaBot) {
+      const postulationData = {
+        postulations: postulations.map((p, i) => ({
+          index: i,
+          agentId: p.agent.id,
+          name: p.agent.name,
+          role: p.agent.role,
+          reason: p.reason,
+          priority: p.priority,
+          greediness: p.greediness,
+          weight: p.weight,
+        })),
+        timestamp: Date.now(),
+      };
+      
+      this.proserpinaBot.io.emit("blockly_agent_postulations", postulationData);
     }
   }
 
@@ -329,10 +376,12 @@ console.log('Blockly workspace compiled and ready!');
     const icon = { info: 'ℹ️', success: '✅', warning: '⚠️', error: '❌' }[type];
     console.log(`${icon} ${title}: ${message}`);
 
-    if (this.frontendClient) {
-      await this.frontendClient.sendToChannel('ui', {
-        type: 'notification',
-        data: { title, message, type }
+    if (this.proserpinaBot) {
+      this.proserpinaBot.io.emit("blockly_notification", { 
+        title, 
+        message, 
+        type, 
+        timestamp: Date.now() 
       });
     }
   }
@@ -340,10 +389,10 @@ console.log('Blockly workspace compiled and ready!');
   async updatePhaseDisplay(phase: UIPhase): Promise<void> {
     console.log(`🎯 Phase: ${phase}`);
 
-    if (this.frontendClient) {
-      await this.frontendClient.sendToChannel('ui', {
-        type: 'phase',
-        data: { phase }
+    if (this.proserpinaBot) {
+      this.proserpinaBot.io.emit("blockly_phase_change", { 
+        phase, 
+        timestamp: Date.now() 
       });
     }
   }
@@ -351,10 +400,11 @@ console.log('Blockly workspace compiled and ready!');
   // ===== Private Helper Methods =====
 
   private async sendUserMessage(message: string, channel: string = 'app'): Promise<void> {
-    if (this.frontendClient) {
-      await this.frontendClient.sendToChannel(channel, {
-        type: 'user_message',
-        data: { message, timestamp: Date.now() }
+    if (this.proserpinaBot) {
+      this.proserpinaBot.io.emit("blockly_user_message", {
+        message,
+        channel,
+        timestamp: Date.now()
       });
     }
 

@@ -68,6 +68,7 @@
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.17.4",
     "axios": "^1.6.0",
+    "blockly-alephscript-sdk": "file:../blockly-alephscript-sdk/blockly-alephscript-sdk-0.1.0.tgz",
     "express": "^4.18.2",
     "node-red-gamify-ui": "file:../node-red-alephscript-sdk/packages/node-red-gamify-ui/node-red-gamify-ui-0.1.0.tgz",
     "rxjs": "^7.8.2",
