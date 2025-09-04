@@ -37,6 +37,20 @@ export {
   UnityGameUIConfig
 } from './UnityGamificationUI';
 
+// Node-RED Web UI
+export { 
+  NodeRedGamificationUI
+} from './NodeRedGamificationUI';
+
+// WebRTC Web UI
+export { 
+  WebRTCGamificationUI, 
+  WebRTCGameUIConfig,
+  WebRTCPeer,
+  WebRTCRoom,
+  WebRTCSignalingMessage
+} from './WebRTCGamificationUI';
+
 // Interface definitions
 export { IConsoleReader } from './IConsoleReader';
 export { IWebGameUI } from './IWebGameUI';

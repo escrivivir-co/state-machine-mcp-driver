@@ -38,6 +38,10 @@ import {
     NodeRedGamificationUI,
     NodeRedGamificationUIConfig,
 } from "../ui/NodeRedGamificationUI";
+import {
+    WebRTCGamificationUI,
+    WebRTCGameUIConfig,
+} from "../ui/WebRTCGamificationUI";
 import { Logger } from "../utils/logger";
 import {
     IndependentConsoleLauncher,
@@ -365,6 +369,41 @@ class UIFactory {
                     runtime,
                     mcpAdapter,
                     nodeRedConfig
+                );
+
+            case "webrtc":
+                // Create a valid WebRTCGameUIConfig
+                const provideWebRTCTemplate = config.config.provideTemplate ?? true;
+                const webrtcConfig: WebRTCGameUIConfig = {
+                    gameTitle: config.name,
+                    port: config.config.port || 9096,
+                    staticDir: config.config.staticDir || 
+                        (provideWebRTCTemplate 
+                            ? path.resolve(process.cwd(), "public_templates/web-rtc-gamify-ui")
+                            : "fallback/path"),
+                    provideTemplate: provideWebRTCTemplate,
+                    autoOpenBrowser: config.config.autoOpenBrowser ?? false,
+                    corsOrigin: config.config.corsOrigin || "*",
+                    debugMode: !!config.config.debugMode,
+                    maxMessagesPerThread: config.config.maxMessagesPerThread || 50,
+                    // WebRTC-specific configuration
+                    maxConnections: config.config.maxConnections || 50,
+                    enableSignaling: config.config.enableSignaling ?? true,
+                    iceServers: config.config.iceServers || [
+                        { urls: 'stun:stun.l.google.com:19302' },
+                        { urls: 'stun:stun1.l.google.com:19302' }
+                    ],
+                    roomSettings: config.config.roomSettings || {
+                        maxRoomsPerUser: 5,
+                        defaultRoomType: 'public',
+                        autoCleanupInterval: 300000
+                    },
+                    angularProjectPath: config.config.angularProjectPath || "../web-rtc-gamify-ui",
+                };
+                return new WebRTCGamificationUI(
+                    runtime,
+                    mcpAdapter,
+                    webrtcConfig
                 );
 
             case "custom":

@@ -11,7 +11,7 @@ import { AppConfigMcpServers } from "@/utils/config";
 /**
  * UI Type identifiers
  */
-export type UIType = "console" | "html5" | "threejs" | "unity" | "mobile" | "vr" | "custom" | "node-red-gamify-ui";
+export type UIType = "console" | "html5" | "threejs" | "unity" | "mobile" | "vr" | "custom" | "node-red-gamify-ui" | "webrtc";
 
 /**
  * Configuration for a single UI instance
@@ -55,6 +55,18 @@ export interface UIInstanceConfig {
         unityProjectPath?: string;
         /** Unity build target (default: WebGL) */
         unityBuildTarget?: string;
+        /** Maximum WebRTC connections (WebRTC UI) */
+        maxConnections?: number;
+        /** Enable WebRTC signaling server (WebRTC UI) */
+        enableSignaling?: boolean;
+        /** STUN/TURN servers for WebRTC (WebRTC UI) */
+        iceServers?: RTCIceServer[];
+        /** WebRTC room settings (WebRTC UI) */
+        roomSettings?: {
+            maxRoomsPerUser?: number;
+            defaultRoomType?: 'public' | 'private' | 'protected';
+            autoCleanupInterval?: number;
+        };
     };
     /** Whether this UI is enabled */
     enabled: boolean;

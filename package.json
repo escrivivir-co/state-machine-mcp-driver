@@ -74,6 +74,7 @@
     "socket.io-client": "^4.8.1",
     "threejs-gamification-ui": "file:../threejs-gamify-ui/threejs-gamification-ui-1.0.0.tgz",
     "uuid": "^9.0.1",
+    "webrtc-gamification-ui": "file:../web-rtc-gamify-ui/webrtc-gamification-ui-1.0.0-alpha.tgz",
     "winston": "^3.11.0"
   },
   "devDependencies": {

@@ -1,0 +1,86 @@
+{
+  "game": {
+    "id": "webrtc-demo",
+    "name": "WebRTC Gamification Demo",
+    "version": "1.0.0",
+    "description": "Demo application showcasing WebRTC real-time communication with gamification"
+  },
+  "ui": [
+    {
+      "id": "webrtc-main",
+      "name": "WebRTC Communication Hub",
+      "type": "webrtc",
+      "enabled": true,
+      "config": {
+        "gameTitle": "WebRTC Gamification Demo",
+        "port": 9096,
+        "staticDir": "./public_templates/web-rtc-gamify-ui",
+        "provideTemplate": true,
+        "autoOpenBrowser": false,
+        "corsOrigin": "*",
+        "debugMode": true,
+        "enablePostulations": true,
+        "autoSelectSingleAgent": false,
+        "maxMessagesPerThread": 50,
+        "welcomeMessage": "Welcome to WebRTC Real-time Communication Hub",
+        "isPrimary": true,
+        "priority": 10,
+        "maxConnections": 50,
+        "enableSignaling": true,
+        "iceServers": [
+          { "urls": "stun:stun.l.google.com:19302" },
+          { "urls": "stun:stun1.l.google.com:19302" }
+        ],
+        "roomSettings": {
+          "maxRoomsPerUser": 5,
+          "defaultRoomType": "public",
+          "autoCleanupInterval": 300000
+        },
+        "angularProjectPath": "../web-rtc-gamify-ui",
+        "features": [
+          "webrtc_p2p_communication",
+          "room_management",
+          "media_controls",
+          "file_sharing",
+          "real_time_chat",
+          "alephscript_integration"
+        ]
+      }
+    }
+  ],
+  "shared": {
+    "gameTitle": "WebRTC Gamification Demo",
+    "debugMode": true,
+    "maxMessagesPerThread": 50,
+    "autoSelectSingleAgent": false,
+    "enablePostulations": true
+  },
+  "orchestration": {
+    "primaryUIId": "webrtc-main",
+    "enableEventBroadcasting": true,
+    "syncInterval": 1000,
+    "enableCrossUISync": true,
+    "orchestratorOptions": {
+      "enableAppChannel": true,
+      "enableSysChannel": true,
+      "enableUIChannel": true,
+      "enableWebRTCIntegration": true
+    }
+  },
+  "mcpServers": {
+    "sqlite": {
+      "enabled": true,
+      "path": "../../MCP_SERVERS/mcp-server-sqlite/build/index.js",
+      "config": {
+        "databasePath": "./data/webrtc-demo.db"
+      }
+    },
+    "filesystem": {
+      "enabled": true,
+      "path": "../../MCP_SERVERS/mcp-server-filesystem/dist/index.js",
+      "config": {
+        "allowedDirectories": ["./data", "./temp", "./logs"]
+      }
+    }
+  }
+}
