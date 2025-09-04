@@ -43,6 +43,10 @@ import {
     BlocklyGamificationUIConfig,
 } from "../ui/BlocklyGamificationUI";
 import {
+    BlocklyRuntimeGamificationUI,
+    BlocklyRuntimeGamificationUIConfig,
+} from "../ui/BlocklyRuntimeGamificationUI";
+import {
     WebRTCGamificationUI,
     WebRTCGameUIConfig,
 } from "../ui/WebRTCGamificationUI";
@@ -398,6 +402,35 @@ class UIFactory {
                     runtime,
                     mcpAdapter,
                     blocklyConfig
+                );
+
+            case "blockly-runtime-gamify-ui":
+                // Create a valid BlocklyRuntimeGamificationUIConfig
+                const provideBlocklyRuntimeTemplate = config.config.provideTemplate ?? true;
+                // Determine ports based on environment (DEV vs PROD)
+                const isDev = process.env.NODE_ENV !== 'production';
+                const defaultRuntimePort = isDev ? 5000 : 9099;
+                
+                const blocklyRuntimeConfig: BlocklyRuntimeGamificationUIConfig = {
+                    gameTitle: config.name,
+                    welcomeMessage: config.config.welcomeMessage || `Welcome to ${config.name} Runtime Environment`,
+                    port: config.config.port || defaultRuntimePort,
+                    staticDir: config.config.staticDir || 
+                        (provideBlocklyRuntimeTemplate 
+                            ? path.resolve(process.cwd(), "public_templates/blockly-runtime-gamify-ui")
+                            : "fallback/path"),
+                    provideTemplate: provideBlocklyRuntimeTemplate,
+                    autoOpenBrowser: config.config.autoOpenBrowser ?? false, // Runtime usually doesn't auto-open
+                    corsOrigin: config.config.corsOrigin || "http://localhost:4200", // Allow Design Environment
+                    debugMode: !!config.config.debugMode,
+                    enablePostulations: config.config.enablePostulations ?? true,
+                    autoSelectSingleAgent: config.config.autoSelectSingleAgent ?? false,
+                    maxMessagesPerThread: config.config.maxMessagesPerThread || 50,
+                };
+                return new BlocklyRuntimeGamificationUI(
+                    runtime,
+                    mcpAdapter,
+                    blocklyRuntimeConfig
                 );
 
             case "webrtc":

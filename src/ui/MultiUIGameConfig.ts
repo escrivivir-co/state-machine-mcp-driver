@@ -11,7 +11,7 @@ import { AppConfigMcpServers } from "@/utils/config";
 /**
  * UI Type identifiers
  */
-export type UIType = "console" | "html5" | "threejs" | "unity" | "mobile" | "vr" | "custom" | "node-red-gamify-ui" | "blockly-gamify-ui" | "webrtc";
+export type UIType = "console" | "html5" | "threejs" | "unity" | "mobile" | "vr" | "custom" | "node-red-gamify-ui" | "blockly-gamify-ui" | "blockly-runtime-gamify-ui" | "webrtc";
 
 /**
  * Configuration for a single UI instance

@@ -289,6 +289,25 @@
         "maxMessagesPerThread": 50,
         "welcomeMessage": "Welcome to Visual Programming with Blockly AlephScript"
       }
+    },
+    {
+      "id": "blockly-runtime-executor",
+      "name": "UI_Blockly_Runtime_BOT",
+      "type": "blockly-runtime-gamify-ui",
+      "enabled": true,
+      "config": {
+        "gameTitle": "Blockly Runtime Environment - AlephScript",
+        "port": 9099,
+        "staticDir": "./public_templates/blockly-runtime-gamify-ui",
+        "provideTemplate": true,
+        "autoOpenBrowser": false,
+        "corsOrigin": "http://localhost:9099",
+        "debugMode": true,
+        "enablePostulations": true,
+        "autoSelectSingleAgent": false,
+        "maxMessagesPerThread": 50,
+        "welcomeMessage": "Welcome to the Blockly Runtime Execution Environment"
+      }
     }
   ]
 }
