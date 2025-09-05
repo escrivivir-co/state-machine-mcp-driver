@@ -199,7 +199,7 @@
       "id": "unity-3d",
       "name": "Unity 3D Interface",
       "type": "unity",
-      "enabled": false,
+      "enabled": true,
       "config": {
         "gameTitle": "X+1 Game - Unity 3D",
         "port": 9080,
