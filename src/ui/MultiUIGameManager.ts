@@ -324,7 +324,7 @@ class UIFactory {
                     port: config.config.port || 9090,
                     staticDir: config.config.staticDir || (provideTemplate 
                         ? path.resolve(process.cwd(), "public_templates/threejs-ui")
-                        : "e:/LAB_AGOSTO/threejs-gamify-ui/client"),
+                        : "e:/LAB_AGOSTO/threejs-gamify-ui/client"), //// ?????????????
                     corsOrigin: config.config.corsOrigin || "*",
                     debugMode: !!config.config.debugMode,
                     enablePostulations: config.config.enablePostulations ?? true,
@@ -346,7 +346,7 @@ class UIFactory {
                     gameTitle: config.name,
                     welcomeMessage: `Welcome to ${config.name}`,
                     port: config.config.port || 9080,
-                    buildDir: config.config.buildDir || "e:/LAB_AGOSTO/unity-builds/webgl",
+                    buildDir: config.config.buildDir || "/e/LAB_AGOSTO/unity-builds/webgl",
                     unityBuildName: config.config.unityBuildName || "index.html",
                     corsOrigin: config.config.corsOrigin || "*",
                     debugMode: !!config.config.debugMode,
