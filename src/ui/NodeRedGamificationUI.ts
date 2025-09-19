@@ -361,7 +361,7 @@ export class NodeRedGamificationUI extends GamificationUI {
     private async initializeAlephScriptClient(): Promise<void> {
         try {
             this.alephScriptClient = new AlephScriptFrontendClient({
-                serverUrl: "http://localhost:3000", // Default AlephScript server
+                serverUrl: this.appConfig?.launcher?.socketUrl || "http://localhost:3000", // Default AlephScript server
                 uiType: "node-red-gamify-ui" as any, // Cast to avoid type issues
                 uiId: "node-red-manager"
             });

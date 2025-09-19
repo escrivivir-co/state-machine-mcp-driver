@@ -20,6 +20,7 @@ import { UIChannelImpl } from "./channel/ui-channel";
 import { createChannelAgent } from "./channel/channel-agent-factory";
 import { AlephScriptClient } from "@/clients/alephscript-client";
 import { ORCHESTRATOR_BOT } from "@/configs/ORCHESTRATOR_BOT";
+import { AppConfig, DEFAULT_APP_CONFIG } from "@/utils/config";
 
 export interface IUserDetails {
 	id?: string;
@@ -55,8 +56,9 @@ export class Orchestrator extends EventEmitter {
 
     // ===== Configuration =====
     private readonly config: Required<OrchestratorConfig>;
+    
 
-    constructor(config: OrchestratorConfig = {}) {
+    constructor(config: OrchestratorConfig = {}, public appConfig: AppConfig = DEFAULT_APP_CONFIG) {
         super();
 
         // Set default configuration
@@ -103,7 +105,9 @@ export class Orchestrator extends EventEmitter {
     }
 
     initAlephClient() {
-        this.alephClient = new AlephScriptClient(this.name)
+        this.alephClient = new AlephScriptClient(this.name,
+            (this.appConfig || DEFAULT_APP_CONFIG).launcher?.socketUrl || "http://localhost:3010"
+        )
 		this.alephClient.initTriggersDefinition.push(() => {
 
             const ROOM_NAME = this.name + "_ROOM";

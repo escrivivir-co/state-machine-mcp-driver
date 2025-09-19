@@ -3,9 +3,9 @@
  *
  * Configures the complete X+1 game including agents, MCP servers, and chat provider
  */
-
+import path from "path";
 import { loadAgentPrompts, loadGameMessages } from "@/scripts/config-loader";
-
+const CONFIG_DATA_FOLDER = "data";
 
 /**
  * Game configuration constants
@@ -21,7 +21,8 @@ export const GAME_CONFIG = {
  */
 let PROMPTS: any;
 try {
-    PROMPTS = loadAgentPrompts();
+    console.log("🔄 Loading agent prompts from config...", path.join(__dirname, CONFIG_DATA_FOLDER));
+    PROMPTS = loadAgentPrompts(path.join(__dirname, CONFIG_DATA_FOLDER));
 } catch (error) {
     console.warn("⚠️ Could not load agent prompts, using defaults");
     PROMPTS = {
@@ -68,7 +69,7 @@ export const AGENT_PROMPTS = {
  */
 let GAME_MSG: any;
 try {
-    GAME_MSG = loadGameMessages();
+    GAME_MSG = loadGameMessages(path.join(__dirname, CONFIG_DATA_FOLDER));
 } catch (error) {
     console.warn("⚠️ Could not load game messages, using defaults");
     GAME_MSG = {

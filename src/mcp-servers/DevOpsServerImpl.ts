@@ -1,5 +1,5 @@
 import { MCPDriverAdapter } from "@/drivers";
-import { Logger } from "@/utils";
+import { AppConfig, Logger } from "@/utils";
 import BaseMCPServer from "./BaseMCPServer";
 import { ContentManager, CRUDToolsManager, CoreComponentsManager } from "./managers";
 import { DEFAULT_DEVOPS_MCP_SERVER_CONFIG } from "./DEFAULT_DEVOPS_MCP_SERVER_CONFIG";
@@ -8,6 +8,7 @@ import { DevOpsPluginManager, PluginContext, XPlus1ControlPlugin } from "./plugi
 import { AlephScriptClient } from "@/clients/alephscript-client";
 import { z } from "zod";
 import { MCP_PROSERPINA_DEVOPS_BOT } from "@/configs/MCP_PROSERPINA_DEVOPS_BOT";
+import { DEFAULT_APP_CONFIG } from "@/utils/config";
 
 export interface IUserDetails {
 	id?: string;
@@ -41,8 +42,9 @@ export class DevOpsServer extends BaseMCPServer {
 
     name = MCP_PROSERPINA_DEVOPS_BOT;
 
-    constructor() {
+    constructor(public appConfig: AppConfig = DEFAULT_APP_CONFIG) {
         const config: BaseMCPServerConfig = DEFAULT_DEVOPS_MCP_SERVER_CONFIG;
+        
 		console.log("Start")
         super(config);
 
@@ -98,7 +100,10 @@ export class DevOpsServer extends BaseMCPServer {
      */
     private initProserpinaBot(): void {
         try {
-            this.proserpinaBot = new AlephScriptClient(this.name);
+            this.proserpinaBot = new AlephScriptClient(
+                this.name,
+                this.appConfig?.launcher?.socketUrl || "http://localhost:3010"
+            );
             
             this.proserpinaBot.initTriggersDefinition.push(() => {
                 const ROOM_NAME = this.name + "_ROOM";

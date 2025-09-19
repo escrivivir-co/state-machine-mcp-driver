@@ -62,6 +62,7 @@ import {
 } from "./MultiUIGameConfig";
 import { ChannelConsumer } from "@/orchestration/channel/deprecated-channel-consumer";
 import { Orchestrator } from "@/orchestration";
+import { AppConfig } from "..";
 
 /**
  * Temporary wrapper to make ConsoleGamificationUI compatible with GamificationUI
@@ -702,7 +703,7 @@ export class MultiUIGameManager extends EventEmitter {
         runtime: Runtime,
         mcpAdapter: MCPDriverAdapter,
         orchestrator: Orchestrator,
-        config: MultiUIGameConfig
+        config: AppConfig
     ) {
         super();
         this.runtime = runtime;
@@ -994,6 +995,7 @@ export class MultiUIGameManager extends EventEmitter {
                 Logger.info(`Starting UI instance: ${instance.config.name}`);
 
                 await instance.ui.start();
+                instance.ui.appConfig = this.config as AppConfig; // Provide global config to each UI
                 instance.isStarted = true;
                 instance.startTime = Date.now();
 

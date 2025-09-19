@@ -120,7 +120,7 @@ export class ThreeJSGamificationUI extends GamificationUI {
     // Step 2: Initialize AlephScript client for Socket.IO communication
     this.proserpinaBot = new AlephScriptClient(
       `${this.config.gameTitle}`,
-      "http://localhost:3000", // AlephScript orchestrator server
+      this.appConfig?.launcher?.socketUrl || "http://localhost:3010", // AlephScript orchestrator server
       "/runtime", // namespace for UI communication
       true
     );

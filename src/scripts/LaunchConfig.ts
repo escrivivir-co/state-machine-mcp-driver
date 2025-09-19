@@ -1,5 +1,6 @@
 
 export interface LaunchConfig {
+	socketUrl?: string;
 	ollamaUrl: string;
 	requiredModel: string;
 	mcpServiceLauncherPort: number;

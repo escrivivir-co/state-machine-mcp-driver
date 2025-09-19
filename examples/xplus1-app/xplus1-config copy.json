@@ -3,7 +3,6 @@
     "type": "x-plus-1"
   },
   "launcher": {
-    "socketUrl": "http://localhost:3010",
     "ollamaUrl": "http://localhost:11434",
     "requiredModel": "GPT-OSS:20b",
     "mcpServiceLauncherPort": 3050,
@@ -98,8 +97,9 @@
   },
   "mcp": {
     "servers": {
+      "devops-mcp-server": {},
       "state-machine-server": {},
-      "devops-mcp-server": {}
+      "wiki-mcp-browser": {}
     }
   },
   "orchestration": {

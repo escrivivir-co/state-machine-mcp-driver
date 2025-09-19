@@ -30,6 +30,8 @@ import * as path from "path";
 import * as crypto from "crypto";
 import { DEFAULT_WIKI_MCP_SERVER_CONFIG } from "./DEFAULT_WIKI_MCP_SERVER_CONFIG";
 import { MCP_EURIDICE_WIKI_BOT } from "@/configs/MCP_EURIDICE_WIKI_BOT";
+import { AppConfig } from "@/utils";
+import { DEFAULT_APP_CONFIG } from "@/utils/config";
 
 /**
  * Wikipedia article structure from API
@@ -110,7 +112,7 @@ export class MCPWikiBrowserServer extends BaseMCPServer {
 
     name = MCP_EURIDICE_WIKI_BOT;
 
-    constructor() {
+    constructor(public appConfig: AppConfig = DEFAULT_APP_CONFIG) {
         const config: BaseMCPServerConfig = DEFAULT_WIKI_MCP_SERVER_CONFIG;
 
         super(config);
@@ -153,7 +155,8 @@ export class MCPWikiBrowserServer extends BaseMCPServer {
      */
     private initEuridiceBot(): void {
         try {
-            this.euridiceBot = new AlephScriptClient(this.name);
+            this.euridiceBot = new AlephScriptClient(this.name,
+                this.appConfig?.launcher?.socketUrl || "http://localhost:3010");
             
             this.euridiceBot.initTriggersDefinition.push(() => {
                 const ROOM_NAME = this.name + "_ROOM";

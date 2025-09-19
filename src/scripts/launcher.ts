@@ -49,6 +49,7 @@ const DEFAULT_RETRY_CONFIG: RetryConfig = {
 };
 
 const DEFAULT_CONFIG: LaunchConfig = {
+    socketUrl: "http://localhost:3010",
     ollamaUrl: "http://localhost:11434",
     requiredModel: process.env.OLLAMA_MODEL || "GPT-OSS:20b",
     mcpServiceLauncherPort: 3050,

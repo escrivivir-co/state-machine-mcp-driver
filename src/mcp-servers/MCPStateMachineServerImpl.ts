@@ -11,6 +11,8 @@ import DEPRECATED_OLD_STATE_MACHINE_SERVER from "./DEPRECATED";
 import { AlephScriptClient } from "@/clients/alephscript-client";
 import { DEFAULT_STATE_MACHINE_MCP_SERVER_CONFIG } from "./DEFAULT_STATE_MACHINE_MCP_SERVER_CONFIG";
 import { MCP_ORFEO_STATE_BOT } from "@/configs/MCP_ORFEO_STATE_BOT";
+import { AppConfig } from "@/utils";
+import { DEFAULT_APP_CONFIG } from "@/utils/config";
 
 export interface IUserDetails {
 	id?: string;
@@ -92,7 +94,7 @@ export class MCPStateMachineServer extends BaseMCPServer {
 
     name = MCP_ORFEO_STATE_BOT;
 
-    constructor() {
+    constructor(public appConfig: AppConfig = DEFAULT_APP_CONFIG) {
         const config: BaseMCPServerConfig = DEFAULT_STATE_MACHINE_MCP_SERVER_CONFIG;
 
         super(config);
@@ -135,7 +137,8 @@ export class MCPStateMachineServer extends BaseMCPServer {
         try {
 
             Logger.info("MCPStateMachineServer Server instance created, initOrfeoBot. 1");
-            this.orfeoBot = new AlephScriptClient(this.name);
+            this.orfeoBot = new AlephScriptClient(this.name,
+                this.appConfig?.launcher?.socketUrl || "http://localhost:3010");
             
             this.orfeoBot.initTriggersDefinition.push(() => {
 

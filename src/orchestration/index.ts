@@ -102,7 +102,7 @@ export function createHighPerformanceOrchestrator(): Orchestrator {
  * Create a development orchestrator with verbose logging
  */
 export function createDevelopmentOrchestrator(configContent: AppConfig): Orchestrator {
-    return new Orchestrator(configContent.orchestration);
+    return new Orchestrator(configContent.orchestration, configContent);
 }
 
 /**

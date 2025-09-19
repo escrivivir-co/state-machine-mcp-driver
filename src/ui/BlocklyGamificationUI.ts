@@ -292,7 +292,7 @@ console.log('Blockly workspace compiled and ready!');
       // Initialize AlephScript client for Socket.IO communication
       this.proserpinaBot = new AlephScriptClient(
         `${this.config.gameTitle}`,
-        "http://localhost:3000", // AlephScript orchestrator server
+        this.appConfig?.launcher?.socketUrl || "ws://localhost:3000",
         "/runtime", // namespace for UI communication
         true
       );

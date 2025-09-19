@@ -13,7 +13,7 @@ interface ConfigCache {
 class ConfigLoader {
   private static instance: ConfigLoader;
   private cache: ConfigCache = {};
-  private dataDir: string;
+  public dataDir: string;
 
   private constructor() {
     this.dataDir = join(__dirname, 'data');
@@ -145,23 +145,43 @@ export interface UserSimulatorConfig {
 }
 
 // Helper functions for specific configs
-export const loadWikiTopics = (): WikiTopicsConfig => 
-  configLoader.loadConfig<WikiTopicsConfig>('wiki-topics');
+export const loadWikiTopics = (dataDir: string): WikiTopicsConfig => {
+  setDataDir(dataDir);
+  return configLoader.loadConfig<WikiTopicsConfig>('wiki-topics');
+};
 
-export const loadWikiContent = (): WikiContentConfig => 
-  configLoader.loadConfig<WikiContentConfig>('wiki-content');
+export const loadWikiContent = (dataDir: string): WikiContentConfig => {    
+  setDataDir(dataDir);
+  return configLoader.loadConfig<WikiContentConfig>('wiki-content');
+};
 
-export const loadWikiMessages = (): WikiMessagesConfig => 
-  configLoader.loadConfig<WikiMessagesConfig>('wiki-messages');
+export const loadWikiMessages = (dataDir: string): WikiMessagesConfig => {    
+  setDataDir(dataDir);
+  return configLoader.loadConfig<WikiMessagesConfig>('wiki-messages');
+};
 
-export const loadXPlus1Messages = (): XPlus1MessagesConfig => 
-  configLoader.loadConfig<XPlus1MessagesConfig>('xplus1-messages');
+export const loadXPlus1Messages = (dataDir: string): XPlus1MessagesConfig => {
+  setDataDir(dataDir);
+  return configLoader.loadConfig<XPlus1MessagesConfig>('xplus1-messages');
+};
 
-export const loadAgentPrompts = (): AgentPromptsConfig =>
-  configLoader.loadConfig<AgentPromptsConfig>('agent-prompts');
+export const loadAgentPrompts = (dataDir: string): AgentPromptsConfig => {
+  setDataDir(dataDir);
+  return configLoader.loadConfig<AgentPromptsConfig>('agent-prompts');
+}
 
-export const loadGameMessages = (): GameMessagesConfig =>
-  configLoader.loadConfig<GameMessagesConfig>('game-messages');
+export const loadGameMessages = (dataDir: string): GameMessagesConfig => {
+  setDataDir(dataDir);
+  return configLoader.loadConfig<GameMessagesConfig>('game-messages');
+} 
 
-export const loadUserSimulator = (): UserSimulatorConfig =>
-  configLoader.loadConfig<UserSimulatorConfig>('user-simulator');
+export const loadUserSimulator = (dataDir: string ): UserSimulatorConfig => {
+  setDataDir(dataDir);
+  return configLoader.loadConfig<UserSimulatorConfig>('user-simulator');
+}
+  
+
+function setDataDir(dataDir: string) {
+  const configLoader = ConfigLoader.getInstance();
+  configLoader.dataDir = dataDir;
+}

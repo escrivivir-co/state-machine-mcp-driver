@@ -35,6 +35,8 @@ import { MCPEvent } from "@/drivers";
 import { AlephScriptClient } from "@/clients/alephscript-client";
 import { UI_ERDE_WEB_BOT } from "@/configs/UI_ERDE_WEB_BOT";
 import { UI_ZAMEEN_BASH_BOT } from "@/configs/UI_ZAMEEN_BASH_BOT";
+import { AppConfig } from "..";
+import { DEFAULT_APP_CONFIG } from "@/utils/config";
 
 /**
  * Generate a hash for session identification
@@ -176,6 +178,7 @@ export abstract class GamificationUI extends EventEmitter {
     protected postulationManager?: AgentPostulationManager;
     protected pendingPostulations: AgentPostulation[] = [];
     protected awaitingAgentSelection = false;
+    public appConfig ?: AppConfig = DEFAULT_APP_CONFIG; // Global app config for subclasses
 
     constructor(
         runtime: Runtime,
@@ -250,7 +253,11 @@ export abstract class GamificationUI extends EventEmitter {
      */
     initAlephScriptBot(bot?: AlephScriptClient): void {
         try {
-            this.alephScriptBot = bot || new AlephScriptClient(`${this.config.gameTitle || UI_ZAMEEN_BASH_BOT}`);
+            this.alephScriptBot = bot || 
+                new AlephScriptClient(
+                    `${this.config.gameTitle || UI_ZAMEEN_BASH_BOT}`, 
+                    (this.appConfig || DEFAULT_APP_CONFIG).launcher?.socketUrl || "http://localhost:3010"
+                );
             
             this.alephScriptBot.initTriggersDefinition.push(() => {
                 const ROOM_NAME = UI_ZAMEEN_BASH_BOT + "-" + this.alephScriptBot.name  + "_ROOM";

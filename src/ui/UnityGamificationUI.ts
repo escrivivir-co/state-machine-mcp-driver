@@ -128,7 +128,7 @@ export class UnityGamificationUI extends GamificationUI {
     // Step 3: Initialize AlephScript client for Socket.IO communication
     this.proserpinaBot = new AlephScriptClient(
       `UnityUI_${this.config.gameTitle}`,
-      "http://localhost:3000", // AlephScript server
+      this.appConfig?.launcher?.socketUrl || "http://localhost:3010", // AlephScript orchestrator server
       "/runtime", // namespace for UI communication
       true
     );

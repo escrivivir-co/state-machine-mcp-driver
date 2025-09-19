@@ -18,9 +18,9 @@ import { AgentPostulation } from '../models';
 import { Runtime } from '../runtime';
 import { MCPDriverAdapter } from '../drivers';
 import { Logger } from '../utils';
-import { AlephScriptFrontendClient } from './shared/AlephScriptFrontendClient';
 import { IOrchestratorChannels } from '../orchestration';
-import { AlephScriptClient } from '@alephscript/client';
+import { AlephScriptClient } from '@alephscript/core';
+
 
 /**
  * WebRTC-specific configuration extending base config
@@ -416,8 +416,10 @@ export class WebRTCGamificationUI extends GamificationUI {
   private async initializeAlephScriptIntegration(): Promise<void> {
     try {
       this.alephScriptClient = new AlephScriptClient(
-        `webrtc-ui-${Date.now()}`,
-        this.config.gameTitle || "WebRTC Gamification UI"
+        this.config.gameTitle || "WebRTC Gamification UI",
+        this.appConfig?.launcher?.socketUrl || "http://localhost:3010", // AlephScript orchestrator server
+        "/runtime",
+
       );
 
       await this.alephScriptClient.connect();

@@ -6,7 +6,7 @@
 import { OrchestratorConfig } from "@/orchestration";
 import { BaseGamificationUIConfig } from "./GamificationUI";
 import { MCPServerConfig } from "@/drivers";
-import { AppConfigMcpServers } from "@/utils/config";
+import { AppConfig, AppConfigMcpServers } from "@/utils/config";
 
 /**
  * UI Type identifiers

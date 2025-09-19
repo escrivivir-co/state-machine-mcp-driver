@@ -1,10 +1,11 @@
-import { SocketClient } from "@alephscript/socket-client";
+
 import {
   IOrchestratorChannels,
   SysMessage,
   UIMessage,
 } from "../orchestration/types";
 import { Logger } from "@/utils";
+import { SocketClient } from "@alephscript/core";
 import { Subscription } from "rxjs";
 
 const BORRAR_ESTADO_A_CADA_PLAY_STEP = true;

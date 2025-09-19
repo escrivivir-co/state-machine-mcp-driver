@@ -30,6 +30,7 @@ import { AlephScriptClient } from "../clients/alephscript-client";
 import { IOrchestratorChannels } from "../orchestration/types";
 import { Logger } from "../utils/logger";
 import { UI_ERDE_WEB_BOT } from "@/configs/UI_ERDE_WEB_BOT";
+import { DEFAULT_APP_CONFIG } from "@/utils/config";
 
 /**
  * Configuration for HTML5 Game UI (extends base config)
@@ -145,7 +146,7 @@ export class HTML5GamificationUI extends GamificationUI {
   initAlephScriptBot(): void {
     this.proserpinaBot = new AlephScriptClient(
       `${"UI_HTML_" + (this.config.gameTitle || UI_ERDE_WEB_BOT) }`,
-      "http://localhost:3000",
+      (this.appConfig || DEFAULT_APP_CONFIG).launcher?.socketUrl || "http://localhost:3010",
       "/runtime",
       true
     );
