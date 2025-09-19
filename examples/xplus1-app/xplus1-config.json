@@ -196,28 +196,6 @@
       }
     },
     {
-      "id": "unity-3d",
-      "name": "Unity 3D Interface",
-      "type": "unity",
-      "enabled": true,
-      "config": {
-        "gameTitle": "X+1 Game - Unity 3D",
-        "port": 9080,
-        "buildDir": "../unity-builds/webgl",
-        "unityBuildName": "index.html",
-        "corsOrigin": "*",
-        "enablePostulations": true,
-        "autoSelectSingleAgent": false,
-        "maxMessagesPerThread": 50,
-        "debugMode": true,
-        "welcomeMessage": "Welcome to X+1 Unity Experience",
-        "autoBuild": true,
-        "autoOpenBrowser": false,
-        "unityProjectPath": "../unity-project",
-        "unityBuildTarget": "WebGL"
-      }
-    },
-    {
       "id": "node-red-gamify-ui-manager",
       "name": "UI_Terra_RED_BOT",
       "type": "node-red-gamify-ui",
@@ -228,85 +206,6 @@
         "provideTemplate": true,
         "gameTitle": "Node-RED AlephScript Manager",
         "debugMode": true
-      }
-    },
-    {
-      "id": "webrtc-main",
-      "name": "UI_Gea_RTC_BOT",
-      "type": "webrtc",
-      "enabled": true,
-      "config": {
-        "gameTitle": "WebRTC Gamification Demo",
-        "port": 9096,
-        "staticDir": "./public_templates/web-rtc-gamify-ui",
-        "provideTemplate": true,
-        "autoOpenBrowser": false,
-        "corsOrigin": "*",
-        "debugMode": true,
-        "enablePostulations": true,
-        "autoSelectSingleAgent": false,
-        "maxMessagesPerThread": 50,
-        "welcomeMessage": "Welcome to WebRTC Real-time Communication Hub",
-        "isPrimary": true,
-        "priority": 10,
-        "maxConnections": 50,
-        "enableSignaling": true,
-        "iceServers": [
-          { "urls": "stun:stun.l.google.com:19302" },
-          { "urls": "stun:stun1.l.google.com:19302" }
-        ],
-        "roomSettings": {
-          "maxRoomsPerUser": 5,
-          "defaultRoomType": "public",
-          "autoCleanupInterval": 300000
-        },
-        "angularProjectPath": "../web-rtc-gamify-ui",
-        "features": [
-          "webrtc_p2p_communication",
-          "room_management",
-          "media_controls",
-          "file_sharing",
-          "real_time_chat",
-          "alephscript_integration"
-        ]
-      }
-    },
-    {
-      "id": "blockly-visual-editor",
-      "name": "UI_Blockly_Visual_BOT",
-      "type": "blockly-gamify-ui",
-      "enabled": true,
-      "config": {
-        "gameTitle": "Blockly Visual Programming - AlephScript",
-        "port": 9094,
-        "staticDir": "./public_templates/blockly-gamify-ui",
-        "provideTemplate": true,
-        "autoOpenBrowser": true,
-        "corsOrigin": "*",
-        "debugMode": true,
-        "enablePostulations": true,
-        "autoSelectSingleAgent": false,
-        "maxMessagesPerThread": 50,
-        "welcomeMessage": "Welcome to Visual Programming with Blockly AlephScript"
-      }
-    },
-    {
-      "id": "blockly-runtime-executor",
-      "name": "UI_Blockly_Runtime_BOT",
-      "type": "blockly-runtime-gamify-ui",
-      "enabled": true,
-      "config": {
-        "gameTitle": "Blockly Runtime Environment - AlephScript",
-        "port": 9099,
-        "staticDir": "./public_templates/blockly-runtime-gamify-ui",
-        "provideTemplate": true,
-        "autoOpenBrowser": false,
-        "corsOrigin": "http://localhost:9099",
-        "debugMode": true,
-        "enablePostulations": true,
-        "autoSelectSingleAgent": false,
-        "maxMessagesPerThread": 50,
-        "welcomeMessage": "Welcome to the Blockly Runtime Execution Environment"
       }
     }
   ]

@@ -1,0 +1,10 @@
+{
+  "name": "xplus1-app",
+  "version": "1.0.0",
+  "description": "",
+  "scripts": {
+    "inspector": "npx @modelcontextprotocol/inspector"
+  },
+  "author": "",
+  "license": "AIPL"
+}
